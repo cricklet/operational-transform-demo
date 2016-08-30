@@ -13,7 +13,12 @@ export type InsertOperation = {
   character: string,
 } & Operation
 
-export type TextOperation = DeleteOperation | InsertOperation
+export type ComposedOperation<TOperation> = {
+  kind: 'ComposedOperation',
+  operations: Array<TOperation>
+} & Operation
+
+export type TextOperation = DeleteOperation | InsertOperation | ComposedOperation<TextOperation>
 
 export type Operation = {
   uid: string
@@ -39,6 +44,14 @@ export function generateInsertOperation(position: number, character: string): In
   }
 }
 
+export function composeOperations<TOperation>(... operations: Array<TOperation>): ComposedOperation<TOperation> {
+  return {
+    uid: genUid(),
+    operations: operations,
+    kind: 'ComposedOperation',
+  }
+}
+
 export function performTextOperation(text: string, operation: TextOperation): string {
   if (operation.kind === 'DeleteOperation') {
     let deleteOp: DeleteOperation = operation;
@@ -54,6 +67,15 @@ export function performTextOperation(text: string, operation: TextOperation): st
       throw "Cannot delete character at " + insertOp.position + " from string of length " + text.length;
     }
     return text.substring(0, insertOp.position) + insertOp.character + text.substring(insertOp.position)
+  }
+
+  if (operation.kind === 'ComposedOperation') {
+    let composedOp: ComposedOperation<TextOperation> = operation;
+    let transformedText = text;
+    for (let innerOp of composedOp.operations) {
+      transformedText = performTextOperation(transformedText, innerOp)
+    }
+    return transformedText;
   }
 
   throw ("Unknown operation: " + operation)

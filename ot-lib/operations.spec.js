@@ -5,6 +5,7 @@ import * as assert from 'assert'
 import {
   generateDeleteOperation,
   generateInsertOperation,
+  composeOperations,
   performTextOperation
 } from './operations'
 
@@ -22,7 +23,18 @@ describe('performTextOperation()', () => {
     { text: '0123', op: generateDeleteOperation(1), result: '023' },
     { text: '0123', op: generateDeleteOperation(2), result: '013' },
     { text: '0123', op: generateDeleteOperation(3), result: '012' },
-    { text: '0123', op: generateDeleteOperation(4), throws: true },
+    { text: '', op: composeOperations(
+      generateInsertOperation(0, 'a'),
+      generateInsertOperation(1, 'b'),
+      generateInsertOperation(2, 'c'),
+      generateInsertOperation(3, 'd')
+    ), result: 'abcd' },
+    { text: '0123', op: composeOperations(
+      generateDeleteOperation(0),
+      generateInsertOperation(0, 'a'),
+      generateDeleteOperation(1),
+      generateInsertOperation(1, 'b')
+    ), result: 'ab23' },
   ].forEach((test) => {
     if (test.throws) {
       it ('raises an error for op: ' + test.op.kind + ' on text: ' + test.text, () => {
