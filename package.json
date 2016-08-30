@@ -3,7 +3,7 @@
   "scripts": {
     "flow": "flow; test $? -eq 0 -o $? -eq 2"
   },
-  "description": "An WIP operational transform library.",
+  "description": "operational transform",
   "author": "Kenrick Rilee",
   "dev": {},
   "devDependencies": {
