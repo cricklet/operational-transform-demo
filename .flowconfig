@@ -1,8 +1,9 @@
 [ignore]
+.*/node_modules/*
 
 [include]
 
 [libs]
-./ot-lib/*.js
+flow_lib
 
 [options]

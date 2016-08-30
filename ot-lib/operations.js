@@ -5,19 +5,18 @@ import { genUid } from './utils.js'
 export type DeleteOperation = {
   kind: 'DeleteOperation',
   position: number,
-} & TextOperation
+} & Operation
 
 export type InsertOperation = {
   kind: 'InsertOperation',
   position: number,
   character: string,
-} & TextOperation
+} & Operation
 
-export type TextOperation = Operation
+export type TextOperation = DeleteOperation | InsertOperation
 
 export type Operation = {
-  uid: string,
-  kind: string
+  uid: string
 }
 
 export function generateDeleteOperation(position: number): DeleteOperation {
@@ -45,10 +44,11 @@ export function performTextOperation(text: string, operation: TextOperation): st
     let deleteOp: DeleteOperation = operation;
     return text.substring(0, deleteOp.position) + text.substring(deleteOp.position + 1)
   }
-  else if (operation.kind === 'InsertOperation') {
+
+  if (operation.kind === 'InsertOperation') {
     let insertOp: InsertOperation = operation;
     return text.substring(0, insertOp.position) + insertOp.character + text.substring(insertOp.position)
   }
 
-  throw "Unknown operation: " + operation
+  throw ("Unknown operation: " + operation)
 }
