@@ -42,11 +42,17 @@ export function generateInsertOperation(position: number, character: string): In
 export function performTextOperation(text: string, operation: TextOperation): string {
   if (operation.kind === 'DeleteOperation') {
     let deleteOp: DeleteOperation = operation;
+    if (deleteOp.position < 0 || deleteOp.position >= text.length) {
+      throw "Cannot delete character at " + deleteOp.position + " from string of length " + text.length;
+    }
     return text.substring(0, deleteOp.position) + text.substring(deleteOp.position + 1)
   }
 
   if (operation.kind === 'InsertOperation') {
     let insertOp: InsertOperation = operation;
+    if (insertOp.position < 0 || insertOp.position > text.length) {
+      throw "Cannot delete character at " + insertOp.position + " from string of length " + text.length;
+    }
     return text.substring(0, insertOp.position) + insertOp.character + text.substring(insertOp.position)
   }
 
