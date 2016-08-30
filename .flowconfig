@@ -1,0 +1,8 @@
+[ignore]
+
+[include]
+
+[libs]
+./ot-lib/*.js
+
+[options]
