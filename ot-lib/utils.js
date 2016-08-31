@@ -1,5 +1,5 @@
 /* @flow */
 
 export function genUid(): string {
-  return Math.random().toString().substring(2, 6)
+  return Math.random().toString().substring(1, 8)
 }
