@@ -52,6 +52,10 @@ export function composeOperations<TOperation>(... operations: Array<TOperation>)
   }
 }
 
+export function emptyTextOperation(): TextOperation {
+  return composeOperations(); // silly
+}
+
 export function performTextOperation(text: string, operation: TextOperation): string {
   if (operation.kind === 'DeleteOperation') {
     let deleteOp: DeleteOperation = operation;
