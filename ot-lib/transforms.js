@@ -1,8 +1,25 @@
 /* @flow */
 
-import { genUid, assign, clone } from './utils.js'
+import {
+  genUid,
+  assign,
+  clone,
+  Greater,
+  Equal,
+  Less
+} from './utils.js'
 
-import type{
+import type {
+  Comparison
+} from './utils.js'
+
+import {
+  Greater,
+  Less,
+  Equal
+} from './utils.js'
+
+import type {
   Priority
 } from './priority.js'
 
@@ -20,10 +37,10 @@ import type {
   TextOperation
 } from './operations.js'
 
-export function transform(
+export function transformPair(
   o1: TextOperation,
   o2: TextOperation,
-  isHigherPriority: boolean
+  priority: Comparison
 ): [TextOperation, TextOperation] {
   // Given two operations, o1 & o2, generate two new operations
   // o1p & o2p such that: o2p(o1(...)) === o1p(o2(...))
@@ -32,108 +49,115 @@ export function transform(
   // o1 & o2, the caller should pass in whether o1 is higher priority
   // than o2.
 
-  return [o1, o2]
+  return [
+    transform(o1, o2, priority),
+    transform(o1, o2, - priority)
+  ]
 }
 
-function beforeInsert<T>(operation: T): T {
-  return clone(o1)
+export function transform(
+  o1: TextOperation,
+  o2: TextOperation,
+  priority: Comparison
+): TextOperation {
+  if (o1.kind === "InsertOperation") {
+    if (o2.kind === "InsertOperation") {
+      return transformInsertInsert(o1, o2, priority)
+    }
+    if (o2.kind === "DeleteOperation") {
+      return transformInsertDelete(o1, o2)
+    }
+  }
+  if (o1.kind === "DeleteOperation") {
+    if (o2.kind === "InsertOperation") {
+      return transformDeleteInsert(o1, o2)
+    }
+    if (o2.kind === "DeleteOperation") {
+      return transformDeleteDelete(o1, o2)
+    }
+  }
+
+  throw "wat"
 }
 
-function afterInsert<T>(operation: <T>): T {
-  return assign(clone(o1), {position: o1.position + 1})
+function before<T>(operation: T & {position: number}, otherOperation: TextOperation): T {
+  // Transform 'operation' so that it can be executed before 'otherOperation'.
+  // (This transformation does nothing)
+  return clone(operation)
 }
 
-function beforeDelete<T>(operation: T): T {
-  return clone(o1)
-}
-
-function afterDelete<T>(operation: <T>): T {
-  return assign(clone(o1), {position: o1.position - 1})
+function after<T>(operation: T & {position: number}, otherOperation: TextOperation): T {
+  // Transform 'operation' so that it can be executed after 'otherOperation'.
+  if (otherOperation.kind === "InsertOperation") {
+    return assign(clone(operation), {position: operation.position + 1})
+  }
+  if (otherOperation.kind === "DeleteOperation") {
+    return assign(clone(operation), {position: operation.position - 1})
+  }
+  throw "wat"
 }
 
 export function transformInsertInsert(
   o1: InsertOperation,
   o2: InsertOperation,
-  isHigherPriority: boolean
+  priority: Comparison
 ): TextOperation {
-  // possible transformed operations
-  let empty  = () => emptyTextOperation();
-  let before = () => clone(o1);
-  let after  = () => assign(clone(o1), {position: o1.position + 1})
-
   if (o1.character === o2.character && o1.position === o2.position)
-    return empty()
+    return emptyTextOperation()
 
   if (o1.position < o2.position)
-    return before()
+    return before(o1, o2)
 
   if (o1.position > o2.position)
-    return after()
+    return after(o1, o2)
 
-  if (isHigherPriority)
-    return after()
+  if (priority === Greater)
+    return after(o1, o2)
 
-  if (!isHigherPriority)
-    return before()
+  if (priority === Less)
+    return before(o1, o2)
 
   throw "wat"
 }
 
 export function transformDeleteDelete(
   o1: DeleteOperation,
-  o2: DeleteOperation,
-  p1: Priority,
-  p2: Priority
+  o2: DeleteOperation
 ): TextOperation {
-  // possible transformed operations
-  let empty  = () => emptyTextOperation();
-  let before = () => clone(o1);
-  let after  = () => assign(clone(o1), {position: o1.position - 1})
-
-  if (o1.character === o2.character && o1.position === o2.position)
-    return empty()
+  if (o1.position === o2.position)
+    return emptyTextOperation()
 
   if (o1.position < o2.position)
-    return before()
+    return before(o1, o2)
 
   if (o1.position > o2.position)
-    return after()
-
-  if (p1 > p2)
-    return after()
-
-  if (p1 < p2)
-    return before()
+    return after(o1, o2)
 
   throw "wat"
 }
 
 export function transformInsertDelete(
   o1: InsertOperation,
-  o2: DeleteOperation,
-  p1: Priority,
-  p2: Priority
+  o2: DeleteOperation
 ): TextOperation {
-  if (o1.position < o2.position)
-    return clone(o1)
+  if (o1.position <= o2.position)
+    return before(o1, o2)
 
-  if (o1.position >= o2.position)
-    return assign(clone(o1), {position: o1.position - 1})
+  if (o1.position > o2.position)
+    return after(o1, o2)
 
   throw "wat"
 }
 
 export function transformDeleteInsert(
   o1: DeleteOperation,
-  o2: InsertOperation,
-  p1: Priority,
-  p2: Priority
+  o2: InsertOperation
 ): TextOperation {
   if (o1.position < o2.position)
     return clone(o1)
 
   if (o1.position >= o2.position)
-    return assign(clone(o1), {position: o1.position + 1})
+    return after(o1, o2)
 
   throw "wat"
 }
