@@ -1,6 +1,6 @@
 /* @flow */
 
-import { genUid, range, Greater, Equal, Less } from './utils.js'
+import { genUid, range, maxOfIterable, Greater, Equal, Less } from './utils.js'
 import type { Comparison } from './utils.js'
 import type { TextOperation, DeleteOperation, InsertOperation } from './operations.js'
 
@@ -38,10 +38,21 @@ export function comparePriorities(p0: Priority, p1: Priority): Comparison {
   throw "wat"
 }
 
-export function generatePriority(operation: DeleteOperation | InsertOperation, site: Site, log: Log): Priority {
-  let conflictingLog = log.filter((logEntry: LogEntry) => {
-    return logEntry.sourceOperation.position == operation.position
-  })
+export function generatePriority(
+  operation: DeleteOperation | InsertOperation,
+  site: Site,
+  log: Log
+): Priority {
+  let conflictingLogs = log.filter((logEntry: LogEntry) =>
+    logEntry.sourceOperation.position == operation.position)
+
+  if (conflictingLogs.length === 0) {
+    return [site]
+  }
+
+  let conflictingLog: LogEntry = maxOfIterable(
+    conflictingLogs,
+    (t0, t1) => comparePriorities(t0.priority, t1.priority))
 
   throw "wat"
 }

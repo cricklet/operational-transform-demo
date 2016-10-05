@@ -28,5 +28,8 @@
     "observe-js": "^0.5.7",
     "sinon": "^1.17.5",
     "webpack": "^1.13.1"
+  },
+  "devDependencies": {
+    "chai": "^3.5.0"
   }
 }
