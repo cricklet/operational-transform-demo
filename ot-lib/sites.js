@@ -1,6 +1,6 @@
 /* @flow */
 
-import { genUid, Greater, Equal, Less } from './utils.js'
+import { genUid, range, Greater, Equal, Less } from './utils.js'
 import type { Comparison } from './utils.js'
 import type { TextOperation, DeleteOperation, InsertOperation } from './operations.js'
 
@@ -25,6 +25,16 @@ export function generateSite(): Site {
 }
 
 export function comparePriorities(p0: Priority, p1: Priority): Comparison {
+  for (let i of range(Math.max(p0.length, p1.length))) {
+    if (p0[i] === p1[i]) continue
+    if (p0[i] < p1[i]) return Less
+    if (p0[i] < p1[i]) return Greater // larger has priority
+  }
+
+  if (p0.length === p1.length) return Equal
+  if (p0.length < p1.length) return Less
+  if (p0.length > p1.length) return Greater
+
   throw "wat"
 }
 
