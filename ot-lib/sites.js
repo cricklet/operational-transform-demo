@@ -24,7 +24,7 @@ export function generateSite(): Site {
   return Math.round(Math.random() * 1000);
 }
 
-export function comparePriorities(p0: Priority, p1: Priority): Comparison {
+export function priorityComparitor(p0: Priority, p1: Priority): Comparison {
   for (let i of range(Math.max(p0.length, p1.length))) {
     if (p0[i] === p1[i]) continue
     if (p0[i] < p1[i]) return Less
@@ -33,7 +33,7 @@ export function comparePriorities(p0: Priority, p1: Priority): Comparison {
 
   if (p0.length === p1.length) return Equal
   if (p0.length < p1.length) return Less
-  if (p0.length > p1.length) return Greater
+  if (p0.length > p1.length) return Greater // longer has priority
 
   throw "wat"
 }
@@ -43,16 +43,17 @@ export function generatePriority(
   site: Site,
   log: Log
 ): Priority {
+  // compile a list of past conflicting operations
   let conflictingLogs = log.filter((logEntry: LogEntry) =>
     logEntry.sourceOperation.position == operation.position)
 
-  if (conflictingLogs.length === 0) {
-    return [site]
-  }
+  if (conflictingLogs.length === 0) { return [site] }
 
+  // get the highest priority past conflict
   let conflictingLog: LogEntry = maxOfIterable(
     conflictingLogs,
-    (t0, t1) => comparePriorities(t0.priority, t1.priority))
+    (t0, t1) => priorityComparitor(t0.priority, t1.priority))
 
-  throw "wat"
+  // our priority is built on the conflicting priority
+  return conflictingLog.priority.concat(site) // not mutating :)
 }

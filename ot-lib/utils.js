@@ -5,6 +5,11 @@ export let Equal = 0
 export let Less = -1
 export type Comparison = 1 | 0 | -1
 
+export type Comparitor<T> = (a: T, b: T) => Comparison
+// returns Greater if a  >  b
+//         Less    if a  <  b
+//         Equal   if a === b
+
 export function genUid(): string {
   return Math.random().toString().substring(2, 6)
 }
@@ -31,7 +36,7 @@ export function * range(stop: number): Generator<number, void, void> {
 
 export function maxOfIterable<T>(
   ts: Iterable<T>,
-  comparitor: ((t0: T, t1: T) => Comparison)
+  comparitor: Comparitor<T>
 ): T {
   let maxT = undefined
   for (let t of ts) {
