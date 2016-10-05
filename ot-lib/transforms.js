@@ -26,14 +26,12 @@ import type {
 import {
   generateInsertOperation,
   generateDeleteOperation,
-  composeOperations,
   nullTextOperation
 } from './operations.js'
 
 import type {
   InsertOperation,
   DeleteOperation,
-  ComposedOperation,
   TextOperation
 } from './operations.js'
 

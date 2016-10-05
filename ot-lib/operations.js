@@ -17,12 +17,7 @@ export type NullOperation = {
   kind: 'NullOperation',
 } & Operation
 
-export type ComposedOperation<TOperation> = {
-  kind: 'ComposedOperation',
-  operations: Array<TOperation>
-} & Operation
-
-export type TextOperation = DeleteOperation | InsertOperation | NullOperation | ComposedOperation<TextOperation>
+export type TextOperation = DeleteOperation | InsertOperation | NullOperation
 
 export type Operation = {
   uid: string
@@ -48,14 +43,6 @@ export function generateInsertOperation(position: number, character: string): In
   }
 }
 
-export function composeOperations<TOperation>(... operations: Array<TOperation>): ComposedOperation<TOperation> {
-  return {
-    uid: genUid(),
-    operations: operations,
-    kind: 'ComposedOperation',
-  }
-}
-
 export function nullTextOperation(): TextOperation {
   return {
     uid: genUid(),
@@ -78,15 +65,6 @@ export function performTextOperation(text: string, operation: TextOperation): st
       throw "Cannot delete character at " + insertOp.position + " from string of length " + text.length;
     }
     return text.substring(0, insertOp.position) + insertOp.character + text.substring(insertOp.position)
-  }
-
-  if (operation.kind === 'ComposedOperation') {
-    let composedOp: ComposedOperation<TextOperation> = operation;
-    let transformedText = text;
-    for (let innerOp of composedOp.operations) {
-      transformedText = performTextOperation(transformedText, innerOp)
-    }
-    return transformedText;
   }
 
   if (operation.kind === 'NullOperation') {
