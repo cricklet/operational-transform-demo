@@ -21,13 +21,13 @@ import {
 
 import type {
   Priority
-} from './priority.js'
+} from './sites.js'
 
 import {
   generateInsertOperation,
   generateDeleteOperation,
   composeOperations,
-  emptyTextOperation
+  nullTextOperation
 } from './operations.js'
 
 import type {
@@ -103,7 +103,7 @@ export function transformInsertInsert(
   priority: Comparison
 ): TextOperation {
   if (o1.character === o2.character && o1.position === o2.position)
-    return emptyTextOperation()
+    return nullTextOperation()
 
   if (o1.position < o2.position)
     return before(o1, o2)
@@ -125,7 +125,7 @@ export function transformDeleteDelete(
   o2: DeleteOperation
 ): TextOperation {
   if (o1.position === o2.position)
-    return emptyTextOperation()
+    return nullTextOperation()
 
   if (o1.position < o2.position)
     return before(o1, o2)

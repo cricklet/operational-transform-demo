@@ -13,12 +13,16 @@ export type InsertOperation = {
   character: string,
 } & Operation
 
+export type NullOperation = {
+  kind: 'NullOperation',
+} & Operation
+
 export type ComposedOperation<TOperation> = {
   kind: 'ComposedOperation',
   operations: Array<TOperation>
 } & Operation
 
-export type TextOperation = DeleteOperation | InsertOperation | ComposedOperation<TextOperation>
+export type TextOperation = DeleteOperation | InsertOperation | NullOperation | ComposedOperation<TextOperation>
 
 export type Operation = {
   uid: string
@@ -52,8 +56,11 @@ export function composeOperations<TOperation>(... operations: Array<TOperation>)
   }
 }
 
-export function emptyTextOperation(): TextOperation {
-  return composeOperations(); // silly
+export function nullTextOperation(): TextOperation {
+  return {
+    uid: genUid(),
+    kind: 'NullOperation'
+  }
 }
 
 export function performTextOperation(text: string, operation: TextOperation): string {
@@ -80,6 +87,10 @@ export function performTextOperation(text: string, operation: TextOperation): st
       transformedText = performTextOperation(transformedText, innerOp)
     }
     return transformedText;
+  }
+
+  if (operation.kind === 'NullOperation') {
+    return text;
   }
 
   throw ("Unknown operation: " + operation)
