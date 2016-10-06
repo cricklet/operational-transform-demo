@@ -4,14 +4,37 @@ import { genUid, range, maxOfIterable, Greater, Equal, Less } from './utils.js'
 import type { Comparison } from './utils.js'
 import type { TextOperation, DeleteOperation, InsertOperation } from './operations.js'
 
-export type LogEntry = {
-  sourceSite: Site,
-  sourceState: SiteState,
+/* a queue of requests waiting to be executed
+ *
+ * requests are added when:
+ *  1) site process receives a request from the network
+ *  2) site process receives a request from site's user
+ *
+ * entries are removed when the site process determines that the requested
+ * operation may be executed
+ *
+ * note, this is not FIFO */
+export type Requests = Array<Request>
+
+export type Request = {
+  sourceSite: Site, // originating site - can be the local site
   sourceOperation: DeleteOperation | InsertOperation, // untransformed
+  sourceState: SiteState, // source state @ time of operation
   priority: Priority
 }
 
+/* a log of requests executed at this site
+ *
+ * the log is ordered by insertion
+ */
 export type Log = Array<LogEntry>
+
+export type LogEntry = {
+  sourceSite: Site, // source of operation - can be the local site
+  localOperation: DeleteOperation | InsertOperation, // transformed
+  localState: SiteState, // local state @ time of operation
+  priority: Priority // priority from the source
+}
 
 export type SiteState = {
   [site: Site]: number // how many operations from some site have been executed here?
@@ -44,8 +67,8 @@ export function generatePriority(
   log: Log
 ): Priority {
   // compile a list of past conflicting operations
-  let conflictingLogs = log.filter((logEntry: LogEntry) =>
-    logEntry.sourceOperation.position == operation.position)
+  let conflictingLogs = log.filter((log: LogEntry) =>
+    log.localOperation.position == operation.position)
 
   if (conflictingLogs.length === 0) { return [site] }
 
