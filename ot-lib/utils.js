@@ -1,8 +1,8 @@
 /* @flow */
 
-export let Greater = 1
-export let Equal = 0
-export let Less = -1
+export let Greater = 'Greater'
+export let Equal = 'Equal'
+export let Less = 'Less'
 export type Comparison = 1 | 0 | -1
 
 export type Comparitor<T> = (a: T, b: T) => Comparison

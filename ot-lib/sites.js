@@ -25,10 +25,10 @@ export function generateSite(): Site {
 }
 
 export function priorityComparitor(p0: Priority, p1: Priority): Comparison {
-  for (let i of range(Math.max(p0.length, p1.length))) {
+  for (let i of range(Math.min(p0.length, p1.length))) {
     if (p0[i] === p1[i]) continue
     if (p0[i] < p1[i]) return Less
-    if (p0[i] < p1[i]) return Greater // larger has priority
+    if (p0[i] > p1[i]) return Greater // larger has priority
   }
 
   if (p0.length === p1.length) return Equal
