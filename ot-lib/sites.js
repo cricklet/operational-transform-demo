@@ -1,6 +1,6 @@
 /* @flow */
 
-import { genUid, range, maxOfIterable, allKeys, clone, Greater, Equal, Less } from './utils.js'
+import { concat, genUid, range, maxOfIterable, allKeys, clone, Greater, Equal, Less } from './utils.js'
 import type { Comparison } from './utils.js'
 import type { TextOperation, DeleteOperation, InsertOperation } from './operations.js'
 
@@ -106,5 +106,5 @@ export function generatePriority(
     (t0, t1) => priorityComparitor(t0.priority, t1.priority))
 
   // our priority is built on the conflicting priority
-  return conflictingLog.priority.concat(site) // not mutating :)
+  return concat(conflictingLog.priority, site)
 }

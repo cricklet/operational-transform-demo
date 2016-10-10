@@ -60,3 +60,7 @@ export function * allKeys(a: Object, b: Object): Generator<string, void, void> {
     seenKeys[key] = true
   }
 }
+
+export function concat<T>(a: Array<T>, t: T): Array<T> {
+  return a.concat(t) // not mutating :)
+}
