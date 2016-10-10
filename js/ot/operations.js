@@ -1,6 +1,6 @@
 /* @flow */
 
-import { genUid } from './utils.js'
+import { genUid, firstDifference, lastDifference, repeat, concat } from './utils.js'
 
 export type DeleteOperation = {
   kind: 'DeleteOperation',
@@ -23,13 +23,30 @@ export type Operation = {
   uid: string
 }
 
-export function generateOperation(oldText: string, newText: string): TextOperation {
+export function generateOperation(oldText: string, newText: string): Array<TextOperation> {
   if (oldText.length === newText.length) {
     // either we have a no-op
     if (oldText === newText) {
-      return nullTextOperation();
+      return [nullTextOperation()];
     }
     // or we have a selection being overwritten
+    let start = firstDifference(oldText, newText)
+    let end = lastDifference(oldText, newText)
+
+    let deletes: Array<TextOperation> = Array.from(
+      repeat(
+        end - start + 1,
+        (i) => generateDeleteOperation(start)))
+
+    let inserts: Array<TextOperation> = Array.from(
+      repeat(
+        end - start + 1,
+        (i) => {
+          let index = start + i
+          return generateInsertOperation(index, newText[index])
+        }))
+
+    return concat(deletes, inserts)
   }
 
   throw 'wat'

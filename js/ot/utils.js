@@ -47,6 +47,36 @@ export function * reverseSpecificRange(start: number, stop: number, step: number
   }
 }
 
+export function firstDifference(text0: string, text1:string) {
+  for (let i of range(Math.max(text0.length, text1.length))) {
+    if (text0[i] !== text1[i]) {
+      return i
+    }
+  }
+  return -1
+}
+
+export function lastDifference(text0: string, text1:string) {
+  let length = text0.length
+
+  if (text0.length !== text1.length) {
+    throw 'The last difference between two strings only works if they are the same length'
+  }
+
+  for (let i of reverseRange(length)) {
+    if (text0[i] !== text1[i]) {
+      return i
+    }
+  }
+  return -1
+}
+
+export function * repeat<T>(num: number, f: (i: ?number) => T): Generator<T, void, void> {
+  for (let i of range(num)) {
+    yield f(i)
+  }
+}
+
 export function maxOfIterable<T>(
   ts: Iterable<T>,
   comparitor: Comparitor<T>
@@ -74,7 +104,7 @@ export function * allKeys(a: Object, b: Object): Generator<string, void, void> {
   }
 }
 
-export function concat<T>(a: Array<T>, t: T): Array<T> {
+export function concat<T>(a: Array<T>, t: (T | Array<T>)): Array<T> {
   return a.concat(t) // not mutating :)
 }
 

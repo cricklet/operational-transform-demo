@@ -11,8 +11,12 @@ import {
   specificRange,
   reverseRange,
   reverseSpecificRange,
+  firstDifference,
+  lastDifference,
   maxOfIterable,
-  allKeys
+  allKeys,
+  repeat,
+  concat
 } from './utils'
 
 import type { Comparison } from './utils.js'
@@ -44,6 +48,59 @@ describe('iterators', () => {
     assert.deepEqual(
       Array.from(reverseSpecificRange(2, 10, 3)),
       Array.from(specificRange(2, 10, 3)).reverse())
+  })
+})
+
+describe('repeat', () => {
+  it ('counts', () => {
+    let counter = (i) => { return i }
+
+    assert.deepEqual(
+      Array.from(repeat(10, counter)),
+      [0,1,2,3,4,5,6,7,8,9])
+  })
+})
+
+describe('concat', () => {
+  it ('works', () => {
+    assert.deepEqual(
+      concat([1,2,3], [4,5,6]),
+      [1,2,3,4,5,6])
+    assert.deepEqual(
+      concat([1,2,3], 4),
+      [1,2,3,4])
+  })
+})
+
+describe('string diffing', () => {
+  it ('firstDifference() works', () => {
+    assert.deepEqual(
+      firstDifference(
+        '012345asdf',
+        '0123456789'),
+      6)
+    assert.deepEqual(
+      firstDifference(
+        '012345asdf',
+        '012345'),
+      6)
+    assert.deepEqual(
+      firstDifference(
+        '012345',
+        '012345'),
+      -1)
+  })
+  it ('lastDifference() works', () => {
+    assert.deepEqual(
+      lastDifference(
+        '0123456789',
+        'asdfas6789'),
+      5)
+    assert.deepEqual(
+      lastDifference(
+        '0123456789',
+        '0123456789'),
+      -1)
   })
 })
 
