@@ -1,6 +1,6 @@
 /* @flow */
 
-import { genUid, range, maxOfIterable, Greater, Equal, Less } from './utils.js'
+import { genUid, range, maxOfIterable, allKeys, clone, Greater, Equal, Less } from './utils.js'
 import type { Comparison } from './utils.js'
 import type { TextOperation, DeleteOperation, InsertOperation } from './operations.js'
 
@@ -31,20 +31,48 @@ export type Log = Array<LogEntry>
 
 export type LogEntry = {
   sourceSite: Site, // source of operation - can be the local site
+  sourceOperation: SiteState, // source state @ time of operation
   localOperation: DeleteOperation | InsertOperation, // transformed
   localState: SiteState, // local state @ time of operation
   priority: Priority // priority from the source
 }
 
 export type SiteState = {
-  [site: Site]: number // how many operations from some site have been executed here?
+  [site: SiteString]: number // how many operations from some site have been executed here?
 }
 
 export type Priority = Array<Site>;
 export type Site = number;
+export type SiteString = string;
 
 export function generateSite(): Site {
   return Math.round(Math.random() * 1000);
+}
+
+export function updateStateWithOperation(
+  localState: SiteState,
+  sourceSite: SiteString
+): SiteState {
+  let newState = clone(localState)
+  newState[sourceSite] = (newState[sourceSite] || 0) + 1
+  return newState
+}
+
+export function stateComparitor(s0: SiteState, s1: SiteState): Comparison {
+  for (let site of allKeys(s0, s1)) {
+    let numExecuted0 = s0[site] || 0
+    let numExecuted1 = s1[site] || 0
+
+    if (numExecuted0 > numExecuted1) {
+      return Greater
+    }
+
+    if (numExecuted0 < numExecuted1) {
+      return Less
+    }
+  }
+
+  return Equal
 }
 
 export function priorityComparitor(p0: Priority, p1: Priority): Comparison {

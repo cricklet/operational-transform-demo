@@ -51,3 +51,12 @@ export function maxOfIterable<T>(
 
   return maxT
 }
+
+export function * allKeys(a: Object, b: Object): Generator<string, void, void> {
+  let seenKeys = {}
+  for (let key of Object.keys(a).concat(Object.keys(b))) {
+    if (key in seenKeys) continue
+    yield key
+    seenKeys[key] = true
+  }
+}

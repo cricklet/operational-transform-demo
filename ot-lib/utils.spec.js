@@ -9,7 +9,8 @@ import {
   Less,
   range,
   specificRange,
-  maxOfIterable
+  maxOfIterable,
+  allKeys
 } from './utils'
 
 import type { Comparison } from './utils.js'
@@ -35,5 +36,13 @@ describe('maxOfIterable', () => {
     let ints = [2,5,3,6,1,9,3,5]
     let maxInt = Math.max(...ints)
     assert.equal(maxInt, maxOfIterable(ints, intComparitor))
+  })
+})
+
+describe('allKeys', () => {
+  it ('works', () => {
+    expect(
+      Array.from(allKeys({'a': 1, 'b': 2, 'c': 3}, {'b': 4, 'c': 4, 'd': 5})))
+      .to.include.members(['a', 'b', 'c', 'd'])
   })
 })
