@@ -91,14 +91,14 @@ export function priorityComparitor(p0: Priority, p1: Priority): Comparison {
 
 export function generatePriority(
   operation: DeleteOperation | InsertOperation,
-  site: Site,
+  sourceSite: Site,
   log: Log
 ): Priority {
   // compile a list of past conflicting operations
   let conflictingLogs = log.filter((log: LogEntry) =>
     log.localOperation.position == operation.position)
 
-  if (conflictingLogs.length === 0) { return [site] }
+  if (conflictingLogs.length === 0) { return [sourceSite] }
 
   // get the highest priority past conflict
   let conflictingLog: LogEntry = maxOfIterable(
@@ -106,5 +106,5 @@ export function generatePriority(
     (t0, t1) => priorityComparitor(t0.priority, t1.priority))
 
   // our priority is built on the conflicting priority
-  return concat(conflictingLog.priority, site)
+  return concat(conflictingLog.priority, sourceSite)
 }

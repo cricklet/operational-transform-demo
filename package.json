@@ -30,6 +30,7 @@
     "webpack": "^1.13.1"
   },
   "devDependencies": {
-    "chai": "^3.5.0"
+    "chai": "^3.5.0",
+    "webpack": "^1.13.2"
   }
 }
