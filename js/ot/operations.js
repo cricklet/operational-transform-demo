@@ -23,6 +23,18 @@ export type Operation = {
   uid: string
 }
 
+export function generateOperation(oldText: string, newText: string): TextOperation {
+  if (oldText.length === newText.length) {
+    // either we have a no-op
+    if (oldText === newText) {
+      return nullTextOperation();
+    }
+    // or we have a selection being overwritten
+  }
+
+  throw 'wat'
+}
+
 export function generateDeleteOperation(position: number): DeleteOperation {
   return {
     uid: genUid(),

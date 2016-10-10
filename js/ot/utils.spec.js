@@ -9,6 +9,8 @@ import {
   Less,
   range,
   specificRange,
+  reverseRange,
+  reverseSpecificRange,
   maxOfIterable,
   allKeys
 } from './utils'
@@ -17,12 +19,31 @@ import type { Comparison } from './utils.js'
 
 describe('iterators', () => {
   it ('range() works', () => {
-    expect(Array.from(range(6)))
-      .to.include.members([0,1,2,3,4,5])
+    assert.deepEqual(
+      Array.from(range(6)),
+      [0,1,2,3,4,5])
   })
+  it ('reverseRange() works', () => {
+    assert.deepEqual(
+      Array.from(reverseRange(6)),
+      [5,4,3,2,1,0])
+  })
+
   it ('specificRange() works', () => {
-    expect(Array.from(specificRange(2, 10, 2)))
-      .to.include.members([4,6,8])
+    assert.deepEqual(
+      Array.from(specificRange(2, 9, 2)),
+      [2,4,6,8])
+  })
+  it ('reverseSpecificRange() matches specificRange()', () => {
+    assert.deepEqual(
+      Array.from(reverseSpecificRange(2, 9, 2)),
+      Array.from(specificRange(2, 9, 2)).reverse())
+    assert.deepEqual(
+      Array.from(reverseSpecificRange(2, 10, 2)),
+      Array.from(specificRange(2, 10, 2)).reverse())
+    assert.deepEqual(
+      Array.from(reverseSpecificRange(2, 10, 3)),
+      Array.from(specificRange(2, 10, 3)).reverse())
   })
 })
 

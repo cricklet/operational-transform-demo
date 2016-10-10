@@ -34,6 +34,19 @@ export function * range(stop: number): Generator<number, void, void> {
   }
 }
 
+export function * reverseRange(stop: number): Generator<number, void, void> {
+  for (let i of reverseSpecificRange(0, stop, 1)) {
+    yield i;
+  }
+}
+
+export function * reverseSpecificRange(start: number, stop: number, step: number): Generator<number, void, void> {
+  let actualStop = start + (Math.ceil((stop - start) / step) - 1) * step // this is tested ;)
+  for (let i = actualStop; i >= start; i -= step) {
+    yield i;
+  }
+}
+
 export function maxOfIterable<T>(
   ts: Iterable<T>,
   comparitor: Comparitor<T>
@@ -63,4 +76,16 @@ export function * allKeys(a: Object, b: Object): Generator<string, void, void> {
 
 export function concat<T>(a: Array<T>, t: T): Array<T> {
   return a.concat(t) // not mutating :)
+}
+
+export function * characters (s: string): Generator<string, void, void> {
+  for (let c of s) {
+    yield c
+  }
+}
+
+export function * reverse (s: string): Generator<string, void, void> {
+  for (let i of range(s.length)) {
+    yield s[i]
+  }
 }
