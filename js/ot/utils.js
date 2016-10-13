@@ -1,5 +1,7 @@
 /* @flow */
 
+import { zip, zipLongest } from 'wu'
+
 export let Greater = 1
 export let Equal = 0
 export let Less = -1
@@ -47,31 +49,34 @@ export function * reverseSpecificRange(start: number, stop: number, step: number
   }
 }
 
-export function firstDifference(text0: string, text1:string) {
-  for (let i of range(Math.max(text0.length, text1.length))) {
-    if (text0[i] !== text1[i]) {
+export function * reverseString(s: string): Generator<string, void, void> {
+  for (let i of reverseRange(s.length)) {
+    yield s[i]
+  }
+}
+
+export function * counter(): Generator<number, void, void> {
+  let i = 0
+  while (true) {
+    yield i
+    i += 1
+  }
+}
+
+export function firstDifference(text0: Iterable<string>, text1: Iterable<string>) {
+  for (let [[c0, c1], i] of zip(zipLongest(text0, text1), counter())) {
+    if (c0 != c1) {
       return i
     }
   }
   return -1
 }
 
-export function lastDifference(text0: string, text1:string) {
-  let length = text0.length
-
-  if (text0.length !== text1.length) {
-    throw 'The last difference between two strings only works if they are the same length'
-  }
-
-  for (let i of reverseRange(length)) {
-    if (text0[i] !== text1[i]) {
-      return i
-    }
-  }
-  return -1
+export function lastDifference(text0: string, text1:string): number {
+  return firstDifference(reverseString(text0), reverseString(text1))
 }
 
-export function * repeat<T>(num: number, f: (i: ?number) => T): Generator<T, void, void> {
+export function * repeat<T>(num: number, f: (i: number) => T): Generator<T, void, void> {
   for (let i of range(num)) {
     yield f(i)
   }

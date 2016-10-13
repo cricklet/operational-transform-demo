@@ -23,33 +23,52 @@ export type Operation = {
   uid: string
 }
 
-export function generateOperation(oldText: string, newText: string): Array<TextOperation> {
+export function inferOperations(oldText: string, newText: string): Array<TextOperation> {
   if (oldText.length === newText.length) {
     // either we have a no-op
     if (oldText === newText) {
-      return [nullTextOperation()];
+      return [];
     }
-    // or we have a selection being overwritten
-    let start = firstDifference(oldText, newText)
-    let end = lastDifference(oldText, newText)
-
-    let deletes: Array<TextOperation> = Array.from(
-      repeat(
-        end - start + 1,
-        (i) => generateDeleteOperation(start)))
-
-    let inserts: Array<TextOperation> = Array.from(
-      repeat(
-        end - start + 1,
-        (i) => {
-          let index = start + i
-          return generateInsertOperation(index, newText[index])
-        }))
-
-    return concat(deletes, inserts)
   }
 
-  throw 'wat'
+  if (newText.length === 0) {
+    return Array.from(repeat(
+      oldText.length,
+      (i) => generateDeleteOperation(0)))
+  }
+
+  if (oldText.length === 0) {
+    return Array.from(repeat(
+      newText.length,
+      (i) => generateInsertOperation(i, newText[i])))
+  }
+
+  // or we have a selection being overwritten. this is well tested!
+  let endOffset = lastDifference(oldText, newText)
+  let startOffset = firstDifference(oldText, newText)
+
+  let start = startOffset
+  let endOld = oldText.length - endOffset
+  let endNew = newText.length - endOffset
+  console.log(oldText)
+  console.log(newText)
+  console.log(startOffset, endOffset)
+
+  let deletes: Array<TextOperation> = Array.from(
+    repeat(
+      endOld - start,
+      (i) => generateDeleteOperation(start)))
+
+  let inserts: Array<TextOperation> = Array.from(
+    repeat(
+      endNew - start,
+      (i) => {
+        console.log('insert', i)
+        let index = start + i
+        return generateInsertOperation(index, newText[index])
+      }))
+
+  return concat(deletes, inserts)
 }
 
 export function generateDeleteOperation(position: number): DeleteOperation {
@@ -77,6 +96,17 @@ export function nullTextOperation(): TextOperation {
     uid: genUid(),
     kind: 'NullOperation'
   }
+}
+
+export function performOperations(
+  originalText: string,
+  operations: Array<TextOperation>
+): string {
+  let text = originalText
+  for (let op of operations) {
+    text = performTextOperation(text, op)
+  }
+  return text
 }
 
 export function performTextOperation(text: string, operation: TextOperation): string {

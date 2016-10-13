@@ -75,32 +75,42 @@ describe('concat', () => {
 describe('string diffing', () => {
   it ('firstDifference() works', () => {
     assert.deepEqual(
+      6,
       firstDifference(
         '012345asdf',
-        '0123456789'),
-      6)
+        '0123456789'))
     assert.deepEqual(
+      6,
       firstDifference(
         '012345asdf',
-        '012345'),
-      6)
+        '012345'))
     assert.deepEqual(
+      -1,
       firstDifference(
         '012345',
-        '012345'),
-      -1)
+        '012345'))
   })
   it ('lastDifference() works', () => {
     assert.deepEqual(
+      3,
       lastDifference(
-        '0123456789',
-        'asdfas6789'),
-      5)
+        '9876543210',
+        'asdfasd210'))
     assert.deepEqual(
+      -1,
       lastDifference(
-        '0123456789',
-        '0123456789'),
-      -1)
+        '9876543210',
+        '9876543210'))
+    assert.deepEqual(
+      3,
+      lastDifference(
+        '9876543210',
+        '210'))
+    assert.deepEqual(
+      0,
+      lastDifference(
+        '9876543210',
+        '987'))
   })
 })
 
