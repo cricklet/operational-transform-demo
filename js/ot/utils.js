@@ -63,7 +63,7 @@ export function * counter(): Generator<number, void, void> {
   }
 }
 
-export function firstDifference(text0: Iterable<string>, text1: Iterable<string>) {
+export function calculatePrefixLength(text0: Iterable<string>, text1: Iterable<string>) {
   for (let [[c0, c1], i] of zip(zipLongest(text0, text1), counter())) {
     if (c0 != c1) {
       return i
@@ -72,8 +72,8 @@ export function firstDifference(text0: Iterable<string>, text1: Iterable<string>
   return -1
 }
 
-export function lastDifference(text0: string, text1:string): number {
-  return firstDifference(reverseString(text0), reverseString(text1))
+export function calculatePostfixLength(text0: string, text1: string): number {
+  return calculatePrefixLength(reverseString(text0), reverseString(text1))
 }
 
 export function * repeat<T>(num: number, f: (i: number) => T): Generator<T, void, void> {
@@ -113,8 +113,49 @@ export function concat<T>(a: Array<T>, t: (T | Array<T>)): Array<T> {
   return a.concat(t) // not mutating :)
 }
 
-export function * characters (s: string): Generator<string, void, void> {
-  for (let c of s) {
+export function * characters (
+  s: string,
+  indices: ?Generator<number, void, void>
+): Generator<string, void, void> {
+  if (!indices) {
+    indices = range(s.length);
+  }
+
+  for (let i of indices) {
+    yield s[i]
+  }
+}
+
+export function defaults<T> (t: ?T, def: T): T {
+  if (t === undefined || t === null) {
+    return def;
+  }
+
+  return t;
+}
+
+export function * substring (
+  s: string,
+  opt: {
+    start?: number,
+    stop?:  number,
+    step?:  number
+  }
+): Generator<string, void, void> {
+  let start: number = defaults(opt.start, 0);
+  let stop:  number = defaults(opt.stop, s.length);
+  let step:  number = defaults(opt.step, 1);
+
+  for (let c of characters(s, specificRange(start, stop, step))) {
+    yield c
+  }
+}
+
+export function * removeTail (
+  s: string,
+  n: number
+): Generator<string, void, void> {
+  for (let c of substring(s, { stop: s.length - n })) {
     yield c
   }
 }

@@ -11,12 +11,15 @@ import {
   specificRange,
   reverseRange,
   reverseSpecificRange,
-  firstDifference,
-  lastDifference,
+  calculatePrefixLength,
+  calculatePostfixLength,
   maxOfIterable,
   allKeys,
   repeat,
-  concat
+  concat,
+  characters,
+  substring,
+  removeTail
 } from './utils'
 
 import type { Comparison } from './utils.js'
@@ -72,43 +75,79 @@ describe('concat', () => {
   })
 })
 
+describe('characters', () => {
+  it ('works', () => {
+    assert.deepEqual(
+      Array.from(characters('asdf')),
+      ['a','s','d','f'])
+    assert.deepEqual(
+      Array.from(characters('asdf', range(2))),
+      ['a','s'])
+  })
+})
+
+describe('removeTail', () => {
+  it ('works', () => {
+    assert.deepEqual(
+      Array.from(removeTail('asdf', 1)),
+      ['a','s','d'])
+    assert.deepEqual(
+      Array.from(removeTail('asdf', 2)),
+      ['a','s'])
+  })
+})
+
+describe('substring', () => {
+  it ('works', () => {
+    assert.deepEqual(
+      Array.from(substring('012345', {'start': 3})),
+      ['3','4','5'])
+    assert.deepEqual(
+      Array.from(substring('012345', {'start': 3, 'stop': 5})),
+      ['3','4'])
+    assert.deepEqual(
+      Array.from(substring('012345', {'step': 2})),
+      ['0','2','4'])
+  })
+})
+
 describe('string diffing', () => {
-  it ('firstDifference() works', () => {
+  it ('calculatePrefixLength() works', () => {
     assert.deepEqual(
       6,
-      firstDifference(
+      calculatePrefixLength(
         '012345asdf',
         '0123456789'))
     assert.deepEqual(
       6,
-      firstDifference(
+      calculatePrefixLength(
         '012345asdf',
         '012345'))
     assert.deepEqual(
       -1,
-      firstDifference(
+      calculatePrefixLength(
         '012345',
         '012345'))
   })
-  it ('lastDifference() works', () => {
+  it ('calculatePostfixLength() works', () => {
     assert.deepEqual(
       3,
-      lastDifference(
+      calculatePostfixLength(
         '9876543210',
         'asdfasd210'))
     assert.deepEqual(
       -1,
-      lastDifference(
+      calculatePostfixLength(
         '9876543210',
         '9876543210'))
     assert.deepEqual(
       3,
-      lastDifference(
+      calculatePostfixLength(
         '9876543210',
         '210'))
     assert.deepEqual(
       0,
-      lastDifference(
+      calculatePostfixLength(
         '9876543210',
         '987'))
   })

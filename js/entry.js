@@ -1,3 +1,7 @@
+/* @flow */
+
+import { inferOperations } from './ot/operations.js'
+
 $(document).ready(() => {
   let $textarea = $('#local-text')
   let textarea = $textarea[0]
@@ -10,7 +14,9 @@ $(document).ready(() => {
     let newText = $textarea.val()
     let newCursorStart = $textarea.prop("selectionStart")
     let newCursorEnd = $textarea.prop("selectionEnd")
-    console.log(newText.length)
 
+    let ops = inferOperations(text, newText)
+    console.log(ops)
+    text = newText
   })
 })

@@ -1,6 +1,6 @@
 /* @flow */
 
-import { genUid, firstDifference, lastDifference, repeat, concat } from './utils.js'
+import { genUid, calculatePrefixLength, calculatePostfixLength, repeat, concat, substring, removeTail } from './utils.js'
 
 export type DeleteOperation = {
   kind: 'DeleteOperation',
@@ -44,15 +44,13 @@ export function inferOperations(oldText: string, newText: string): Array<TextOpe
   }
 
   // or we have a selection being overwritten. this is well tested!
-  let endOffset = lastDifference(oldText, newText)
-  let startOffset = firstDifference(oldText, newText)
+  let postfixLength = calculatePostfixLength(oldText, newText)
+  let newTextLeftover = removeTail(newText, postfixLength)
+  let prefixLength = calculatePrefixLength(oldText, newTextLeftover)
 
-  let start = startOffset
-  let endOld = oldText.length - endOffset
-  let endNew = newText.length - endOffset
-  console.log(oldText)
-  console.log(newText)
-  console.log(startOffset, endOffset)
+  let start = prefixLength
+  let endOld = oldText.length - postfixLength
+  let endNew = newText.length - postfixLength
 
   let deletes: Array<TextOperation> = Array.from(
     repeat(
@@ -63,7 +61,6 @@ export function inferOperations(oldText: string, newText: string): Array<TextOpe
     repeat(
       endNew - start,
       (i) => {
-        console.log('insert', i)
         let index = start + i
         return generateInsertOperation(index, newText[index])
       }))
