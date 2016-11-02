@@ -81,7 +81,7 @@ export function stateComparitor(s0: SiteState, s1: SiteState): Comparison {
 }
 
 export function priorityComparitor(p0: Priority, p1: Priority): Comparison {
-  for (let i of range(Math.min(p0.length, p1.length))) {
+  for (let i of range(Math.min(p0.length, p1.length))()) {
     if (p0[i] === p1[i]) continue
     if (p0[i] < p1[i]) return Less
     if (p0[i] > p1[i]) return Greater // larger has priority
@@ -107,7 +107,7 @@ export function generatePriority(
 
   // get the highest priority past conflict
   let conflictingLog: LogEntry = maxOfIterable(
-    conflictingLogs,
+    () => conflictingLogs,
     (t0, t1) => priorityComparitor(t0.priority, t1.priority))
 
   // our priority is built on the conflicting priority

@@ -2,6 +2,8 @@
 
 import { zip, zipLongest } from 'wu'
 
+export type Reiterable<T> = () => Iterable<T>
+
 export let Greater = 1
 export let Equal = 0
 export let Less = -1
@@ -24,33 +26,49 @@ export function assign<T>(t: T, o: Object): T {
   return Object.assign(t, o)
 }
 
-export function * specificRange(start: number, stop: number, step: number): Generator<number, void, void> {
-  for (let i = start; i < stop; i += step) {
-    yield i;
+export function specificRange(start: number, stop: number, step: number): Reiterable<number> {
+  return function * () {
+    for (let i = start; i < stop; i += step) {
+      yield i;
+    }
   }
 }
 
-export function * range(stop: number): Generator<number, void, void> {
-  yield * specificRange(0, stop, 1)
-}
-
-export function * reverseRange(stop: number): Generator<number, void, void> {
-  for (let i of reverseSpecificRange(0, stop, 1)) {
-    yield i;
+export function map<T1, T2>(t1s: Reiterable<T1>, f: (t1: T1) => T2): Reiterable<T2> {
+  return function * () {
+    for (let t1 of t1s()) {
+      yield f(t1)
+    }
   }
 }
 
-export function * reverseSpecificRange(start: number, stop: number, step: number): Generator<number, void, void> {
-  let actualStop = start + (Math.ceil((stop - start) / step) - 1) * step // this is tested ;)
-  for (let i = actualStop; i >= start; i -= step) {
-    yield i;
+export function rearray<T>(is: Reiterable<T>): Array<T> {
+  return Array.from(is())
+}
+
+export function restring<T>(is: Reiterable<T>): string {
+  return Array.from(is()).join('')
+}
+
+export function range(stop: number): Reiterable<number> {
+  return specificRange(0, stop, 1)
+}
+
+export function reverseRange(stop: number): Reiterable<number> {
+  return reverseSpecificRange(0, stop, 1)
+}
+
+export function reverseSpecificRange(start: number, stop: number, step: number): Reiterable<number> {
+  return function * () {
+    let actualStop = start + (Math.ceil((stop - start) / step) - 1) * step // this is tested ;)
+    for (let i = actualStop; i >= start; i -= step) {
+      yield i;
+    }
   }
 }
 
-export function * reverseString(s: string): Generator<string, void, void> {
-  for (let i of reverseRange(s.length)) {
-    yield s[i]
-  }
+export function reverseString(s: string): Reiterable<string> {
+  return map(reverseRange(s.length), i => s[i])
 }
 
 export function * counter(): Generator<number, void, void> {
@@ -61,16 +79,16 @@ export function * counter(): Generator<number, void, void> {
   }
 }
 
-export function length<T>(s: Iterable<T>): number {
+export function length<T>(s: Reiterable<T>): number {
   let length = 0
-  for (let c of s) {
+  for (let c of s()) {
     length += 1
   }
   return length
 }
 
-export function calculatePrefixLength(text0: Iterable<string>, text1: Iterable<string>) {
-  for (let [[c0, c1], i] of zip(zipLongest(text0, text1), counter())) {
+export function calculatePrefixLength(text0: Reiterable<string>, text1: Reiterable<string>) {
+  for (let [[c0, c1], i] of zip(zipLongest(text0(), text1()), counter())) {
     if (c0 != c1) {
       return i
     }
@@ -82,18 +100,16 @@ export function calculatePostfixLength(text0: string, text1: string): number {
   return calculatePrefixLength(reverseString(text0), reverseString(text1))
 }
 
-export function * repeat<T>(num: number, f: (i: number) => T): Generator<T, void, void> {
-  for (let i of range(num)) {
-    yield f(i)
-  }
+export function repeat<T>(num: number, f: (i: number) => T): Reiterable<T> {
+  return map(range(num), f)
 }
 
 export function maxOfIterable<T>(
-  ts: Iterable<T>,
+  ts: Reiterable<T>,
   comparitor: Comparitor<T>
 ): T {
   let maxT = undefined
-  for (let t of ts) {
+  for (let t of ts()) {
     if (maxT === undefined || comparitor(t, maxT) === Greater) {
       maxT = t
     }
@@ -123,17 +139,15 @@ export function push<T1, T2>(a: Array<T1>, t: T2): Array<T1 | T2> {
   return a.concat(t) // not mutating :)
 }
 
-export function * characters (
+export function characters (
   s: string,
-  indices: ?Generator<number, void, void>
-): Generator<string, void, void> {
+  indices: ?Reiterable<number>
+): Reiterable<string> {
   if (!indices) {
     indices = range(s.length);
   }
 
-  for (let i of indices) {
-    yield s[i]
-  }
+  return map(indices, i => s[i])
 }
 
 export function defaults<T> (t: ?T, def: T): T {
@@ -144,30 +158,28 @@ export function defaults<T> (t: ?T, def: T): T {
   return t;
 }
 
-export function * substring (
+export function substring (
   s: string,
   opt: {
     start?: number,
     stop?:  number,
     step?:  number
   }
-): Generator<string, void, void> {
+): Reiterable<string> {
   let start: number = defaults(opt.start, 0);
   let stop:  number = defaults(opt.stop, s.length);
   let step:  number = defaults(opt.step, 1);
 
-  yield * characters(s, specificRange(start, stop, step))
+  return characters(s, specificRange(start, stop, step))
 }
 
-export function * removeTail (
+export function removeTail (
   s: string,
   n: number
-): Generator<string, void, void> {
-  yield * substring(s, { stop: s.length - n })
+): Reiterable<string> {
+  return substring(s, { stop: s.length - n })
 }
 
-export function * reverse (s: string): Generator<string, void, void> {
-  for (let i of range(s.length)) {
-    yield s[s.length - i - 1]
-  }
+export function reverse (s: string): Reiterable<string> {
+  return map(range(s.length), i => s[s.length - i - 1])
 }

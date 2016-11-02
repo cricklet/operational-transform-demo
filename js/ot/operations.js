@@ -1,6 +1,6 @@
 /* @flow */
 
-import { genUid, calculatePrefixLength, calculatePostfixLength, repeat, concat, substring, removeTail } from './utils.js'
+import { genUid, calculatePrefixLength, calculatePostfixLength, repeat, concat, substring, removeTail, rearray, restring } from './utils.js'
 
 export type DeleteOperation = {
   kind: 'DeleteOperation',
@@ -28,13 +28,13 @@ export function inferOperations(oldText: string, newText: string): Array<TextOpe
   }
 
   if (newText.length === 0) {
-    return Array.from(repeat(
+    return rearray(repeat(
       oldText.length,
       (i) => generateDeleteOperation(0)))
   }
 
   if (oldText.length === 0) {
-    return Array.from(repeat(
+    return rearray(repeat(
       newText.length,
       (i) => generateInsertOperation(i, newText[i])))
   }
@@ -42,18 +42,19 @@ export function inferOperations(oldText: string, newText: string): Array<TextOpe
   // or we have a selection being overwritten. this is well tested!
   let postfixLength = calculatePostfixLength(oldText, newText)
   let newTextLeftover = removeTail(newText, postfixLength)
-  let prefixLength = calculatePrefixLength(oldText, newTextLeftover)
+  let oldTextLeftover = removeTail(oldText, postfixLength)
+  let prefixLength = calculatePrefixLength(oldTextLeftover, newTextLeftover)
 
   let start = prefixLength
   let endOld = oldText.length - postfixLength
   let endNew = newText.length - postfixLength
 
-  let deletes: Array<DeleteOperation> = Array.from(
+  let deletes: Array<DeleteOperation> = rearray(
     repeat(
       endOld - start,
       (i) => generateDeleteOperation(start)))
 
-  let inserts: Array<InsertOperation> = Array.from(
+  let inserts: Array<InsertOperation> = rearray(
     repeat(
       endNew - start,
       (i) => {

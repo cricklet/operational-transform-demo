@@ -1,3 +1,5 @@
+/* @flow weak */
+
 "use strict"
 
 import * as assert from 'assert'
@@ -20,7 +22,8 @@ import {
   characters,
   substring,
   removeTail,
-  reverse
+  reverse,
+  rearray
 } from './utils'
 
 import type { Comparison } from './utils.js'
@@ -28,30 +31,30 @@ import type { Comparison } from './utils.js'
 describe('iterators', () => {
   it ('range() works', () => {
     assert.deepEqual(
-      Array.from(range(6)),
+      rearray(range(6)),
       [0,1,2,3,4,5])
   })
   it ('reverseRange() works', () => {
     assert.deepEqual(
-      Array.from(reverseRange(6)),
+      rearray(reverseRange(6)),
       [5,4,3,2,1,0])
   })
 
   it ('specificRange() works', () => {
     assert.deepEqual(
-      Array.from(specificRange(2, 9, 2)),
+      rearray(specificRange(2, 9, 2)),
       [2,4,6,8])
   })
   it ('reverseSpecificRange() matches specificRange()', () => {
     assert.deepEqual(
-      Array.from(reverseSpecificRange(2, 9, 2)),
-      Array.from(specificRange(2, 9, 2)).reverse())
+      rearray(reverseSpecificRange(2, 9, 2)),
+      rearray(specificRange(2, 9, 2)).reverse())
     assert.deepEqual(
-      Array.from(reverseSpecificRange(2, 10, 2)),
-      Array.from(specificRange(2, 10, 2)).reverse())
+      rearray(reverseSpecificRange(2, 10, 2)),
+      rearray(specificRange(2, 10, 2)).reverse())
     assert.deepEqual(
-      Array.from(reverseSpecificRange(2, 10, 3)),
-      Array.from(specificRange(2, 10, 3)).reverse())
+      rearray(reverseSpecificRange(2, 10, 3)),
+      rearray(specificRange(2, 10, 3)).reverse())
   })
 })
 
@@ -60,7 +63,7 @@ describe('repeat', () => {
     let counter = (i) => { return i }
 
     assert.deepEqual(
-      Array.from(repeat(10, counter)),
+      rearray(repeat(10, counter)),
       [0,1,2,3,4,5,6,7,8,9])
   })
 })
@@ -71,7 +74,7 @@ describe('concat', () => {
       concat([1,2,3], [4,5,6]),
       [1,2,3,4,5,6])
     assert.deepEqual(
-      concat([1,2,3], 4),
+      concat([1,2,3], [4]),
       [1,2,3,4])
   })
 })
@@ -79,7 +82,7 @@ describe('concat', () => {
 describe('reverse', () => {
   it ('works', () => {
     assert.deepEqual(
-      Array.from(reverse('asdf')),
+      rearray(reverse('asdf')),
       ['f', 'd', 's', 'a'])
   })
 })
@@ -87,10 +90,10 @@ describe('reverse', () => {
 describe('characters', () => {
   it ('works', () => {
     assert.deepEqual(
-      Array.from(characters('asdf')),
+      rearray(characters('asdf')),
       ['a','s','d','f'])
     assert.deepEqual(
-      Array.from(characters('asdf', range(2))),
+      rearray(characters('asdf', range(2))),
       ['a','s'])
   })
 })
@@ -98,10 +101,10 @@ describe('characters', () => {
 describe('removeTail', () => {
   it ('works', () => {
     assert.deepEqual(
-      Array.from(removeTail('asdf', 1)),
+      rearray(removeTail('asdf', 1)),
       ['a','s','d'])
     assert.deepEqual(
-      Array.from(removeTail('asdf', 2)),
+      rearray(removeTail('asdf', 2)),
       ['a','s'])
   })
 })
@@ -109,13 +112,13 @@ describe('removeTail', () => {
 describe('substring', () => {
   it ('works', () => {
     assert.deepEqual(
-      Array.from(substring('012345', {'start': 3})),
+      rearray(substring('012345', {'start': 3})),
       ['3','4','5'])
     assert.deepEqual(
-      Array.from(substring('012345', {'start': 3, 'stop': 5})),
+      rearray(substring('012345', {'start': 3, 'stop': 5})),
       ['3','4'])
     assert.deepEqual(
-      Array.from(substring('012345', {'step': 2})),
+      rearray(substring('012345', {'step': 2})),
       ['0','2','4'])
   })
 })
@@ -125,18 +128,18 @@ describe('string diffing', () => {
     assert.deepEqual(
       6,
       calculatePrefixLength(
-        '012345asdf',
-        '0123456789'))
+        () => '012345asdf',
+        () => '0123456789'))
     assert.deepEqual(
       6,
       calculatePrefixLength(
-        '012345asdf',
-        '012345'))
+        () => '012345asdf',
+        () => '012345'))
     assert.deepEqual(
       6,
       calculatePrefixLength(
-        '012345',
-        '012345'))
+        () => '012345',
+        () => '012345'))
   })
   it ('calculatePostfixLength() works', () => {
     assert.deepEqual(
@@ -171,7 +174,7 @@ describe('maxOfIterable', () => {
     }
     let ints = [2,5,3,6,1,9,3,5]
     let maxInt = Math.max(...ints)
-    assert.equal(maxInt, maxOfIterable(ints, intComparitor))
+    assert.equal(maxInt, maxOfIterable(() => ints, intComparitor))
   })
 })
 

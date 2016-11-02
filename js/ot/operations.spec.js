@@ -1,3 +1,5 @@
+/* @flow weak */
+
 "use strict"
 
 import * as assert from 'assert'
@@ -52,6 +54,8 @@ describe('inferOperations() & performOperations()', () => {
       newText: '011' },
     { oldText: '0',
       newText: '00' },
+    { oldText: '10',
+      newText: '100' },
     { oldText: '0 2 4',
       newText: '0 4' },
     { oldText: '0  3  6',
@@ -101,7 +105,7 @@ describe('inferOperations() & performOperations()', () => {
     { oldText: 'mary had a little lamb',
       newText: 'mary qwerty has asdf a little zxcv lamb' }
   ].forEach((test) => {
-    it ('handles "' + test.oldText + '" -> "' + test.newText + '"', () => {
+    it.only ('handles "' + test.oldText + '" -> "' + test.newText + '"', () => {
       let ops = inferOperations(test.oldText, test.newText)
       assert.equal(test.newText, performOperations(test.oldText, ops))
     })
