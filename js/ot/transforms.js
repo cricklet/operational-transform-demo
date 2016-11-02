@@ -25,8 +25,7 @@ import type {
 
 import {
   generateInsertOperation,
-  generateDeleteOperation,
-  nullTextOperation
+  generateDeleteOperation
 } from './operations.js'
 
 import type {
@@ -39,7 +38,7 @@ export function transformPair(
   o1: TextOperation,
   o2: TextOperation,
   priority: Comparison
-): [TextOperation, TextOperation] {
+): [?TextOperation, ?TextOperation] {
   // Given two operations, o1 & o2, generate two new operations
   // o1p & o2p such that: o2p(o1(...)) === o1p(o2(...))
 
@@ -57,7 +56,7 @@ export function transform(
   o1: TextOperation,
   o2: TextOperation,
   priority: Comparison
-): TextOperation {
+): ?TextOperation {
   if (o1.kind === "InsertOperation") {
     if (o2.kind === "InsertOperation") {
       return transformInsertInsert(o1, o2, priority)
@@ -99,9 +98,9 @@ export function transformInsertInsert(
   o1: InsertOperation,
   o2: InsertOperation,
   priority: Comparison
-): TextOperation {
+): ?TextOperation {
   if (o1.character === o2.character && o1.position === o2.position)
-    return nullTextOperation()
+    return null
 
   if (o1.position < o2.position)
     return before(o1, o2)
@@ -121,9 +120,9 @@ export function transformInsertInsert(
 export function transformDeleteDelete(
   o1: DeleteOperation,
   o2: DeleteOperation
-): TextOperation {
+): ?TextOperation {
   if (o1.position === o2.position)
-    return nullTextOperation()
+    return null
 
   if (o1.position < o2.position)
     return before(o1, o2)

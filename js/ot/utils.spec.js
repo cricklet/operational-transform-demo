@@ -19,7 +19,8 @@ import {
   concat,
   characters,
   substring,
-  removeTail
+  removeTail,
+  reverse
 } from './utils'
 
 import type { Comparison } from './utils.js'
@@ -75,6 +76,14 @@ describe('concat', () => {
   })
 })
 
+describe('reverse', () => {
+  it ('works', () => {
+    assert.deepEqual(
+      Array.from(reverse('asdf')),
+      ['f', 'd', 's', 'a'])
+  })
+})
+
 describe('characters', () => {
   it ('works', () => {
     assert.deepEqual(
@@ -124,7 +133,7 @@ describe('string diffing', () => {
         '012345asdf',
         '012345'))
     assert.deepEqual(
-      -1,
+      6,
       calculatePrefixLength(
         '012345',
         '012345'))
@@ -136,10 +145,10 @@ describe('string diffing', () => {
         '9876543210',
         'asdfasd210'))
     assert.deepEqual(
-      -1,
+      6,
       calculatePostfixLength(
-        '9876543210',
-        '9876543210'))
+        '012345',
+        '012345'))
     assert.deepEqual(
       3,
       calculatePostfixLength(

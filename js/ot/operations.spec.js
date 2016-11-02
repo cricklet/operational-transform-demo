@@ -46,6 +46,12 @@ describe('inferOperations() & performOperations()', () => {
         'mary had a little lamb'))
   });
   [
+    { oldText: '012',
+      newText: '0112' },
+    { oldText: '01',
+      newText: '011' },
+    { oldText: '0',
+      newText: '00' },
     { oldText: '0 2 4',
       newText: '0 4' },
     { oldText: '0  3  6',

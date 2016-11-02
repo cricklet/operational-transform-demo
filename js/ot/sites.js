@@ -1,6 +1,6 @@
 /* @flow */
 
-import { concat, genUid, range, maxOfIterable, allKeys, clone, Greater, Equal, Less } from './utils.js'
+import { push, concat, genUid, range, maxOfIterable, allKeys, clone, Greater, Equal, Less } from './utils.js'
 import type { Comparison } from './utils.js'
 import type { TextOperation, DeleteOperation, InsertOperation } from './operations.js'
 
@@ -17,8 +17,9 @@ import type { TextOperation, DeleteOperation, InsertOperation } from './operatio
 export type Requests = Array<Request>
 
 export type Request = {
+  kind: 'Request',
   sourceSite: Site, // originating site - can be the local site
-  sourceOperation: DeleteOperation | InsertOperation, // untransformed
+  sourceOperation: TextOperation, // untransformed
   sourceState: SiteState, // source state @ time of operation
   priority: Priority
 }
@@ -30,28 +31,32 @@ export type Request = {
 export type Log = Array<LogEntry>
 
 export type LogEntry = {
+  kind: 'LogEntry',
   sourceSite: Site, // source of operation - can be the local site
-  sourceOperation: SiteState, // source state @ time of operation
-  localOperation: DeleteOperation | InsertOperation, // transformed
+  sourceState: SiteState, // source state @ time of operation
+  localOperation: TextOperation, // transformed
   localState: SiteState, // local state @ time of operation
   priority: Priority // priority from the source
 }
 
 export type SiteState = {
-  [site: SiteString]: number // how many operations from some site have been executed here?
+  [site: Site]: number // how many operations from some site have been executed here?
 }
 
 export type Priority = Array<Site>;
-export type Site = number;
-export type SiteString = string;
+export type Site = string;
 
 export function generateSite(): Site {
-  return Math.round(Math.random() * 1000);
+  return "" + Math.round(Math.random() * 1000)
+}
+
+export function generateState(): SiteState {
+  return {}
 }
 
 export function updateStateWithOperation(
   localState: SiteState,
-  sourceSite: SiteString
+  sourceSite: Site
 ): SiteState {
   let newState = clone(localState)
   newState[sourceSite] = (newState[sourceSite] || 0) + 1
@@ -90,7 +95,7 @@ export function priorityComparitor(p0: Priority, p1: Priority): Comparison {
 }
 
 export function generatePriority(
-  operation: DeleteOperation | InsertOperation,
+  operation: TextOperation,
   sourceSite: Site,
   log: Log
 ): Priority {
@@ -106,5 +111,5 @@ export function generatePriority(
     (t0, t1) => priorityComparitor(t0.priority, t1.priority))
 
   // our priority is built on the conflicting priority
-  return concat(conflictingLog.priority, sourceSite)
+  return push(conflictingLog.priority, sourceSite)
 }

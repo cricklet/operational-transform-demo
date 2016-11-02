@@ -13,11 +13,7 @@ export type InsertOperation = {
   character: string,
 } & Operation
 
-export type NullOperation = {
-  kind: 'NullOperation',
-} & Operation
-
-export type TextOperation = DeleteOperation | InsertOperation | NullOperation
+export type TextOperation = TextOperation
 
 export type Operation = {
   uid: string
@@ -52,12 +48,12 @@ export function inferOperations(oldText: string, newText: string): Array<TextOpe
   let endOld = oldText.length - postfixLength
   let endNew = newText.length - postfixLength
 
-  let deletes: Array<TextOperation> = Array.from(
+  let deletes: Array<DeleteOperation> = Array.from(
     repeat(
       endOld - start,
       (i) => generateDeleteOperation(start)))
 
-  let inserts: Array<TextOperation> = Array.from(
+  let inserts: Array<InsertOperation> = Array.from(
     repeat(
       endNew - start,
       (i) => {
@@ -88,13 +84,6 @@ export function generateInsertOperation(position: number, character: string): In
   }
 }
 
-export function nullTextOperation(): TextOperation {
-  return {
-    uid: genUid(),
-    kind: 'NullOperation'
-  }
-}
-
 export function performOperations(
   originalText: string,
   operations: Array<TextOperation>
@@ -121,10 +110,6 @@ export function performTextOperation(text: string, operation: TextOperation): st
       throw "Cannot delete character at " + insertOp.position + " from string of length " + text.length;
     }
     return text.substring(0, insertOp.position) + insertOp.character + text.substring(insertOp.position)
-  }
-
-  if (operation.kind === 'NullOperation') {
-    return text;
   }
 
   throw ("Unknown operation: " + operation)

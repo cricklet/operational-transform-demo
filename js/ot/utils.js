@@ -31,9 +31,7 @@ export function * specificRange(start: number, stop: number, step: number): Gene
 }
 
 export function * range(stop: number): Generator<number, void, void> {
-  for (let i of specificRange(0, stop, 1)) {
-    yield i;
-  }
+  yield * specificRange(0, stop, 1)
 }
 
 export function * reverseRange(stop: number): Generator<number, void, void> {
@@ -63,13 +61,21 @@ export function * counter(): Generator<number, void, void> {
   }
 }
 
+export function length<T>(s: Iterable<T>): number {
+  let length = 0
+  for (let c of s) {
+    length += 1
+  }
+  return length
+}
+
 export function calculatePrefixLength(text0: Iterable<string>, text1: Iterable<string>) {
   for (let [[c0, c1], i] of zip(zipLongest(text0, text1), counter())) {
     if (c0 != c1) {
       return i
     }
   }
-  return -1
+  return Math.max(length(text0), length(text1))
 }
 
 export function calculatePostfixLength(text0: string, text1: string): number {
@@ -109,7 +115,11 @@ export function * allKeys(a: Object, b: Object): Generator<string, void, void> {
   }
 }
 
-export function concat<T>(a: Array<T>, t: (T | Array<T>)): Array<T> {
+export function concat<T1, T2>(a: Array<T1>, t: Array<T2>): Array<T1 | T2> {
+  return a.concat(t) // not mutating :)
+}
+
+export function push<T1, T2>(a: Array<T1>, t: T2): Array<T1 | T2> {
   return a.concat(t) // not mutating :)
 }
 
@@ -146,22 +156,18 @@ export function * substring (
   let stop:  number = defaults(opt.stop, s.length);
   let step:  number = defaults(opt.step, 1);
 
-  for (let c of characters(s, specificRange(start, stop, step))) {
-    yield c
-  }
+  yield * characters(s, specificRange(start, stop, step))
 }
 
 export function * removeTail (
   s: string,
   n: number
 ): Generator<string, void, void> {
-  for (let c of substring(s, { stop: s.length - n })) {
-    yield c
-  }
+  yield * substring(s, { stop: s.length - n })
 }
 
 export function * reverse (s: string): Generator<string, void, void> {
   for (let i of range(s.length)) {
-    yield s[i]
+    yield s[s.length - i - 1]
   }
 }
