@@ -1,9 +1,12 @@
-/* @flow weak */
+/* @flow */
 
 "use strict"
 
-import * as assert from 'assert'
 import { expect } from 'chai'
+import { spy } from 'sinon'
+
+// @flow-ignore
+import { assert, should } from 'chai'
 
 import {
   Greater,
@@ -171,6 +174,7 @@ describe('maxOfIterable', () => {
       if (x > y) return Greater
       if (x < y) return Less
       if (x === y) return Equal
+      throw 'wat'
     }
     let ints = [2,5,3,6,1,9,3,5]
     let maxInt = Math.max(...ints)

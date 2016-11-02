@@ -1,9 +1,12 @@
-/* @flow weak */
+/* @flow */
 
 "use strict"
 
-import * as assert from 'assert'
 import { expect } from 'chai'
+import { spy } from 'sinon'
+
+// @flow-ignore
+import { assert, should } from 'chai'
 
 import {
   Greater,

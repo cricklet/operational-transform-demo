@@ -6,3 +6,4 @@
 flow_lib
 
 [options]
+suppress_comment= @flow-ignore

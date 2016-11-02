@@ -2,7 +2,11 @@
 
 "use strict"
 
-import * as assert from 'assert'
+import { expect } from 'chai'
+import { spy } from 'sinon'
+
+// @flow-ignore
+import { assert, should } from 'chai'
 
 import {
   generateDeleteOperation,
@@ -109,7 +113,7 @@ describe('inferOperations() & performOperations()', () => {
     { oldText: 'mary had a little lamb',
       newText: 'mary qwerty has asdf a little zxcv lamb' }
   ].forEach((test) => {
-    it.only ('handles "' + test.oldText + '" -> "' + test.newText + '"', () => {
+    it ('handles "' + test.oldText + '" -> "' + test.newText + '"', () => {
       let ops = inferOperations(test.oldText, test.newText)
       assert.equal(test.newText, performOperations(test.oldText, ops))
     })
