@@ -13,7 +13,7 @@ export type InsertOperation = {
   character: string,
 } & Operation
 
-export type TextOperation = TextOperation
+export type TextOperation = DeleteOperation | InsertOperation
 
 export type Operation = {
   uid: string

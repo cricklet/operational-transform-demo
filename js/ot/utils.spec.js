@@ -26,6 +26,7 @@ import {
   substring,
   removeTail,
   reverse,
+  reverseString,
   rearray
 } from './utils'
 
@@ -85,7 +86,7 @@ describe('concat', () => {
 describe('reverse', () => {
   it ('works', () => {
     assert.deepEqual(
-      rearray(reverse('asdf')),
+      rearray(reverseString('asdf')),
       ['f', 'd', 's', 'a'])
   })
 })

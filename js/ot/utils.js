@@ -180,6 +180,16 @@ export function removeTail (
   return substring(s, { stop: s.length - n })
 }
 
-export function reverse (s: string): Reiterable<string> {
-  return map(range(s.length), i => s[s.length - i - 1])
+export function reverse <T> (arr: Array<T>): Reiterable<T> {
+  return map(reverseRange(arr.length), i => arr[i])
+}
+
+export function findIndex <T> (f: (t: T) => bool, arr: Array<T>): ?number {
+  for (let [t, i] of zip(arr, counter())) {
+    if (f(t)) {
+      return i
+    }
+  }
+
+  return undefined
 }

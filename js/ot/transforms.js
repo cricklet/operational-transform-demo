@@ -13,12 +13,6 @@ import type {
   Comparison
 } from './utils.js'
 
-import {
-  Greater,
-  Less,
-  Equal
-} from './utils.js'
-
 import type {
   Priority
 } from './sites.js'
@@ -48,7 +42,7 @@ export function transformPair(
 
   return [
     transform(o1, o2, priority),
-    transform(o1, o2, - priority)
+    transform(o2, o1, - priority)
   ]
 }
 

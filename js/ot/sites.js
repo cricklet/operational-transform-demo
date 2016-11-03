@@ -26,7 +26,7 @@ export type Request = {
 
 /* a log of requests executed at this site
  *
- * the log is ordered by insertion
+ * the log is ordered by insertion i.e. [oldest, old, new, newest]
  */
 export type Log = Array<LogEntry>
 
@@ -64,20 +64,25 @@ export function updateStateWithOperation(
 }
 
 export function stateComparitor(s0: SiteState, s1: SiteState): Comparison {
+  let numGreater = 0
+  let numLess = 0
+
   for (let site of allKeys(s0, s1)) {
     let numExecuted0 = s0[site] || 0
     let numExecuted1 = s1[site] || 0
 
     if (numExecuted0 > numExecuted1) {
-      return Greater
+      numGreater ++
     }
 
     if (numExecuted0 < numExecuted1) {
-      return Less
+      numLess ++
     }
   }
 
-  return Equal
+  if (numGreater === 0 && numLess === 0) { return Equal }
+  if (numGreater > 0) { return Greater }
+  return Less
 }
 
 export function priorityComparitor(p0: Priority, p1: Priority): Comparison {
