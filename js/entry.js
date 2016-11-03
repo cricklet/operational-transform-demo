@@ -29,25 +29,6 @@ function updateDOMTextbox($text, client: { text: string, cursorStart: number, cu
   $text.prop(client.cursorEnd)
 }
 
-export function listenForLocalOperations($text: any, emit: (o: TextOperation) => void, lock: Lock) {
-  let [text, cursorStart, cursorEnd] = getValuesFromDOMTextbox($text)
-
-  $text.on('input selectionchange propertychange', () => {
-    if (lock.ignoreEvents) { return }
-
-    let [newText, newCursorStart, newCursorEnd] = getValuesFromDOMTextbox($text)
-
-    let ops = inferOperations(text, newText)
-    for (let op: TextOperation of ops) {
-      emit(op)
-    }
-
-    text = newText
-    cursorStart = newCursorStart
-    cursorEnd = newCursorEnd
-  })
-}
-
 export function applyOperation(op: TextOperation, opSource: Site, text: string, localLog: Log)
 : [
   string,
@@ -195,7 +176,17 @@ function setupClient(
   }
 
   observeArray(incomingRequests, onRequestsUpdated, (_) => {})
-  listenForLocalOperations($text, onLocalTextOperation, lock)
+
+  $text.on('input selectionchange propertychange', () => {
+    if (lock.ignoreEvents) { return }
+
+    let [newText, newCursorStart, newCursorEnd] = getValuesFromDOMTextbox($text)
+
+    let ops = inferOperations(client.text, newText)
+    for (let op: TextOperation of ops) {
+      onLocalTextOperation(op)
+    }
+  })
 }
 
 $(document).ready(() => {

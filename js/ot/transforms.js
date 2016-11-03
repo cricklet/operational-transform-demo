@@ -25,26 +25,10 @@ import {
 import type {
   InsertOperation,
   DeleteOperation,
-  TextOperation
+  TextOperation,
+  EditorOperation,
+  CursorOperation
 } from './operations.js'
-
-export function transformPair(
-  o1: TextOperation,
-  o2: TextOperation,
-  priority: Comparison
-): [?TextOperation, ?TextOperation] {
-  // Given two operations, o1 & o2, generate two new operations
-  // o1p & o2p such that: o2p(o1(...)) === o1p(o2(...))
-
-  // Rather than have `transform` deal with the priorities of
-  // o1 & o2, the caller should pass in whether o1 is higher priority
-  // than o2.
-
-  return [
-    transform(o1, o2, priority),
-    transform(o2, o1, - priority)
-  ]
-}
 
 export function transform(
   o1: TextOperation,

@@ -13,7 +13,15 @@ export type InsertOperation = {
   character: string,
 } & Operation
 
+export type CursorOperation = {
+  kind: 'CursorOperation',
+  start: number,
+  end: number,
+} & Operation
+
 export type TextOperation = DeleteOperation | InsertOperation
+
+export type EditorOperation = TextOperation | CursorOperation
 
 export type Operation = {
   uid: string
@@ -63,6 +71,15 @@ export function inferOperations(oldText: string, newText: string): Array<TextOpe
       }))
 
   return concat(deletes, inserts)
+}
+
+export function generateCursorOperation(start: number, end: number): CursorOperation {
+  return {
+    uid: genUid(),
+    start: start,
+    end: end,
+    kind: 'CursorOperation',
+  }
 }
 
 export function generateDeleteOperation(position: number): DeleteOperation {
