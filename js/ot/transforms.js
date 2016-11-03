@@ -27,7 +27,8 @@ import type {
   DeleteOperation,
   TextOperation,
   EditorOperation,
-  CursorOperation
+  CursorStartOperation,
+  CursorEndOperation,
 } from './operations.js'
 
 export function transform(
@@ -86,10 +87,10 @@ export function transformInsertInsert(
   if (o1.position > o2.position)
     return after(o1, o2)
 
-  if (priority === Greater)
+  if (priority === Less)
     return after(o1, o2)
 
-  if (priority === Less)
+  if (priority === Greater)
     return before(o1, o2)
 
   throw "wat"

@@ -169,7 +169,6 @@ function setupClient(
 
       // update the dom
       lock.ignoreEvents = true
-      console.log(client.text)
       updateDOMTextbox($text, client)
       lock.ignoreEvents = false
     }
@@ -197,8 +196,8 @@ $(document).ready(() => {
   let remoteRequests = []
 
   setupClient(generateClient(), $localText, localRequests,
-    r => { console.log(r.sourceOperation); remoteRequests.push(r) })
+    r => { remoteRequests.push(r) })
 
   setupClient(generateClient(), $remoteText, remoteRequests,
-    r => setTimeout(() => { console.log(r.sourceOperation); localRequests.push(r) }, Math.random() * 1000 + 1000))
+    r => setTimeout(() => { localRequests.push(r) }, Math.random() * 1000 + 1000))
 })
