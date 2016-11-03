@@ -42,6 +42,8 @@ export function listenForLocalOperations($text: any, emit: (o: TextOperation) =>
     }
 
     text = newText
+    cursorStart = newCursorStart
+    cursorEnd = newCursorEnd
   })
 }
 
