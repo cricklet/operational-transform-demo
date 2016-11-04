@@ -2,7 +2,7 @@
 
 import { push, concat, genUid, range, maxOfIterable, allKeys, clone, Greater, Equal, Less } from './utils.js'
 import type { Comparison } from './utils.js'
-import type { TextOperation, DeleteOperation, InsertOperation } from './operations.js'
+import type { EditorOperation, DeleteOperation, InsertOperation } from './operations.js'
 
 /* a queue of requests waiting to be executed
  *
@@ -19,7 +19,7 @@ export type Requests = Array<Request>
 export type Request = {
   kind: 'Request',
   sourceSite: Site, // originating site - can be the local site
-  sourceOperation: TextOperation, // untransformed
+  sourceOperation: EditorOperation, // untransformed
   sourceState: SiteState, // source state @ time of operation
   priority: Priority
 }
@@ -34,7 +34,7 @@ export type LogEntry = {
   kind: 'LogEntry',
   sourceSite: Site, // source of operation - can be the local site
   sourceState: SiteState, // source state @ time of operation
-  localOperation: TextOperation, // transformed
+  localOperation: EditorOperation, // transformed
   localState: SiteState, // local state @ time of operation
   priority: Priority // priority from the source
 }
@@ -100,7 +100,7 @@ export function priorityComparitor(p0: Priority, p1: Priority): Comparison {
 }
 
 export function generatePriority(
-  operation: TextOperation,
+  operation: EditorOperation,
   sourceSite: Site,
   log: Log
 ): Priority {

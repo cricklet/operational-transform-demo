@@ -24,7 +24,6 @@ export type CursorEndOperation = {
 } & Operation
 
 export type CursorOperation = CursorStartOperation | CursorEndOperation
-
 export type TextOperation = DeleteOperation | InsertOperation
 
 export type EditorOperation = TextOperation | CursorOperation
@@ -79,14 +78,16 @@ export function inferOperations(oldText: string, newText: string): Array<TextOpe
   return concat(deletes, inserts)
 }
 
-export function generateCursorOperations(start: number, end: number): [CursorStartOperation, CursorEndOperation] {
+export function generateCursorOperations(site: string, start: number, end: number): [CursorStartOperation, CursorEndOperation] {
   return [{
     uid: genUid(),
+    site: site,
     position: start,
     kind: 'CursorStartOperation',
   },
   {
     uid: genUid(),
+    site: site,
     position: end,
     kind: 'CursorEndOperation',
   },
