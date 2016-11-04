@@ -21,6 +21,25 @@ import {
   transform
 } from './transforms.js'
 
+
+function transformPair(
+  o1: TextOperation,
+  o2: TextOperation,
+  priority: Comparison
+): [?TextOperation, ?TextOperation] {
+  // Given two operations, o1 & o2, generate two new operations
+  // o1p & o2p such that: o2p(o1(...)) === o1p(o2(...))
+
+  // Rather than have `transform` deal with the priorities of
+  // o1 & o2, the caller should pass in whether o1 is higher priority
+  // than o2.
+
+  return [
+    transform(o1, o2, priority),
+    transform(o2, o1, - priority)
+  ]
+}
+
 describe('insert insert', () => {
   it ('lower priority gets moved', () => {
     let transformed = transform(generateInsertOperation(1, 'a'),
@@ -75,10 +94,10 @@ describe('delete delete', () => {
 
 describe('insert delete', () => {
   it ('insert before moves the delete', () => {
-    let transformed = transform(generateDeleteOperation(1),
+    let transformed = transform(generateDeleteOperation(2),
                                 generateInsertOperation(1, 'a'),
                                 Less)
-    assert.equal(transformed.position, 2)
+    assert.equal(transformed.position, 3)
   })
   it ('insert after keeps the delete', () => {
     let transformed = transform(generateDeleteOperation(1),

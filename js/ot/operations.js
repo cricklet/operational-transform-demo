@@ -23,9 +23,11 @@ export type CursorEndOperation = {
   position: number
 } & Operation
 
+export type CursorOperation = CursorStartOperation | CursorEndOperation
+
 export type TextOperation = DeleteOperation | InsertOperation
 
-export type EditorOperation = TextOperation | CursorStartOperation | CursorEndOperation
+export type EditorOperation = TextOperation | CursorOperation
 
 export type Operation = {
   uid: string

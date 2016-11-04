@@ -29,30 +29,40 @@ import type {
   EditorOperation,
   CursorStartOperation,
   CursorEndOperation,
+  CursorOperation
 } from './operations.js'
 
 export function transform(
-  o1: TextOperation,
-  o2: TextOperation,
+  o1: EditorOperation,
+  o2: EditorOperation,
   priority: Comparison
 ): ?TextOperation {
   if (o1.kind === "InsertOperation") {
     if (o2.kind === "InsertOperation") {
       return transformInsertInsert(o1, o2, priority)
     }
-    if (o2.kind === "DeleteOperation") {
-      return transformInsertDelete(o1, o2)
+    if (o2.kind === "InsertOperation" ||
+        o2.kind === "DeleteOperation") {
+      return transformShift(o1, o2)
+    }
+    if (o2.kind === "CursorStartOperation" ||
+        o2.kind === "CursorEndOperation") {
+      return clone(o1)
     }
   }
   if (o1.kind === "DeleteOperation") {
-    if (o2.kind === "InsertOperation") {
-      return transformDeleteInsert(o1, o2)
-    }
     if (o2.kind === "DeleteOperation") {
       return transformDeleteDelete(o1, o2)
     }
+    if (o2.kind === "InsertOperation" ||
+        o2.kind === "DeleteOperation") {
+      return transformShift(o1, o2)
+    }
+    if (o2.kind === "CursorStartOperation" ||
+        o2.kind === "CursorEndOperation") {
+      return clone(o1)
+    }
   }
-
   throw "wat"
 }
 
@@ -73,6 +83,16 @@ function after<T>(operation: T & {position: number}, otherOperation: TextOperati
   throw "wat"
 }
 
+function transformShift<T>(o1: T & {position: number}, o2: TextOperation): T {
+  if (o1.position <= o2.position)
+    return before(o1, o2)
+
+  if (o1.position > o2.position)
+    return after(o1, o2)
+
+  throw "wat"
+}
+
 export function transformInsertInsert(
   o1: InsertOperation,
   o2: InsertOperation,
@@ -87,11 +107,11 @@ export function transformInsertInsert(
   if (o1.position > o2.position)
     return after(o1, o2)
 
-  if (priority === Less)
-    return after(o1, o2)
-
   if (priority === Greater)
     return before(o1, o2)
+
+  if (priority === Less)
+    return after(o1, o2)
 
   throw "wat"
 }
@@ -103,37 +123,5 @@ export function transformDeleteDelete(
   if (o1.position === o2.position)
     return null
 
-  if (o1.position < o2.position)
-    return before(o1, o2)
-
-  if (o1.position > o2.position)
-    return after(o1, o2)
-
-  throw "wat"
-}
-
-export function transformInsertDelete(
-  o1: InsertOperation,
-  o2: DeleteOperation
-): TextOperation {
-  if (o1.position <= o2.position)
-    return before(o1, o2)
-
-  if (o1.position > o2.position)
-    return after(o1, o2)
-
-  throw "wat"
-}
-
-export function transformDeleteInsert(
-  o1: DeleteOperation,
-  o2: InsertOperation
-): TextOperation {
-  if (o1.position < o2.position)
-    return clone(o1)
-
-  if (o1.position >= o2.position)
-    return after(o1, o2)
-
-  throw "wat"
+  return transformShift(o1, o2)
 }
