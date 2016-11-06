@@ -1,8 +1,8 @@
 /* @flow */
 
 import { transform } from './ot/transforms.js'
-import { inferOperations, performTextOperation, generateCursorOperations } from './ot/operations.js'
-import type { TextOperation, CursorOperation, EditorOperation, CursorStartOperation, CursorEndOperation } from './ot/operations.js'
+import { inferOperations, performTextOperation } from './ot/operations.js'
+import type { TextOperation } from './ot/operations.js'
 import { Less, Greater, Equal, reverse, push, findIndex } from './ot/utils.js'
 import { generateSite, generateState, generatePriority, updateStateWithOperation, stateComparitor, priorityComparitor } from './ot/sites.js'
 import type { Site, SiteState, Log, Requests, Request, LogEntry, Priority } from './ot/sites.js'
@@ -25,11 +25,11 @@ function getValuesFromDOMTextbox($text): [string, number, number] {
 
 function updateDOMTextbox($text, client: { text: string, cursorStart: number, cursorEnd: number }): void {
   $text.val(client.text),
-  $text.prop("selectionStart", client.cursorStart),
-  $text.prop("selectionEnd", client.cursorEnd)
+  $text.prop(client.cursorStart),
+  $text.prop(client.cursorEnd)
 }
 
-export function applyTextOperation(op: TextOperation, opSource: Site, text: string, localLog: Log)
+export function applyOperation(op: TextOperation, opSource: Site, text: string, localLog: Log)
 : [
   string,
   Priority
@@ -72,61 +72,8 @@ function setupClient(
 ) {
   let lock = generateLock()
 
-  let onLocalCursorOperation = (startOp: CursorStartOperation, endOp: CursorEndOperation) => {
-    client = Object.assign({}, client, {
-      cursorStart: startOp.position,
-      cursorEnd: endOp.position
-    })
-
-    // inform listeners
-    emitRequest({
-      kind: 'Request',
-      sourceSite: client.site,
-      sourceOperation: op,
-      sourceState: client.state,
-      priority: priority
-    })
-
-    // update the client state
-    client = Object.assign({}, client, {
-      text: text,
-      state: updateStateWithOperation(client.state, client.site),
-      log: push(client.log, {
-        kind: 'LogEntry',
-        sourceSite: client.site,
-        sourceState: client.state,
-        localOperation: op,
-        localState: client.state,
-        priority: priority
-      })
-    })
-
-    // inform listeners
-    emitRequest({
-      kind: 'Request',
-      sourceSite: client.site,
-      sourceOperation: op,
-      sourceState: client.state,
-      priority: priority
-    })
-
-    // update the client state
-    client = Object.assign({}, client, {
-      text: text,
-      state: updateStateWithOperation(client.state, client.site),
-      log: push(client.log, {
-        kind: 'LogEntry',
-        sourceSite: client.site,
-        sourceState: client.state,
-        localOperation: op,
-        localState: client.state,
-        priority: priority
-      })
-    })
-  }
-
   let onLocalTextOperation = (op: TextOperation) => {
-    let [text, priority] = applyTextOperation(op, client.site, client.text, client.log)
+    let [text, priority] = applyOperation(op, client.site, client.text, client.log)
 
     // inform listeners
     emitRequest({
@@ -204,22 +151,21 @@ function setupClient(
         }
       }
 
-      if (requestedOperation.kind === "InsertOperation" || requestedOperation.kind === "DeleteOperation") {
-        let [text, priority] = applyTextOperation(requestedOperation, requestingSite, client.text, client.log)
-        // update the client state
-        client = Object.assign({}, client, {
-          text: text,
-          state: updateStateWithOperation(client.state, requestingSite),
-          log: push(client.log, {
-            kind: 'LogEntry',
-            sourceSite: client.site,
-            sourceState: client.state,
-            localOperation: requestedOperation,
-            localState: client.state,
-            priority: priority
-          })
+      let [text, priority] = applyOperation(requestedOperation, requestingSite, client.text, client.log)
+
+      // update the client state
+      client = Object.assign({}, client, {
+        text: text,
+        state: updateStateWithOperation(client.state, requestingSite),
+        log: push(client.log, {
+          kind: 'LogEntry',
+          sourceSite: client.site,
+          sourceState: client.state,
+          localOperation: requestedOperation,
+          localState: client.state,
+          priority: priority
         })
-      }
+      })
 
       // update the dom
       lock.ignoreEvents = true
@@ -239,26 +185,19 @@ function setupClient(
     for (let op: TextOperation of ops) {
       onLocalTextOperation(op)
     }
-
-    let [startOp, endOp] = generateCursorOperations(newCursorStart, newCursorEnd)
-    onLocalCursorOperation(startOp, endOp)
   })
 }
 
 $(document).ready(() => {
-  let $text0 = $('#text0')
-  let requests0 = []
+  let $localText = $('#local-text')
+  let localRequests = []
 
-  let $text1 = $('#text1')
-  let requests1 = []
+  let $remoteText = $('#delay-text')
+  let remoteRequests = []
 
-  let $text2 = $('#text2')
-  let requests2 = []
+  setupClient(generateClient(), $localText, localRequests,
+    r => { remoteRequests.push(r) })
 
-  setupClient(generateClient(), $text0, requests0,
-    r => setTimeout(() => { requests1.push(r); requests2.push(r) }, Math.random() * 500))
-  setupClient(generateClient(), $text1, requests1,
-    r => setTimeout(() => { requests0.push(r); requests2.push(r) }, Math.random() * 1000 + 1000))
-  setupClient(generateClient(), $text2, requests2,
-    r => setTimeout(() => { requests0.push(r); requests1.push(r) }, Math.random() * 2000 + 2000))
+  setupClient(generateClient(), $remoteText, remoteRequests,
+    r => setTimeout(() => { localRequests.push(r) }, Math.random() * 1000 + 1000))
 })
