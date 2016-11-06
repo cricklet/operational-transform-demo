@@ -5,7 +5,6 @@
 import { expect } from 'chai'
 import { spy } from 'sinon'
 
-// @flow-ignore
 import { assert, should } from 'chai'
 
 import {
