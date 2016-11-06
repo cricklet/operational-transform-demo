@@ -1,6 +1,7 @@
 /* @flow */
 
 import { genUid, calculatePrefixLength, calculatePostfixLength, repeat, concat, substring, removeTail, rearray, restring } from './utils.js'
+import type { Site } from './sites.js'
 
 export type DeleteOperation = {
   kind: 'DeleteOperation',
@@ -13,21 +14,7 @@ export type InsertOperation = {
   character: string,
 } & Operation
 
-export type CursorStartOperation = {
-  kind: 'CursorStartOperation',
-  position: number
-} & Operation
-
-export type CursorEndOperation = {
-  kind: 'CursorEndOperation',
-  position: number
-} & Operation
-
-export type CursorOperation = CursorStartOperation | CursorEndOperation
-
 export type TextOperation = DeleteOperation | InsertOperation
-
-export type EditorOperation = TextOperation | CursorOperation
 
 export type Operation = {
   uid: string
@@ -77,20 +64,6 @@ export function inferOperations(oldText: string, newText: string): Array<TextOpe
       }))
 
   return concat(deletes, inserts)
-}
-
-export function generateCursorOperations(start: number, end: number): [CursorStartOperation, CursorEndOperation] {
-  return [{
-    uid: genUid(),
-    position: start,
-    kind: 'CursorStartOperation',
-  },
-  {
-    uid: genUid(),
-    position: end,
-    kind: 'CursorEndOperation',
-  },
-  ]
 }
 
 export function generateDeleteOperation(position: number): DeleteOperation {

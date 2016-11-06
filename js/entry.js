@@ -25,21 +25,8 @@ function getValuesFromDOMTextbox($text): [string, number, number] {
 
 function updateDOMTextbox($text, client: { text: string, cursorStart: number, cursorEnd: number }): void {
   $text.val(client.text),
-  $text.prop(client.cursorStart),
-  $text.prop(client.cursorEnd)
-}
-
-export function applyOperation(op: TextOperation, opSource: Site, text: string, localLog: Log)
-: [
-  string,
-  Priority
-] {
-  let priority = generatePriority(op, opSource, localLog)
-
-  return [
-    performTextOperation(text, op),
-    generatePriority(op, opSource, localLog)
-  ]
+  $text.prop("selectionStart", client.cursorStart),
+  $text.prop("selectionEnd", client.cursorEnd)
 }
 
 type Client = {
@@ -64,6 +51,41 @@ function generateClient(): Client {
   }
 }
 
+export function applyOperationToClient(
+  op: TextOperation,
+  sourceSite: Site,
+  sourceState: SiteState,
+  priority: Priority,
+  client: Client
+): Client {
+  let newClient = Object.assign({}, client, {
+    text:        op.kind === 'InsertOperation' || op.kind === 'DeleteOperation'
+                 ? performTextOperation(client.text, op) : client.text,
+
+    state:       updateStateWithOperation(sourceState, sourceSite),
+
+    log:         push(client.log, {
+                    kind: 'LogEntry',
+                    sourceSite: sourceSite,
+                    sourceState: sourceState,
+                    localOperation: op,
+                    localState: client.state,
+                    priority: priority })
+  })
+
+  return newClient
+}
+
+export function generateRequest(op: TextOperation, priority: Priority, client: Client): Request {
+  return {
+    kind: 'Request',
+    sourceSite: client.site,
+    sourceOperation: op,
+    sourceState: client.state,
+    priority: priority
+  }
+}
+
 function setupClient(
   client: Client,
   $text: any,
@@ -73,30 +95,9 @@ function setupClient(
   let lock = generateLock()
 
   let onLocalTextOperation = (op: TextOperation) => {
-    let [text, priority] = applyOperation(op, client.site, client.text, client.log)
-
-    // inform listeners
-    emitRequest({
-      kind: 'Request',
-      sourceSite: client.site,
-      sourceOperation: op,
-      sourceState: client.state,
-      priority: priority
-    })
-
-    // update the client state
-    client = Object.assign({}, client, {
-      text: text,
-      state: updateStateWithOperation(client.state, client.site),
-      log: push(client.log, {
-        kind: 'LogEntry',
-        sourceSite: client.site,
-        sourceState: client.state,
-        localOperation: op,
-        localState: client.state,
-        priority: priority
-      })
-    })
+    let priority = generatePriority(op, client.site, client.log)
+    emitRequest(generateRequest(op, priority, client))
+    client = applyOperationToClient(op, client.site, client.state, priority, client)
 
     // update the dom
     lock.ignoreEvents = true
@@ -151,21 +152,8 @@ function setupClient(
         }
       }
 
-      let [text, priority] = applyOperation(requestedOperation, requestingSite, client.text, client.log)
-
-      // update the client state
-      client = Object.assign({}, client, {
-        text: text,
-        state: updateStateWithOperation(client.state, requestingSite),
-        log: push(client.log, {
-          kind: 'LogEntry',
-          sourceSite: client.site,
-          sourceState: client.state,
-          localOperation: requestedOperation,
-          localState: client.state,
-          priority: priority
-        })
-      })
+      console.log(requestedOperation)
+      client = applyOperationToClient(requestedOperation, requestingSite, requestingState, requestedPriority, client)
 
       // update the dom
       lock.ignoreEvents = true
@@ -185,19 +173,26 @@ function setupClient(
     for (let op: TextOperation of ops) {
       onLocalTextOperation(op)
     }
+
+    client.cursorStart = newCursorStart
+    client.cursorEnd = newCursorEnd
   })
 }
 
 $(document).ready(() => {
-  let $localText = $('#local-text')
-  let localRequests = []
+  let $text0 = $('#text0')
+  let requests0 = []
 
-  let $remoteText = $('#delay-text')
-  let remoteRequests = []
+  let $text1 = $('#text1')
+  let requests1 = []
 
-  setupClient(generateClient(), $localText, localRequests,
-    r => { remoteRequests.push(r) })
+  let $text2 = $('#text2')
+  let requests2 = []
 
-  setupClient(generateClient(), $remoteText, remoteRequests,
-    r => setTimeout(() => { localRequests.push(r) }, Math.random() * 1000 + 1000))
+  setupClient(generateClient(), $text0, requests0,
+    r => setTimeout(() => { requests1.push(r); requests2.push(r) }, Math.random() * 500))
+  setupClient(generateClient(), $text1, requests1,
+    r => setTimeout(() => { requests0.push(r); requests2.push(r) }, Math.random() * 1000 + 1000))
+  setupClient(generateClient(), $text2, requests2,
+    r => setTimeout(() => { requests0.push(r); requests1.push(r) }, Math.random() * 2000 + 2000))
 })

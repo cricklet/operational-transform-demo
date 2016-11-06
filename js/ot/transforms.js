@@ -26,15 +26,11 @@ import type {
   InsertOperation,
   DeleteOperation,
   TextOperation,
-  EditorOperation,
-  CursorStartOperation,
-  CursorEndOperation,
-  CursorOperation
 } from './operations.js'
 
 export function transform(
-  o1: EditorOperation,
-  o2: EditorOperation,
+  o1: TextOperation,
+  o2: TextOperation,
   priority: Comparison
 ): ?TextOperation {
   if (o1.kind === "InsertOperation") {
@@ -45,10 +41,6 @@ export function transform(
         o2.kind === "DeleteOperation") {
       return transformShift(o1, o2)
     }
-    if (o2.kind === "CursorStartOperation" ||
-        o2.kind === "CursorEndOperation") {
-      return clone(o1)
-    }
   }
   if (o1.kind === "DeleteOperation") {
     if (o2.kind === "DeleteOperation") {
@@ -57,10 +49,6 @@ export function transform(
     if (o2.kind === "InsertOperation" ||
         o2.kind === "DeleteOperation") {
       return transformShift(o1, o2)
-    }
-    if (o2.kind === "CursorStartOperation" ||
-        o2.kind === "CursorEndOperation") {
-      return clone(o1)
     }
   }
   throw "wat"
