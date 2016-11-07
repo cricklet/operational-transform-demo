@@ -34,6 +34,7 @@ export type LogEntry = {
   kind: 'LogEntry',
   sourceSite: Site, // source of operation - can be the local site
   sourceState: SiteState, // source state @ time of operation
+  sourceOperation: TextOperation, // untransformed
   localOperation: TextOperation, // transformed
   localState: SiteState, // local state @ time of operation
   priority: Priority // priority from the source

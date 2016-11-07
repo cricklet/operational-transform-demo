@@ -52,15 +52,16 @@ function generateClient(): Client {
 }
 
 export function applyOperationToClient(
-  op: TextOperation,
+  localOperation: TextOperation,
+  sourceOperation: TextOperation,
   sourceSite: Site,
   sourceState: SiteState,
   priority: Priority,
   client: Client
 ): Client {
   let newClient = Object.assign({}, client, {
-    text:        op.kind === 'InsertOperation' || op.kind === 'DeleteOperation'
-                 ? performTextOperation(client.text, op) : client.text,
+    text:        localOperation.kind === 'InsertOperation' || localOperation.kind === 'DeleteOperation'
+                 ? performTextOperation(client.text, localOperation) : client.text,
 
     state:       updateStateWithOperation(sourceState, sourceSite),
 
@@ -68,7 +69,8 @@ export function applyOperationToClient(
                     kind: 'LogEntry',
                     sourceSite: sourceSite,
                     sourceState: sourceState,
-                    localOperation: op,
+                    sourceOperation: sourceOperation,
+                    localOperation: localOperation,
                     localState: client.state,
                     priority: priority })
   })
@@ -97,7 +99,19 @@ function setupClient(
   let onLocalTextOperation = (op: TextOperation) => {
     let priority = generatePriority(op, client.site, client.log)
     emitRequest(generateRequest(op, priority, client))
-    client = applyOperationToClient(op, client.site, client.state, priority, client)
+    client = applyOperationToClient(op, op, client.site, client.state, priority, client)
+
+    // update the dom
+    lock.ignoreEvents = true
+    updateDOMTextbox($text, client)
+    lock.ignoreEvents = false
+  }
+
+  let onLocalCursorChange = (start: number, end: number) => {
+    Object.assign(client, {
+      cursorStart: start,
+      cursorEnd: end
+    })
 
     // update the dom
     lock.ignoreEvents = true
@@ -118,6 +132,7 @@ function setupClient(
       incomingRequests.splice(requestIndex, 1)
 
       let requestedOperation = request.sourceOperation
+      let transformedOperation = request.sourceOperation
       let requestedPriority = request.priority
       let requestingSite = request.sourceSite
       let requestingState = request.sourceState
@@ -142,18 +157,18 @@ function setupClient(
           let logOps = log.sourceState[log.sourceSite] || 0
 
           if (requestOps <= logOps) {
-            let transformed: ?TextOperation = transform(
-              requestedOperation,
+            let newOperation: ?TextOperation = transform(
+              transformedOperation,
               log.localOperation,
               priorityComparitor(requestedPriority, log.priority))
 
-            requestedOperation = transformed || requestedOperation
+            transformedOperation = newOperation || transformedOperation
           }
         }
       }
 
       console.log(requestedOperation)
-      client = applyOperationToClient(requestedOperation, requestingSite, requestingState, requestedPriority, client)
+      client = applyOperationToClient(transformedOperation, requestedOperation, requestingSite, requestingState, requestedPriority, client)
 
       // update the dom
       lock.ignoreEvents = true
@@ -174,8 +189,7 @@ function setupClient(
       onLocalTextOperation(op)
     }
 
-    client.cursorStart = newCursorStart
-    client.cursorEnd = newCursorEnd
+    onLocalCursorChange(newCursorStart, newCursorEnd)
   })
 }
 
@@ -194,5 +208,5 @@ $(document).ready(() => {
   setupClient(generateClient(), $text1, requests1,
     r => setTimeout(() => { requests0.push(r); requests2.push(r) }, Math.random() * 1000 + 1000))
   setupClient(generateClient(), $text2, requests2,
-    r => setTimeout(() => { requests0.push(r); requests1.push(r) }, Math.random() * 2000 + 2000))
+    r => setTimeout(() => { requests0.push(r); requests1.push(r) }, Math.random() * 4000 + 4000))
 })
