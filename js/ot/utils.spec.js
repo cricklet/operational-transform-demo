@@ -25,7 +25,9 @@ import {
   removeTail,
   reverse,
   reverseString,
-  rearray
+  rearray,
+  findIndex,
+  findLastIndex,
 } from './utils'
 
 import type { Comparison } from './utils.js'
@@ -186,5 +188,27 @@ describe('allKeys', () => {
     expect(
       Array.from(allKeys({'a': 1, 'b': 2, 'c': 3}, {'b': 4, 'c': 4, 'd': 5})))
       .to.include.members(['a', 'b', 'c', 'd'])
+  })
+})
+
+describe('findIndex', () => {
+  it ('works', () => {
+    assert.equal(
+      findIndex(i => i >= 4, [0,1,2,3,4,5,6,7]),
+      4)
+    assert.equal(
+      findIndex(i => i < 4, [0,1,2,3,4,5,6,7]),
+      0)
+  })
+})
+
+describe('findLastIndex', () => {
+  it ('works', () => {
+    assert.equal(
+      findLastIndex(i => i >= 4, [0,1,2,3,4,5,6,7]),
+      7)
+    assert.equal(
+      findLastIndex(i => i <= 4, [0,1,2,3,4,5,6,7]),
+      4)
   })
 })

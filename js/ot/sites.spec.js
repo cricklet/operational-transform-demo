@@ -18,11 +18,15 @@ import { updateStateWithOperation, priorityComparitor, stateComparitor } from '.
 
 describe('siteComparitor()', () => {
   it ('works', () => {
-    assert.equal(Less,    stateComparitor({'a': 1}, {'a': 2}))
-    assert.equal(Less,    stateComparitor({},       {'a': 2}))
-    assert.equal(Greater, stateComparitor({'a': 3}, {'a': 2}))
-    assert.equal(Greater, stateComparitor({'a': 1}, {}))
-    assert.equal(Equal,   stateComparitor({'a': 1}, {'a': 1}))
+    assert.isTrue(stateComparitor({'a': 1}, {'a': 2}) <  Equal)
+    assert.isTrue(stateComparitor({},       {'a': 2}) <  Equal)
+    assert.isTrue(stateComparitor({'a': 3}, {'a': 2}) >  Equal)
+    assert.isTrue(stateComparitor({'a': 3}, {})       >  Equal)
+    assert.isTrue(stateComparitor({'a': 1}, {'a': 1}) == Equal)
+
+    assert.isTrue(stateComparitor({'a': 1, 'b': 1}, {'a': 2, 'b': 1}) < Equal)
+    assert.isTrue(stateComparitor({'a': 1, 'b': 2}, {'a': 2, 'b': 1}) > Equal)
+    assert.isTrue(stateComparitor({'a': 1, 'b': 2}, {'a': 2})         > Equal)
   })
 })
 

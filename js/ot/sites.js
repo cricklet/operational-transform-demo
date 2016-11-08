@@ -1,6 +1,6 @@
 /* @flow */
 
-import { push, concat, genUid, range, maxOfIterable, allKeys, clone, Greater, Equal, Less } from './utils.js'
+import { push, concat, genUid, range, maxOfIterable, allKeys, clone, Greater, Equal, Less, reiterable } from './utils.js'
 import type { Comparison } from './utils.js'
 import type { TextOperation, DeleteOperation, InsertOperation } from './operations.js'
 
@@ -107,13 +107,13 @@ export function generatePriority(
 ): Priority {
   // compile a list of past conflicting operations
   let conflictingLogs = log.filter((log: LogEntry) =>
-    log.localOperation.position == operation.position)
+    log.sourceOperation.position == operation.position)
 
   if (conflictingLogs.length === 0) { return [sourceSite] }
 
   // get the highest priority past conflict
   let conflictingLog: LogEntry = maxOfIterable(
-    () => conflictingLogs,
+    reiterable(conflictingLogs),
     (t0, t1) => priorityComparitor(t0.priority, t1.priority))
 
   // our priority is built on the conflicting priority

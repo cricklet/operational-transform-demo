@@ -14,6 +14,10 @@ export type Comparitor<T> = (a: T, b: T) => Comparison
 //         Less    if a  <  b
 //         Equal   if a === b
 
+export function reiterable <T> (it: Iterable<T>): Reiterable<T> {
+  return () => it
+}
+
 export function genUid(): string {
   return Math.random().toString().substring(2, 6)
 }
@@ -173,6 +177,21 @@ export function substring (
   return characters(s, specificRange(start, stop, step))
 }
 
+export function subarray <T> (
+  arr: Array<T>,
+  opt: {
+    start?: number,
+    stop?:  number,
+    step?:  number
+  }
+): Reiterable<T> {
+  let start: number = defaults(opt.start, 0);
+  let stop:  number = defaults(opt.stop, arr.length);
+  let step:  number = defaults(opt.step, 1);
+
+  return map(specificRange(start, stop, step), i => arr[i])
+}
+
 export function removeTail (
   s: string,
   n: number
@@ -187,6 +206,16 @@ export function reverse <T> (arr: Array<T>): Reiterable<T> {
 export function findIndex <T> (f: (t: T) => bool, arr: Array<T>): ?number {
   for (let [t, i] of zip(arr, counter())) {
     if (f(t)) {
+      return i
+    }
+  }
+
+  return undefined
+}
+
+export function findLastIndex <T> (f: (t: T) => bool, arr: Array<T>): ?number {
+  for (let i = arr.length - 1; i >= 0; i --) {
+    if (f(arr[i])) {
       return i
     }
   }

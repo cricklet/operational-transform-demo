@@ -87,7 +87,6 @@ describe('observeObject', () => {
     obj['a'] = 3
 
     setTimeout(() => {
-      debugger;
       assert.isFalse(onKeyAdded.calledOnce)
       assert.isFalse(onKeyRemoved.calledOnce)
       assert.isTrue(onKeyChanged.calledOnce)

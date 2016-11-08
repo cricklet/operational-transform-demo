@@ -3,7 +3,7 @@
 import { transform } from './ot/transforms.js'
 import { inferOperations, performTextOperation } from './ot/operations.js'
 import type { TextOperation } from './ot/operations.js'
-import { Less, Greater, Equal, reverse, push, findIndex } from './ot/utils.js'
+import { Less, Greater, Equal, reverse, push, findIndex, findLastIndex, subarray } from './ot/utils.js'
 import { generateSite, generateState, generatePriority, updateStateWithOperation, stateComparitor, priorityComparitor } from './ot/sites.js'
 import type { Site, SiteState, Log, Requests, Request, LogEntry, Priority } from './ot/sites.js'
 import { count, zip, filter, find, takeWhile, take } from 'wu'
@@ -121,13 +121,13 @@ function setupClient(
 
   let onRequestsUpdated = (_) => {
     while (true) {
-      // for each request: (site: j, state: s[j], operation oj, priority p[oj])
-      // in requests[i] where s[j] <= s[i]
+      // for each request in client requests
+      // where request state <= client state
       let requestFilter = (r: Request) => stateComparitor(r.sourceState, client.state) <= Equal
       let requestIndex: ?number = findIndex(requestFilter, incomingRequests)
       if (requestIndex == undefined) { break }
 
-      // pop request off of requests[i]
+      // pop request off of client requests
       let request: Request = incomingRequests[requestIndex]
       incomingRequests.splice(requestIndex, 1)
 
@@ -137,29 +137,26 @@ function setupClient(
       let requestingSite = request.sourceSite
       let requestingState = request.sourceState
 
-      // if state s[j] < s[i]
+      // if request state < client state
       // i.e. there are ops on the client that the request needs to be transformed against
       if (stateComparitor(requestingState, client.state) < Equal) {
-        // get the most recent log entry (site: k, state: s[k], operation ok, priority p[ok])
-        // where s[k] <= s[j]
-        // i.e. the log entry has fewer/equal operations executed as the request
-        let numRecentLogs = count(
-          takeWhile((l: LogEntry) => stateComparitor(l.sourceState, requestingState) <= Equal,
-                    reverse(client.log)()))
+        // get the most recent log entry
+        // where log state <= request state
+        let relevantLogsStart: ?number = findLastIndex(
+          (l: LogEntry) => stateComparitor(l.sourceState, requestingState) <= Equal,
+          client.log)
+        if (relevantLogsStart == undefined) { break }
 
-        let recentLogs = take(numRecentLogs + 1, reverse(client.log)())
-        for (let log: LogEntry of recentLogs) {
-          // if the kth component of s[j] is <= the kth component of s[k]
-          // i.e. the number of request state ops from the log site
-          //      is less/equal to
-          //      the number of log state ops from the log site
+        let relevantLogs = subarray(client.log, {start: relevantLogsStart})
+        for (let log: LogEntry of relevantLogs()) {
+          // if the request state [log source site] <= logged client state [log source site]
           let requestOps = requestingState[log.sourceSite] || 0
-          let logOps = log.sourceState[log.sourceSite] || 0
+          let logOps = log.localState[log.sourceSite] || 0
 
           if (requestOps <= logOps) {
             let newOperation: ?TextOperation = transform(
               transformedOperation,
-              log.localOperation,
+              log.sourceOperation,
               priorityComparitor(requestedPriority, log.priority))
 
             transformedOperation = newOperation || transformedOperation
@@ -167,7 +164,6 @@ function setupClient(
         }
       }
 
-      console.log(requestedOperation)
       client = applyOperationToClient(transformedOperation, requestedOperation, requestingSite, requestingState, requestedPriority, client)
 
       // update the dom
