@@ -27,7 +27,6 @@ describe('observeObject', () => {
     obj['b'] = 2
 
     setTimeout(() => {
-      debugger;
       assert.isTrue(onKeyAdded.calledOnce)
       assert.isTrue(onKeyAdded.calledWith(obj, 'b'))
       assert.isFalse(onKeyRemoved.calledOnce)
@@ -47,7 +46,6 @@ describe('observeObject', () => {
     delete obj['a']
 
     setTimeout(() => {
-      debugger;
       assert.isFalse(onKeyAdded.calledOnce)
       assert.isTrue(onKeyRemoved.calledOnce)
       assert.isTrue(onKeyRemoved.calledWith(obj, 'a'))
@@ -67,7 +65,6 @@ describe('observeObject', () => {
     obj['a'] = 3
 
     setTimeout(() => {
-      debugger;
       assert.isFalse(onKeyAdded.calledOnce)
       assert.isFalse(onKeyRemoved.calledOnce)
       assert.isTrue(onKeyChanged.calledOnce)
