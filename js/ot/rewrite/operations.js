@@ -60,20 +60,34 @@ export function apply(text: string, op: TextOperation): string {
   return text
 }
 
-export function transform(o1: TextOperation, o2: TextOperation): [TextOperation, TextOperation] {
-  // transform (clientOp, serverOp) to (clientOpP, serverOpP) s.t.
-  // apply(apply(text, clientOp), serverOpP) === apply(apply(text, serverOp, clientOpP))
-
-  if (o1.position <= o2.position)
-    return shift(o1, length(o2))
-
-  if (o1.position > o2.position)
-    return after(o1, o2)
-
-
-  throw 'not implemented'
-}
-
 function shift <T> (operation: T & {position: number}, num: number): T {
   return assign(clone(operation), {position: operation.position + num})
+}
+
+function adjustment (operation: TextOperation): number {
+  if (operation.kind === 'InsertOperation') {
+    return operation.text.length
+  }
+  if (operation.kind === 'DeleteOperation') {
+    return - operation.num
+  }
+  throw 'wat'
+}
+
+export function transform(clientOp: TextOperation, serverOp: TextOperation): [TextOperation, TextOperation] {
+  // transform (clientOp, serverOp) to (clientOpP, serverOpP) s.t.
+  // apply(apply(text, clientOp), serverOpP) === apply(apply(text, serverOp, clientOpP))
+  let o1 = clientOp
+  let o2 = serverOp
+
+  if (o1.position <= o2.position) {
+    return [shift(o1, adjustment(o2)), o2]
+  }
+  if (o1.position > o2.position) {
+    return [o1, shift(o2, adjustment(o1))]
+  }
+  if (o1.position === o2.position) { // always prioritize o2 (the server op)
+    return [shift(o1, adjustment(o2)), o2]
+  }
+  throw 'not implemented'
 }

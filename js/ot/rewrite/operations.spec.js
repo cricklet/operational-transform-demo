@@ -38,13 +38,19 @@ describe('transform()', () => {
   [ [Operations.generateInsert(1, 'asdf', FAKE_STATE), Operations.generateInsert(3, 'qwerty', FAKE_STATE)],
     [Operations.generateInsert(5, 'asdf', FAKE_STATE), Operations.generateInsert(3, 'qwerty', FAKE_STATE)],
     [Operations.generateInsert(9, 'asdf', FAKE_STATE), Operations.generateInsert(3, 'qwerty', FAKE_STATE)],
+    [Operations.generateInsert(1, 'asdf', FAKE_STATE), Operations.generateDelete(3, 5, FAKE_STATE)],
+    [Operations.generateInsert(5, 'asdf', FAKE_STATE), Operations.generateDelete(3, 5, FAKE_STATE)],
+    [Operations.generateInsert(9, 'asdf', FAKE_STATE), Operations.generateDelete(3, 5, FAKE_STATE)],
+    [Operations.generateDelete(1, 5, FAKE_STATE), Operations.generateInsert(1, 'asdf', FAKE_STATE)],
+    [Operations.generateDelete(5, 5, FAKE_STATE), Operations.generateInsert(5, 'asdf', FAKE_STATE)],
+    [Operations.generateDelete(9, 5, FAKE_STATE), Operations.generateInsert(9, 'asdf', FAKE_STATE)],
   ].forEach(([op1, op2]) => {
     it (op1.hash + ', ' + op2.hash + ' are propertly transformed', () => {
       let [op1P, op2P] = Operations.transform(op1, op2)
 
       assert.equal(
-        Operations.apply(Operations.apply("0123456789", op1), op2P),
-        Operations.apply(Operations.apply("0123456789", op1), op2P))
+        Operations.apply(Operations.apply("0123456789abcdefghijk", op1), op2P),
+        Operations.apply(Operations.apply("0123456789abcdefghijk", op1), op2P))
     })
   })
 })
