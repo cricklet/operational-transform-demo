@@ -222,3 +222,21 @@ export function findLastIndex <T> (f: (t: T) => bool, arr: Array<T>): ?number {
 
   return undefined
 }
+
+export function hashCode (str: string): number {
+  // taken from stack overflow
+  let hash = 0;
+  if (str.length == 0)
+    return hash;
+
+  for (let i = 0; i < str.length; i++) {
+    let char = str.charCodeAt(i);
+    hash = ((hash<<5)-hash)+char;
+    hash = hash & hash;
+  }
+  return hash;
+}
+
+export function hash (str: string): string {
+  return '' + hashCode(str) % 10000
+}
