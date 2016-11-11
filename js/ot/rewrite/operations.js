@@ -15,29 +15,26 @@ export type InsertOperation = {
 } & BaseOperation
 
 export type BaseOperation = {
-  state: string,  // a hash representing the state this operation is applied to
-  hash: string // a hash representing this operation (includes the state)
+  parentHash: string,  // a hash representing the hash this operation is applied to
 }
 
 export type TextOperation = InsertOperation | DeleteOperation
 
-export function generateDelete(position: number, num: number, state: string): DeleteOperation {
+export function generateDelete(position: number, num: number, parentHash: string): DeleteOperation {
   return {
     kind: 'DeleteOperation',
     position: position,
     num: num,
-    state: state,
-    hash: 'del:' + position + ',' + num + '@' + state
+    parentHash: parentHash,
   }
 }
 
-export function generateInsert(position: number, text: string, state: string): InsertOperation {
+export function generateInsert(position: number, text: string, parentHash: string): InsertOperation {
   return {
     kind: 'InsertOperation',
     position: position,
     text: text,
-    state: state,
-    hash: 'ins:' + position + ',' + hash(text) + '@' + state
+    parentHash: parentHash,
   }
 }
 
@@ -79,6 +76,10 @@ export function transform(clientOp: TextOperation, serverOp: TextOperation): [Te
   // apply(apply(text, clientOp), serverOpP) === apply(apply(text, serverOp, clientOpP))
   let o1 = clientOp
   let o2 = serverOp
+
+  if (o1.parentHash !== o2.parentHash) {
+    throw 'wat'
+  }
 
   if (o1.position <= o2.position) {
     return [shift(o1, adjustment(o2)), o2]

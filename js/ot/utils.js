@@ -1,6 +1,6 @@
 /* @flow */
 
-import { zip, zipLongest } from 'wu'
+import { zip, zipLongest, take } from 'wu'
 
 export type Reiterable<T> = () => Iterable<T>
 
@@ -16,6 +16,10 @@ export type Comparitor<T> = (a: T, b: T) => Comparison
 
 export function reiterable <T> (it: Iterable<T>): Reiterable<T> {
   return () => it
+}
+
+export function iterable <T> (it: Reiterable<T>): Iterable<T> {
+  return it()
 }
 
 export function genUid(): string {
@@ -239,4 +243,29 @@ export function hashCode (str: string): number {
 
 export function hash (str: string): string {
   return '' + hashCode(str) % 10000
+}
+
+export function last <T> (arr: Array<T>): T {
+  return arr[arr.length - 1]
+}
+
+export function shuffle <T> (arr: Array<T>): Reiterable<T> {
+  let indices = Array.from(take(arr.length, counter()))
+  let i = indices.length
+
+  while (0 !== i) {
+    let randomI = Math.floor(Math.random() * i);
+    i --;
+
+    // And swap it with the current element.
+    let value = indices[i];
+    indices[i] = indices[randomI];
+    indices[randomI] = value;
+  }
+
+  return function * () {
+    for (let index of indices) {
+      yield arr[index]
+    }
+  }
 }
