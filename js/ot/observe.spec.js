@@ -12,6 +12,7 @@ import {
   unobserveArray,
   observeObject,
   unobserveObject,
+  autoFill
 } from './observe'
 
 describe('observeObject', () => {
@@ -141,6 +142,46 @@ describe('observeArray', () => {
     setTimeout(() => {
       assert.isFalse(onAdd.calledOnce)
       assert.isFalse(onRemove.calledOnce)
+      done()
+    })
+  })
+})
+
+describe('AutoMap', () => {
+  it ('adds', (done) => {
+    let array = []
+    let obj = {}
+
+    autoFill(array, obj, o => o.key)
+
+    array.push({key: 'banana', value: 'fruit'})
+    array.push({key: 'dog', value: 'animal'})
+
+    setTimeout(() => {
+      assert.deepEqual(Object.keys(obj), ['banana', 'dog'])
+      done()
+    })
+  })
+  it ('starts with', (done) => {
+    let array = [{key: 'banana', value: 'fruit'}, {key: 'dog', value: 'animal'}]
+    let obj = {}
+
+    autoFill(array, obj, o => o.key)
+
+    setTimeout(() => {
+      assert.deepEqual(Object.keys(obj), ['banana', 'dog'])
+      done()
+    })
+  })
+  it ('deletes', (done) => {
+    let array = [{key: 'banana', value: 'fruit'}, {key: 'dog', value: 'animal'}]
+    let obj = {}
+
+    autoFill(array, obj, o => o.key)
+    array.pop()
+
+    setTimeout(() => {
+      assert.deepEqual(Object.keys(obj), ['banana'])
       done()
     })
   })

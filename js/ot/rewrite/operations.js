@@ -14,8 +14,8 @@ export type InsertOperation = {
   text: string
 } & BaseOperation
 
-export type BaseOperation = {
-  parentHash: string,  // a hash representing the hash this operation is applied to
+type BaseOperation = {
+  parentHash: string
 }
 
 export type TextOperation = InsertOperation | DeleteOperation

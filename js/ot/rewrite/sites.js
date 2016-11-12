@@ -3,12 +3,12 @@
 import * as Operations from './operations'
 import type { TextOperation } from './operations'
 import { hash, clone, assign, last, genUid } from '../utils.js'
-import { first } from 'wu.js'
+import { autoFill } from '../observe.js'
+import { find } from 'wu'
 
 export type Server = {
   kind: 'Server'
 } & BaseSite
-
 
 export type Client = {
   kind: 'Client',
@@ -18,31 +18,35 @@ export type SiteUid = string
 
 export type BaseSite = {
   uid: SiteUid,
-  log: Array<TextOperation>, // history of local operations, oldest to newest
+  operationLog: Array<TextOperation>, // history of local operations, oldest to newest
+  textHashToOperation: { [textHash: string]: TextOperation },
   requests: Array<[SiteUid, TextOperation]>, // [remote uid, remote op]
   text: string, // current state
 }
 
 export type Site = Server | Client
 
-export function generateServer () {
+export function generateSite(): BaseSite {
+  let operationLog = []
+  let textHashToOperation = {}
+
+  autoFill(operationLog, textHashToOperation, op => op.parentHash)
+
   return {
-    kind: 'Server',
     uid: genUid(),
-    log: [],
+    operationLog: operationLog,
+    textHashToOperation: textHashToOperation,
     requests: [],
     text: ''
   }
 }
 
-export function generateClient () {
-  return {
-    kind: 'Client',
-    uid: genUid(),
-    log: [],
-    requests: [],
-    text: ''
-  }
+export function generateServer (): Server {
+  return Object.assign({}, generateSite(), { kind: 'Server' })
+}
+
+export function generateClient (): Client {
+  return Object.assign({}. generateSite(), { kind: 'Client' })
 }
 
 function transformRemoteOperation(site: Site, localOp: TextOperation, remoteOp: TextOperation): TextOperation {
@@ -59,30 +63,34 @@ function transformRemoteOperation(site: Site, localOp: TextOperation, remoteOp: 
 
 function applyLocalOperation(site: Site, op: TextOperation) {
   site.text = Operations.apply(site.text, op)
-  site.log.push(op)
+  site.operationLog.push(op)
 }
 
 function applyRequests(site: Site): Array<TextOperation> {
+  // find the first remote op that is parented on a current operation
 
-  // TODO
   while (true) {
-    let logEntry = first([], site.log)
-    if (logEntry === undefined) { break }
+    for (let [requestingSite, requestedOp] of site.requests]) {
+      let currentHash = hash(site.text)
 
-    let [remoteUid, remoteOp] = logEntry
+      while (requestedOp.parentHash !== currentHash) {
+        sharedOp = site.textHashToOperation[requestedOp.parentHash]
+        remoteOp = transformRemoteOperation(site, sharedOp, remoteOp)
+      }
+    }
+    if (loggedOperation === undefined) { break }
 
-    for (let loggedOp of site.log) {
+    for (let loggedOp of site.operationLog) {
       if (loggedOp.parentHash === remoteOp.parentHash) {
-        remoteOp = transformRemoteOperation(site, loggedOp, remoteOp)
       }
     }
 
-    if (last(site.log) && last(site.log).parentHash !== remoteOp.parentHash) {
+    if (last(site.operationLog) && last(site.operationLog).parentHash !== remoteOp.parentHash) {
       throw 'wat'
     }
 
     site.text = Operations.apply(site.text, remoteOp)
-    site.log.push(remoteOp)
+    site.operationLog.push(remoteOp)
 
   }
   return []
