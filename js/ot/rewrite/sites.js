@@ -159,7 +159,7 @@ function * applyRequests(site: Site): Generator<Request, void, void> {
     if (transformedRequest == null) { throw 'wat' }
 
     // apply this request!
-    applyLocalOperation(site, transformedRequest.operation)
+    applyOperation(site, transformedRequest.operation)
 
     yield transformedRequest
   }
@@ -177,7 +177,7 @@ export function applyRequest(site: Site, request: Request): Array<Request> {
   return Array.from(applyRequests(site))
 }
 
-function applyLocalOperation(site: Site, op: TextOperation): Request {
+function applyOperation(site: Site, op: TextOperation): Request {
   // apply the operation
   let parentHash = hash(site.text)
   site.text = Operations.apply(site.text, op)
@@ -200,12 +200,12 @@ function applyLocalOperation(site: Site, op: TextOperation): Request {
 
 export function applyLocalInsert(site: Site, position: number, text: string): Request {
   let op = Operations.generateInsert(position, text, hash(site.text))
-  let request = applyLocalOperation(site, op)
+  let request = applyOperation(site, op)
   return request
 }
 
 export function applyLocalDelete(site: Site, position: number, num: number): Request {
   let op = Operations.generateDelete(position, num, hash(site.text))
-  let request = applyLocalOperation(site, op)
+  let request = applyOperation(site, op)
   return request
 }
