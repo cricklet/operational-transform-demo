@@ -53,11 +53,14 @@ export function observeObject <O> (
   return observer
 }
 
-export function autoFill <T> (source: Array<T>, destination: {[key: string]: T}, hash: (t: T) => string) {
+export function autoFill <T> (source: Array<T>, destination: {[key: string]: T}, key: (t: T) => string, val?: (t: T) => string) {
+  if (val === undefined) {
+    val = t => t
+  }
   for (let t of source) {
-    destination[hash(t)] = t
+    destination[key(t)] = val(t)
   }
   observeArray(source,
-    (t) => destination[hash(t)] = t,
-    (t) => delete destination[hash(t)])
+    (t) => destination[key(t)] = val(t),
+    (t) => delete destination[key(t)])
 }

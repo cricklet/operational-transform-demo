@@ -15,27 +15,61 @@ export type Client = {
 } & BaseSite
 
 export type SiteUid = string
+export type TextHash = string
 
 export type BaseSite = {
   uid: SiteUid,
-  operationLog: Array<TextOperation>, // history of local operations, oldest to newest
-  textHashToOperation: { [textHash: string]: TextOperation },
-  requests: Array<[SiteUid, TextOperation]>, // [remote uid, remote op]
+
+  operationLog: Array<LogEntry>, // history of local operations, oldest to newest
+
+  parentHashToOperation: { [parentHash: TextHash]: TextOperation }, // mapping from the hash it's executed on to the operation
+  resultHashToOperation: { [resultHash: TextHash]: TextOperation }, // mapping from the resulting hash to the operation
+  operationUidToParentHash: { [opUid: string]: TextHash }, // mapping from the op to the hash it's executed on
+  operationUidToResultHash: { [opUid: string]: TextHash }, // mapping from the op to the hash that results from execution
+
+  requests: Array<Request>, // pending requests
   text: string, // current state
+
+  // requestsExecutedFrom: {
+  //   [siteUid: SiteUid]: number // how many operations from some site have been executed here?
+  // }
+}
+
+export type Request = {
+  sourceSiteUid: SiteUid, // where this request is from
+  operation: TextOperation, // what operation was executed
+  parentHash: string, // what the state of the text was when the op executed
+  // requestNumber: number // what number request is this from this site?
+}
+
+export type LogEntry = {
+  operation: TextOperation, // what operation was executed
+  parentHash: string, // what the state of the text was when the op executed
+  resultHash: string // what the state of the text is after the op is executed
 }
 
 export type Site = Server | Client
 
-export function generateSite(): BaseSite {
+function generateSite(): BaseSite {
   let operationLog = []
-  let textHashToOperation = {}
 
-  autoFill(operationLog, textHashToOperation, op => op.parentHash)
+  let parentHashToOperation = {}
+  let resultHashToOperation = {}
+  let operationUidToParentHash = {}
+  let operationUidToResultHash = {}
+
+  autoFill(operationLog, parentHashToOperation, log => log.parentHash)
+  autoFill(operationLog, resultHashToOperation, log => log.resultHash)
+  autoFill(operationLog, operationUidToParentHash, log => log.uid, log => log.parentHash)
+  autoFill(operationLog, operationUidToResultHash, log => log.uid, log => log.resultHash)
 
   return {
     uid: genUid(),
     operationLog: operationLog,
-    textHashToOperation: textHashToOperation,
+    parentHashToOperation: parentHashToOperation,
+    resultHashToOperation: resultHashToOperation,
+    operationUidToParentHash: operationUidToParentHash,
+    operationUidToResultHash: operationUidToResultHash,
     requests: [],
     text: ''
   }
@@ -46,7 +80,7 @@ export function generateServer (): Server {
 }
 
 export function generateClient (): Client {
-  return Object.assign({}. generateSite(), { kind: 'Client' })
+  return Object.assign({}, generateSite(), { kind: 'Client' })
 }
 
 function transformRemoteOperation(site: Site, localOp: TextOperation, remoteOp: TextOperation): TextOperation {
@@ -61,56 +95,117 @@ function transformRemoteOperation(site: Site, localOp: TextOperation, remoteOp: 
   throw 'wat'
 }
 
-function applyLocalOperation(site: Site, op: TextOperation) {
-  site.text = Operations.apply(site.text, op)
-  site.operationLog.push(op)
+function requestIsTransformable(site: Site, request: Request): boolean {
+  let remoteParentHash: TextHash = request.parentHash
+  return remoteParentHash in site.parentHashToOperation
+      || remoteParentHash === hash(site.text)
 }
 
-function applyRequests(site: Site): Array<TextOperation> {
-  // find the first remote op that is parented on a current operation
+function transformRequest(site: Site, request: Request)
+: ?Request { // return a request that can be immediately applied
+  let remoteSiteUid: SiteUid = request.sourceSiteUid
+  let remoteOp: TextOperation = request.operation
+  let remoteParentHash: TextHash = request.parentHash
 
-  while (true) {
-    for (let [requestingSite, requestedOp] of site.requests]) {
-      let currentHash = hash(site.text)
+  let currentHash: TextHash = hash(site.text)
 
-      while (requestedOp.parentHash !== currentHash) {
-        sharedOp = site.textHashToOperation[requestedOp.parentHash]
-        remoteOp = transformRemoteOperation(site, sharedOp, remoteOp)
-      }
-    }
-    if (loggedOperation === undefined) { break }
+  // flag for debugging
+  let transformed = false
 
-    for (let loggedOp of site.operationLog) {
-      if (loggedOp.parentHash === remoteOp.parentHash) {
-      }
-    }
+  while (remoteParentHash !== currentHash) {
+    // grab the local operation that shares the same parent hash as
+    // the remote operation
+    let sharedOp: TextOperation = site.parentHashToOperation[remoteParentHash]
+    if (sharedOp === undefined) { break }
 
-    if (last(site.operationLog) && last(site.operationLog).parentHash !== remoteOp.parentHash) {
-      throw 'wat'
-    }
+    let sharedParentHash: TextHash = site.operationUidToParentHash[sharedOp.uid]
+    let sharedResultHash: TextHash = site.operationUidToResultHash[sharedOp.uid]
 
-    site.text = Operations.apply(site.text, remoteOp)
-    site.operationLog.push(remoteOp)
+    if (sharedParentHash !== remoteParentHash) { throw 'wat' }
 
+    // run the transformation! this makes the remote operation parented on
+    // the result of the shared operation
+    remoteOp = transformRemoteOperation(site, sharedOp, remoteOp)
+    remoteParentHash = sharedResultHash
+
+    transformed = true
   }
-  return []
+
+  // make sure transformation was complete
+  if (transformed && remoteParentHash !== currentHash) { throw 'wat' }
+
+  if (remoteParentHash === currentHash) {
+    // this transformed request is easy to apply!
+    return {
+      sourceSiteUid: request.sourceSiteUid,
+      operation: remoteOp,
+      parentHash: remoteParentHash
+    }
+  } else {
+    return undefined
+  }
 }
 
-export function applyRemoteOperation(site: Site, remoteOp: TextOperation): TextOperation {
+function * applyRequests(site: Site): Generator<Request, void, void> {
+  while (true) {
+    let request: ?Request = find(request => requestIsTransformable(site, request), site.requests)
+    if (request == null) { break }
+
+    // pop this request off the queue
+    site.requests.pop(request)
+
+    // transform the request!
+    let transformedRequest: ?Request = transformRequest(site, request)
+    if (transformedRequest == null) { throw 'wat' }
+
+    // apply this request!
+    applyLocalOperation(site, transformedRequest.operation)
+
+    yield transformedRequest
+  }
+}
+
+export function applyRequest(site: Site, request: Request): Array<Request> {
+  if (site.uid === request.sourceSiteUid) {
+    return [] // no need to apply requests on originating site
+  }
+
   // store this request
-  site.requests.push([site.uid, remoteOp])
+  site.requests.push(request)
 
-  return remoteOp
+  // apply all possible requests
+  return Array.from(applyRequests(site))
 }
 
-export function applyInsert(site: Site, position: number, text: string): TextOperation {
+function applyLocalOperation(site: Site, op: TextOperation): Request {
+  // apply the operation
+  let parentHash = hash(site.text)
+  site.text = Operations.apply(site.text, op)
+  let resultHash = hash(site.text)
+
+  // log operation to apply
+  site.operationLog.push({
+    operation: op,
+    parentHash: parentHash,
+    resultHash: resultHash
+  })
+
+  // return request for other sites
+  return {
+    sourceSiteUid: site.uid,
+    operation: op,
+    parentHash: parentHash
+  }
+}
+
+export function applyLocalInsert(site: Site, position: number, text: string): Request {
   let op = Operations.generateInsert(position, text, hash(site.text))
-  applyLocalOperation(site, op)
-  return op
+  let request = applyLocalOperation(site, op)
+  return request
 }
 
-export function applyDelete(site: Site, position: number, num: number): TextOperation {
+export function applyLocalDelete(site: Site, position: number, num: number): Request {
   let op = Operations.generateDelete(position, num, hash(site.text))
-  applyLocalOperation(site, op)
-  return op
+  let request = applyLocalOperation(site, op)
+  return request
 }

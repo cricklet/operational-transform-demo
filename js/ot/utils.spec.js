@@ -4,7 +4,7 @@
 
 import { expect } from 'chai'
 import { spy } from 'sinon'
-import { assert, should } from 'chai'
+import { assert } from 'chai'
 
 import {
   Greater,

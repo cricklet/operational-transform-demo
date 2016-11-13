@@ -1,40 +1,38 @@
 /* @flow */
 
-import { hash, clone, assign } from '../utils.js'
+import { hash, clone, assign, genUid } from '../utils.js'
 
 export type DeleteOperation = {
   kind: 'DeleteOperation',
   position: number,
-  num: number
-} & BaseOperation
+  num: number,
+  uid: string
+}
 
 export type InsertOperation = {
   kind: 'InsertOperation',
   position: number,
-  text: string
-} & BaseOperation
-
-type BaseOperation = {
-  parentHash: string
+  text: string,
+  uid: string
 }
 
 export type TextOperation = InsertOperation | DeleteOperation
 
-export function generateDelete(position: number, num: number, parentHash: string): DeleteOperation {
+export function generateDelete(position: number, num: number): DeleteOperation {
   return {
     kind: 'DeleteOperation',
     position: position,
     num: num,
-    parentHash: parentHash,
+    uid: genUid()
   }
 }
 
-export function generateInsert(position: number, text: string, parentHash: string): InsertOperation {
+export function generateInsert(position: number, text: string): InsertOperation {
   return {
     kind: 'InsertOperation',
     position: position,
     text: text,
-    parentHash: parentHash,
+    uid: genUid()
   }
 }
 
@@ -76,10 +74,6 @@ export function transform(clientOp: TextOperation, serverOp: TextOperation): [Te
   // apply(apply(text, clientOp), serverOpP) === apply(apply(text, serverOp, clientOpP))
   let o1 = clientOp
   let o2 = serverOp
-
-  if (o1.parentHash !== o2.parentHash) {
-    throw 'wat'
-  }
 
   if (o1.position <= o2.position) {
     return [shift(o1, adjustment(o2)), o2]
