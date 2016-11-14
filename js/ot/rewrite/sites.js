@@ -29,17 +29,12 @@ export type BaseSite = {
 
   requests: Array<Request>, // pending requests
   text: string, // current state
-
-  // requestsExecutedFrom: {
-  //   [siteUid: SiteUid]: number // how many operations from some site have been executed here?
-  // }
 }
 
 export type Request = {
   sourceSiteUid: SiteUid, // where this request is from
   operation: TextOperation, // what operation was executed
   parentHash: string, // what the state of the text was when the op executed
-  // requestNumber: number // what number request is this from this site?
 }
 
 export type LogEntry = {
