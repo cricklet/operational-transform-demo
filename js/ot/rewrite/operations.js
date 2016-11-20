@@ -159,6 +159,56 @@ export function apply(text: string, textOperations: TextOperation): string {
   return text
 }
 
+export function transformConsumeOps(a: ?(Insert|Delete|Retain), b: ?(Insert|Delete|Retain))
+: [[?(Insert|Delete|Retain), ?(Insert|Delete|Retain)], [?(Insert|Delete|Retain), ?(Insert|Delete|Retain)]] {
+  // returns [[aP, bP], [a, b]]
+  if (a != null && a.kind === 'Insert') {
+    return [[a, retain(length(a))], [undefined, b]]
+  }
+
+  if (b != null && b.kind === 'Insert') {
+    return [[retain(length(b)), b], [a, undefined]]
+  }
+
+  // neither is null
+  if (a != null && b != null) {
+    let minLength = Math.min(length(a), length(b))
+
+    let aHead = head(a, minLength)
+    let bHead = head(b, minLength)
+
+    let aTail = tail(a, minLength)
+    let bTail = tail(b, minLength)
+
+    if (a.kind === 'Retain' && b.kind === 'Retain') {
+      return [[aHead, bHead], [aTail, bTail]]
+    }
+    if (a.kind === 'Delete' && b.kind === 'Retain') {
+      return [[aHead, undefined], [aTail, bTail]]
+    }
+    if (a.kind === 'Retain' && b.kind === 'Delete') {
+      return [[undefined, bHead], [aTail, bTail]]
+    }
+    if (a.kind === 'Delete' || b.kind === 'Delete') {
+      return [[undefined, undefined], [aTail, bTail]] // both do the same thing
+    }
+    if (a.kind === 'Insert' || b.kind === 'Insert') {
+      throw 'wat, should be handled already'
+    }
+    throw 'wat'
+  }
+
+  // one is null
+  if (a != null && a.kind === 'Delete') { return [[a, undefined], [undefined, b]] }
+  if (b != null && b.kind === 'Delete') { return [[undefined, b], [a, undefined]] }
+
+  if (a != null && a.kind === 'Retain') { return [[undefined, undefined], [undefined, b]] }
+  if (b != null && b.kind === 'Retain') { return [[undefined, undefined], [a, undefined]] }
+
+  throw 'wat'
+}
+
+
 export function transform(clientOps: TextOperation, serverOps: TextOperation): [TextOperation, TextOperation] {
   // transform (clientOp, serverOp) to (clientOpP, serverOpP) s.t.
   // apply(apply(text, clientOp), serverOpP) === apply(apply(text, serverOp, clientOpP))
@@ -178,79 +228,33 @@ export function transform(clientOps: TextOperation, serverOps: TextOperation): [
   let op2: ?(Insert|Delete|Retain) = undefined
 
   while (true) {
-    if (op1 === undefined) { op1 = ops1.ops[i1]; i1++ }
-    if (op2 === undefined) { op2 = ops2.ops[i2]; i2++ }
+    if (op1 == null) { op1 = ops1.ops[i1]; i1++ }
+    if (op2 == null) { op2 = ops2.ops[i2]; i2++ }
 
     if (op1 == null && op2 == null) { break }
 
-    if ((op1 != null && length(op1) <= 0) ||
-        (op2 != null && length(op2) <= 0)) {
-      throw 'lengths are zero...'
-    }
-
-    if (op1 != null && op1.kind === 'Insert') {
-      ops1P.ops.push(op1)
-      ops2P.ops.push(retain(length(op1)))
-      op1 = undefined
+    if ((op1 != null && length(op1) <= 0)) {
+      op1 = null;
       continue
     }
 
-    if (op2 != null && op2.kind === 'Insert') {
-      ops1P.ops.push(retain(length(op2)))
-      ops2P.ops.push(op2)
-      op2 = undefined
+    if ((op2 != null && length(op2) <= 0)) {
+      op2 = null;
       continue
     }
 
-    if (op1 != null && op2 != null) {
-      let minLength = Math.min(length(op1), length(op2))
+    let [[op1P, op2P], [newOp1, newOp2]] = transformConsumeOps(op1, op2)
 
-      if (op1.kind === 'Retain' && op2.kind === 'Retain') {
-        ops1P.ops.push(retain(minLength))
-        ops2P.ops.push(retain(minLength))
-      }
+    if (op1P != null) { ops1P.ops.push(op1P) }
+    if (op2P != null) { ops2P.ops.push(op2P) }
 
-      if (op1.kind === 'Delete' && op2.kind === 'Retain') {
-        ops1P.ops.push(del(minLength))
-      }
-
-      if (op1.kind === 'Retain' && op2.kind === 'Delete') {
-        ops2P.ops.push(del(minLength))
-      }
-
-      op1 = tail(op1, minLength)
-      op2 = tail(op2, minLength)
-
-      continue
-    }
-
-    if (op1 != null && op1.kind === 'Delete') {
-      ops1P.ops.push(del(op1.num))
-      op1 = undefined
-      continue
-    }
-
-    if (op2 != null && op2.kind === 'Delete') {
-      ops2P.ops.push(del(op2.num))
-      op2 = undefined
-      continue
-    }
-
-    if (op1 != null && op1.kind === 'Retain') {
-      op1 = undefined
-      continue
-    }
-
-    if (op2 != null && op2.kind === 'Retain') {
-      op2 = undefined
-      continue
-    }
+    [op1, op2] = [newOp1, newOp2]
   }
 
   return [ops1P, ops2P]
 }
 
-export function consumeOperations(a: ?(Insert|Delete|Retain), b: ?(Insert|Delete|Retain))
+export function composeConsumeOps(a: ?(Insert|Delete|Retain), b: ?(Insert|Delete|Retain))
 : [?(Insert|Delete|Retain), [?(Insert|Delete|Retain), ?(Insert|Delete|Retain)]] {
   // returns [newOp, [a, b]]
 
@@ -266,23 +270,23 @@ export function consumeOperations(a: ?(Insert|Delete|Retain), b: ?(Insert|Delete
   if (a != null && b != null) {
     let minLength = Math.min(length(a), length(b))
 
-    let head1 = head(a, minLength)
-    let head2 = head(b, minLength)
+    let aHead = head(a, minLength)
+    let bHead = head(b, minLength)
 
-    let tail1 = tail(a, minLength)
-    let tail2 = tail(b, minLength)
+    let aTail = tail(a, minLength)
+    let bTail = tail(b, minLength)
 
     if (a.kind === 'Retain' && b.kind === 'Retain') {
-      return [head1, [tail1, tail2]]
+      return [aHead, [aTail, bTail]]
     }
     if (a.kind === 'Insert' && b.kind === 'Retain') {
-      return [head1, [tail1, tail2]]
+      return [aHead, [aTail, bTail]]
     }
     if (a.kind === 'Retain' && b.kind === 'Delete') {
-      return [head2, [tail1, tail2]]
+      return [bHead, [aTail, bTail]]
     }
     if (a.kind === 'Insert' && b.kind === 'Delete') {
-      return [undefined, [tail1, tail2]] // delete the inserted portion
+      return [undefined, [aTail, bTail]] // delete the inserted portion
     }
     if (a.kind === 'Delete' && b.kind === 'Insert') {
       throw 'wat, should be handled already'
@@ -318,17 +322,22 @@ export function compose(ops1: TextOperation, ops2: TextOperation): TextOperation
   let op2: ?(Insert|Delete|Retain) = undefined
 
   while (true) {
-    if (op1 === undefined) { op1 = ops1.ops[i1]; i1++ }
-    if (op2 === undefined) { op2 = ops2.ops[i2]; i2++ }
+    if (op1 == null) { op1 = ops1.ops[i1]; i1++ }
+    if (op2 == null) { op2 = ops2.ops[i2]; i2++ }
 
     if (op1 == null && op2 == null) { break }
 
-    if ((op1 != null && length(op1) <= 0) ||
-        (op2 != null && length(op2) <= 0)) {
-      throw 'lengths are zero...'
+    if ((op1 != null && length(op1) <= 0)) {
+      op1 = null;
+      continue
     }
 
-    let [composedOp, [newOp1, newOp2]] = consumeOperations(op1, op2)
+    if ((op2 != null && length(op2) <= 0)) {
+      op2 = null;
+      continue
+    }
+
+    let [composedOp, [newOp1, newOp2]] = composeConsumeOps(op1, op2)
 
     if (composedOp != null) { composed.ops.push(composedOp) }
     [op1, op2] = [newOp1, newOp2]
