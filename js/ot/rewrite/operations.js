@@ -103,13 +103,19 @@ function length (operation: Retain|Delete|Insert): number {
   return result
 }
 
-function shorten (operation: Retain|Delete, num: number): ?(Retain|Delete) {
-  let newOp: Retain|Delete = assign(clone(operation), {
-    num: operation.num - num
-  })
-  if (length(newOp) === 0) {
+function shorten (operation: Retain|Delete|Insert, num: number): ?(Retain|Delete|Insert) {
+  let newOp: ?(Retain|Delete|Insert)
+
+  if (operation.kind === 'Retain' || operation.kind === 'Delete') {
+    newOp = assign(clone(operation), { num: operation.num - num })
+  } else if (operation.kind === 'Insert') {
+    newOp = assign(clone(operation), { text: operation.text.substring(num) })
+  }
+
+  if (newOp == undefined || length(newOp) === 0) {
     return undefined
   }
+
   return newOp
 }
 
@@ -186,32 +192,20 @@ export function transform(clientOps: TextOperation, serverOps: TextOperation): [
       if (op1.kind === 'Retain' && op2.kind === 'Retain') {
         ops1P.ops.push(retain(minLength))
         ops2P.ops.push(retain(minLength))
-        op1 = shorten(op1, minLength)
-        op2 = shorten(op2, minLength)
-        continue
       }
 
       if (op1.kind === 'Delete' && op2.kind === 'Retain') {
         ops1P.ops.push(del(minLength))
-        op1 = shorten(op1, minLength)
-        op2 = shorten(op2, minLength)
-        continue
       }
 
       if (op1.kind === 'Retain' && op2.kind === 'Delete') {
         ops2P.ops.push(del(minLength))
-        op1 = shorten(op1, minLength)
-        op2 = shorten(op2, minLength)
-        continue
       }
 
-      if (op1.kind === 'Delete' && op2.kind === 'Delete') {
-        op1 = shorten(op1, minLength)
-        op2 = shorten(op2, minLength)
-        continue
-      }
+      op1 = shorten(op1, minLength)
+      op2 = shorten(op2, minLength)
 
-      throw 'wat'
+      continue
     }
 
     if (op1 != null && op1.kind === 'Delete') {
@@ -238,4 +232,85 @@ export function transform(clientOps: TextOperation, serverOps: TextOperation): [
   }
 
   return [ops1P, ops2P]
+}
+
+export function compose(ops1: TextOperation, ops2: TextOperation): TextOperation {
+  // compose (ops1, ops2) to composed s.t.
+  // apply(apply(text, ops1), ops2) === apply(text, composed)
+
+  // code borrowed from https://github.com/Operational-Transformation/ot.py/blob/master/ot/text_operation.py#L219
+
+  let composed = generateEmpty()
+
+  let i1 = 0
+  let i2 = 0
+
+  let op1: ?(Insert|Delete|Retain) = undefined
+  let op2: ?(Insert|Delete|Retain) = undefined
+
+  while (true) {
+    if (op1 === undefined) { op1 = ops1.ops[i1]; i1++ }
+    if (op2 === undefined) { op2 = ops2.ops[i2]; i2++ }
+
+    if (op1 == null && op2 == null) { break }
+
+    if ((op1 != null && length(op1) <= 0) ||
+        (op2 != null && length(op2) <= 0)) {
+      throw 'lengths are zero...'
+    }
+
+    if (op1 != null && op1.kind === 'Delete') {
+      composed.ops.push(del(op1.num))
+      op1 = undefined
+      continue
+    }
+
+    if (op2 != null && op2.kind === 'Insert') {
+      composed.ops.push(insert(op2.text))
+      op2 = undefined
+      continue
+    }
+
+    if (op1 != null && op2 != null) {
+      let minLength = Math.min(length(op1), length(op2))
+
+      if (op1.kind === 'Retain' && op2.kind === 'Retain') {
+        composed.ops.push(retain(minLength))
+      }
+      if (op1.kind === 'Insert' && op2.kind === 'Retain') {
+        composed.ops.push(insert(op1.text.substring(0, minLength)))
+      }
+      if (op1.kind === 'Retain' && op2.kind === 'Delete') {
+        composed.ops.push(del(minLength))
+      }
+
+      op1 = shorten(op1, minLength)
+      op2 = shorten(op2, minLength)
+      continue
+    }
+
+    if (op1 != null && op1.kind === 'Insert') {
+      composed.ops.push(insert(op1.text))
+      op1 = undefined
+      continue
+    }
+
+    if (op2 != null && op2.kind === 'Delete') {
+      composed.ops.push(del(op2.num))
+      op2 = undefined
+      continue
+    }
+
+    if (op1 != null && op1.kind === 'Retain') {
+      op1 = undefined
+      continue
+    }
+
+    if (op2 != null && op2.kind === 'Retain') {
+      op2 = undefined
+      continue
+    }
+  }
+
+  return composed
 }
