@@ -55,7 +55,9 @@ describe('transform()', () => {
 
 describe('compose()', () => {
   [ ['012345', Operations.generateInsert(1, 'asdf'), Operations.generateInsert(3, 'qwerty'), '0asqwertydf12345'],
-    ['012345', Operations.generateInsert(1, 'asdf'), Operations.generateDelete(3, 3), '0as2345']
+    ['012345', Operations.generateInsert(1, 'asdf'), Operations.generateDelete(3, 3), '0as2345'],
+    ['012345', Operations.generateDelete(1, 3), Operations.generateDelete(1, 1), '05'],
+    ['012345', Operations.generateDelete(1, 3), Operations.generateInsert(2, 'asdf'), '04asdf5']
   ].forEach(([start, op1, op2, result]) => {
     it (start + ' becomes ' + result + ' via ' + Operations.opsString(op1) + ', ' + Operations.opsString(op2), () => {
       assert.equal(
