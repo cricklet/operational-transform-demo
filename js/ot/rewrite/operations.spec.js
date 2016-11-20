@@ -48,8 +48,8 @@ describe('transform()', () => {
       let [op1P, op2P] = transform(op1, op2)
 
       assert.equal(
-        apply(apply("0123456789", op1), op2P),
-        apply(apply("0123456789", op2), op1P))
+        apply(apply("012345678901234567890123456789", op1), op2P),
+        apply(apply("012345678901234567890123456789", op2), op1P))
     })
   })
 })

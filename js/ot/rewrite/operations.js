@@ -199,11 +199,8 @@ export function transformConsumeOps(a: ?(Insert|Delete|Retain), b: ?(Insert|Dele
   }
 
   // one is null
-  if (a != null && a.kind === 'Delete') { return [[a, undefined], [undefined, b]] }
-  if (b != null && b.kind === 'Delete') { return [[undefined, b], [a, undefined]] }
-
-  if (a != null && a.kind === 'Retain') { return [[undefined, undefined], [undefined, b]] }
-  if (b != null && b.kind === 'Retain') { return [[undefined, undefined], [a, undefined]] }
+  if (a != null) { return [[a, undefined], [undefined, b]] }
+  if (b != null) { return [[undefined, b], [a, undefined]] }
 
   throw 'wat'
 }
