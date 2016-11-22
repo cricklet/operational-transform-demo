@@ -115,16 +115,24 @@ function composeActualizedOperations(contextualOps: Array<ActualizedOperation>)
   }
 }
 
-function transformActualizedOperations(
+function composeContextualOperations(contextualOps: Array<ContextualOperation>)
+: ContextualOperation {
+  return {
+    operation: Operations.composeMany(map(o => o.operation, contextualOps)),
+    parentHash: first(contextualOps).parentHash
+  }
+}
+
+function transformContextualOperations(
   site: Site,
-  localOp: ActualizedOperation,
-  remoteOp: ActualizedOperation
+  localOp: ContextualOperation,
+  remoteOp: ContextualOperation
 ): [ ContextualOperation, ContextualOperation ] {
+  // returns [localP, remoteP]
+  // s.t. apply(apply(text, local), remoteP) === apply(apply(text, remote), localP)
+
   // they should be parented on the same state
   if (localOp.parentHash !== remoteOp.parentHash) { throw 'wat' }
-
-  // and they should diverge
-  if (localOp.resultHash === remoteOp.resultHash) { throw 'wat' }
 
   let [local, remote]: [TextOperation, TextOperation] = [localOp.operation, remoteOp.operation]
   let [localP, remoteP]: [TextOperation, TextOperation] = transformOperations(site, local, remote)
@@ -143,6 +151,39 @@ function transformActualizedOperations(
       parentHash: localOp.parentHash
     }
   ]
+}
+
+function bridgeContextualOperations(
+  site: Site,
+  remoteOp: ContextualOperation
+): [ ContextualOperation, ContextualOperation ] {
+  // returns [newRemoteOp, newBridgeOp]
+  //   s.t. newRemoteOp is parented in the site's history
+
+  // no need to bridge if we're in history
+  if (isParentedInHistory(site, remoteOp)) { throw 'wat' }
+
+  // bridge to transform against
+  let bridgeOp = site.bridges[remoteOp.parentHash]
+
+  // run the transformation
+  let [bridgeOpP, remoteOpP]: [ContextualOperation, ContextualOperation]
+      = transformContextualOperations(site, bridgeOp, remoteOp)
+
+  // functionally, we've just generated a bridge (remote result => new result)
+  // and a new operation (local result => new result)
+  let [newBridgeOp, newRemoteOp] = [bridgeOpP, remoteOpP]
+
+  // check our invariants
+  if (!isParentedInHistory(site, newRemoteOp)) {
+    throw 'wat, the purpose of the bridge is to get back into the history'
+  }
+
+  if (newRemoteOp.parentHash !== bridgeOp.resultHash) {
+    throw 'wat, the new op is in the wrong place'
+  }
+
+  return [newRemoteOp, newBridgeOp]
 }
 
 function historySince(site: Site, startParentHash: string): Array<ActualizedOperation> {
@@ -180,37 +221,62 @@ function isApplicable(site: Site, operation: ContextualOperation) {
 
 function * applyRequests(site: Site): Generator<Request, void, void> {
   while (true) {
-    let requestOp: ?Request = find(
-      request => isApplicable(site, request),
-      site.requests)
+    let requestOp: ?Request = find(request => isApplicable(site, request), site.requests)
     if (requestOp == null) { break }
 
     // pop this request off the queue
     site.requests.pop(requestOp)
 
-    let requestParent = requestOp.parentHash
-    let requestResult = requestOp.resultHash
+    let op: ContextualOperation = {
+      parentHash: requestOp.parentHash,
+      operation: requestOp.operation
+    }
 
-    // transform the request!
-    let historyOps: Array<ActualizedOperation> = historySince(site, requestParent)
-    let historyOp = composeActualizedOperations(historyOps)
-    let oldResult = historyOp.resultHash
+    let bridge: ContextualOperation = {
+      parentHash: requestOp.resultHash,
+      operation: Operations.generateEmpty()
+    }
 
-    let [historyOpP, requestOpP] = transformActualizedOperations(site, historyOp, requestOp)
+    if (isBridgeable(site, op)) {
+      let [newOp, bridgeSegment] = bridgeContextualOperations(site, op)
 
-    // functionally, we've just generated a bridge (requestResult => newResult)
-    // and a new operation (oldResult => newResult)
-    let [bridgeOp, newOp] = [historyOpP, requestOpP]
+      if (bridgeSegment.parentHash !== requestOp.resultHash) {
+        throw 'wat, the new bridge is in the wrong place'
+      }
+
+      bridge = composeContextualOperations([bridge, bridgeSegment])
+      op = newOp
+    }
+
+    if (isParentedInHistory(site, op)) {
+      // transform the request!
+      let localOps: Array<ActualizedOperation> = historySince(site, op.parentHash)
+      let localOp = composeActualizedOperations(localOps)
+      let localResult = localOp.resultHash
+
+      let [localOpP, requestOpP] = transformContextualOperations(site, localOp, requestOp)
+
+      // functionally, we've just generated a bridge (remote result => new result)
+      // and a new operation (local result => new result)
+      let [bridgeSegment, newOp] = [localOpP, requestOpP]
+
+      if (localOp.resultHash !== newOp.parentHash) {
+        throw 'wat, new operation is in the wrong place'
+      }
+
+      bridge = composeContextualOperations([bridge, bridgeSegment])
+      op = newOp
+    }
 
     // apply the new operation
-    let newRequest: Request = applyOperation(site, newOp)
+    let newRequest: Request = applyOperation(site, op)
     let newResult = newRequest.resultHash
 
     // save the bridge
-    site.bridges[historyOpP.parentHash] = {
+    site.bridges[bridge.parentHash] = {
       resultHash: newResult,
-      parentHash: bridgeOp.parentHash,
-      operation: bridgeOp.operation
+      parentHash: bridge.parentHash,
+      operation: bridge.operation
     }
 
     // yield the request that should be sent to other clients
