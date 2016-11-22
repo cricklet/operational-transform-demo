@@ -342,3 +342,11 @@ export function compose(ops1: TextOperation, ops2: TextOperation): TextOperation
 
   return composed
 }
+
+export function composeMany(ops: Iterable<TextOperation>): TextOperation {
+  let composed = generateEmpty()
+  for (let op: TextOperation of ops) {
+    composed = compose(composed, op)
+  }
+  return composed
+}

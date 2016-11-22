@@ -31,6 +31,8 @@ export function clone<T>(object: T): T {
 }
 
 export function assign<T>(t: T, o: Object): T {
+  // I can't wait for flows utility types to be better (i.e. $Diff, $Supertype, etc).
+  // Then this function will be more correct!
   return Object.assign(t, o)
 }
 
@@ -246,7 +248,21 @@ export function hash (str: string): string {
 }
 
 export function last <T> (arr: Array<T>): T {
+  if (arr.length === 0) { throw 'wat no last' }
   return arr[arr.length - 1]
+}
+
+export function first <T> (arr: Array<T>): T {
+  if (arr.length === 0) { throw 'wat no first' }
+  return arr[0]
+}
+
+export function maybeLast <T> (arr: Array<T>): ?T {
+  return arr[arr.length - 1]
+}
+
+export function maybeFirst <T> (arr: Array<T>): ?T {
+  return arr[0]
 }
 
 export function shuffle <T> (arr: Array<T>): Reiterable<T> {
@@ -266,6 +282,14 @@ export function shuffle <T> (arr: Array<T>): Reiterable<T> {
   return function * () {
     for (let index of indices) {
       yield arr[index]
+    }
+  }
+}
+
+export function zipPairs <T> (arr: Array<T>): Reiterable<[T ,T]> {
+  return function * () {
+    for (let i = 0; i < arr.length - 1; i ++) {
+      yield [arr[i], arr[i+1]]
     }
   }
 }

@@ -73,9 +73,9 @@ describe('compose()', () => {
   describe('combinatorial', () => {
     let ops = [
       generateInsert(1, 'asdf'), generateInsert(3, 'qwerty'),
-      generateInsert(5, 'banana'),
-      generateDelete(0, 2), generateDelete(2, 2),
-      generateDelete(4, 3)]
+      // generateInsert(5, 'banana'),
+      generateDelete(0, 2), generateDelete(2, 2),]
+      // generateDelete(4, 3)]
 
     ops.forEach(op1 => {
       ops.forEach(op2 => {
