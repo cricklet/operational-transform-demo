@@ -27,7 +27,7 @@ describe('onLocalChange()', () => {
     assert.equal('hello!', client.text)
     assert.equal('hello!', server.text)
   })
-  it ('two clients are handled', () => {
+  it.only ('two clients are handled', () => {
     let client0 = Sites.generateClient()
     let client1 = Sites.generateClient()
     let server = Sites.generateServer()

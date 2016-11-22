@@ -72,6 +72,10 @@ export function generateInsert(position: number, text: string): TextOperation {
   }
 }
 
+export function isEmpty(op: TextOperation): boolean {
+  return op.ops.length === 0
+}
+
 function adjustment (operation: Retain|Delete|Insert): number {
   if (operation.kind === 'Retain') {
     return operation.num
