@@ -316,20 +316,20 @@ export function applyRequest(site: Site, request: Request): Array<Request> {
   return Array.from(applyRequests(site))
 }
 
-function applyOperation(site: Site, actualizedOperation: ContextualOperation, sourceSiteUid: ?SiteUid): Request {
+function applyOperation(site: Site, contextualOperation: ContextualOperation, sourceSiteUid: ?SiteUid): Request {
   if (sourceSiteUid == null) {
     sourceSiteUid = site.uid
   }
 
   // apply the operation
-  let parentState = actualizedOperation.parentState
-  let resultState = actualizedOperation.resultState
+  let parentState = contextualOperation.parentState
+  let resultState = contextualOperation.resultState
   if (parentState !== site.state) {
     throw 'wat operation should be parented on current state'
   }
 
   // run the operation
-  let op = actualizedOperation.operation
+  let op = contextualOperation.operation
   site.text = Operations.apply(site.text, op)
   site.state = resultState
 

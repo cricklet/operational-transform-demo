@@ -16,17 +16,28 @@ import type { TextOperation } from './operations.js'
 
 let FAKE_STATE = 'xyz'
 
+function generatePropogator(server: Server, clients: Array<Client>) {
+  let propogateFromServer = (requests: Array<Request>) => {
+    for (let request of requests) {
+      for (let client of clients) {
+        propogateFromClient(Sites.applyRequest(client, request))
+      }
+    }
+  }
+  let propogateFromClient = (requests: Array<Request>) => {
+    for (let request of requests) {
+      propogateFromServer(Sites.applyRequest(server, request))
+    }
+  }
+  return propogateFromClient
+}
+
 describe('onLocalChange()', () => {
   it ('client updates server & client', () => {
     let client = Sites.generateClient()
     let server = Sites.generateServer()
 
-    let propogate = (requests: Array<Request>) => {
-      for (let request of requests) {
-        propogate(Sites.applyRequest(client, request))
-        propogate(Sites.applyRequest(server, request))
-      }
-    }
+    let propogate = generatePropogator(server, [client])
 
     propogate([Sites.applyLocalInsert(client, 0, 'hello!')])
 
@@ -38,13 +49,7 @@ describe('onLocalChange()', () => {
     let client1 = Sites.generateClient()
     let server = Sites.generateServer()
 
-    let propogate = (requests: Array<Request>) => {
-      for (let request of requests) {
-        propogate(Sites.applyRequest(client0, request))
-        propogate(Sites.applyRequest(client1, request))
-        propogate(Sites.applyRequest(server, request))
-      }
-    }
+    let propogate = generatePropogator(server, [client0, client1])
 
     propogate([Sites.applyLocalInsert(client1, 0, 'world')])
     propogate([Sites.applyLocalInsert(client0, 0, 'hello')])
@@ -57,12 +62,7 @@ describe('onLocalChange()', () => {
     let client = Sites.generateClient()
     let server = Sites.generateServer()
 
-    let propogate = (requests: Array<Request>) => {
-      for (let request of requests) {
-        propogate(Sites.applyRequest(client, request))
-        propogate(Sites.applyRequest(server, request))
-      }
-    }
+    let propogate = generatePropogator(server, [client])
 
     let request0 = Sites.applyLocalInsert(client, 0, 'world')
     let request1 = Sites.applyLocalInsert(client, 0, 'hello ')
@@ -96,12 +96,7 @@ describe('onLocalChange()', () => {
     let clients = Array.from(map(Sites.generateClient, clientEvents))
     let server = Sites.generateServer()
 
-    let propogate = (requests: Array<Request>) => {
-      for (let request of requests) {
-        clients.forEach(client => propogate(Sites.applyRequest(client, request)))
-        propogate(Sites.applyRequest(server, request))
-      }
-    }
+    let propogate = generatePropogator(server, clients)
 
     let requests: Array<Request> = []
     for (let [client, events] of zip(clients, clientEvents)) {
