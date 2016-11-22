@@ -2,9 +2,9 @@
 
 import * as Operations from './operations'
 import type { TextOperation } from './operations'
-import { hash, clone, assign, last, genUid, zipPairs, first } from '../utils.js'
+import { clone, assign, last, genUid, zipPairs, first, pop } from '../utils.js'
 import { autoFill } from '../observe.js'
-import { find, map } from 'wu'
+import { find, map, reject } from 'wu'
 
 export type Server = {
   kind: 'Server'
@@ -15,40 +15,39 @@ export type Client = {
 } & BaseSite
 
 export type SiteUid = string
-export type TextHash = string
+export type SiteState = string
 
 export type BaseSite = {
   uid: SiteUid,
 
   log: Array<LogEntry>, // history of local operations, oldest to newest
 
-  parentToOperationLog: { [parentHash: TextHash]: ActualizedOperation }, // mapping from the hash it's executed on to the operation
-  loggedOperationToParent: { [opUid: string]: TextHash }, // mapping from the op to the hash it's executed on
-  loggedOperationToResult: { [opUid: string]: TextHash }, // mapping from the op to the hash that results from execution
+  parentToOperationLog: { [parentState: SiteState]: ContextualOperation }, // mapping from the state it's executed on to the operation
+  loggedOperationToParent: { [opUid: string]: SiteState }, // mapping from the op to the state it's executed on
+  loggedOperationToResult: { [opUid: string]: SiteState }, // mapping from the op to the state that results from execution
 
-  bridges: { [parentHash: TextHash]: ActualizedOperation }, // operations that take some parent state & transform it into a state in the log
+  bridges: { [parentState: SiteState]: ContextualOperation }, // operations that take some parent state & transform it into a state in the log
 
   requests: Array<Request>, // pending requests
-  text: string, // current state
-}
 
-export type ActualizedOperation = {
-  resultHash: string
-} & ContextualOperation
+  text: string, // current state
+  state: SiteState // uid for the current state
+}
 
 export type ContextualOperation = {
   operation: TextOperation,
-  parentHash: string
+  parentState: string,
+  resultState: string
 }
 
 export type Request = {
   kind: 'Request',
   sourceSiteUid: SiteUid // where this request is from
-} & ActualizedOperation
+} & ContextualOperation
 
 export type LogEntry = {
   kind: 'LogEntry'
-} & ActualizedOperation
+} & ContextualOperation
 
 export type Site = Server | Client
 
@@ -64,7 +63,8 @@ function generateSite(): BaseSite {
     operationToTransform: {},
     requests: [],
     bridges: {},
-    text: ''
+    text: '',
+    state: 'start',
   }
 }
 
@@ -92,171 +92,186 @@ function transformOperations(
   throw 'wat'
 }
 
-function composeActualizedOperations(contextualOps: Array<ActualizedOperation>)
-: ActualizedOperation {
+function composeContextualOperations(contextualOps: Array<ContextualOperation>)
+: ContextualOperation {
   if (contextualOps.length === 0) { throw 'wat, no ops' }
 
   for (let [op1, op2] of zipPairs(contextualOps)()) {
-    if (op1.resultHash != op2.parentHash) { throw 'wat, out of order' }
+    if (op1.resultState != op2.parentState) { throw 'wat, out of order' }
   }
 
   return {
     operation: Operations.composeMany(map(o => o.operation, contextualOps)),
-    parentHash: first(contextualOps).parentHash,
-    resultHash: last(contextualOps).resultHash
+    parentState: first(contextualOps).parentState,
+    resultState: last(contextualOps).resultState
   }
 }
 
-function composeContextualOperations(contextualOps: Array<ContextualOperation>)
-: ContextualOperation {
-  return {
-    operation: Operations.composeMany(map(o => o.operation, contextualOps)),
-    parentHash: first(contextualOps).parentHash
-  }
-}
-
-function transformActualizedOperations(
+function transformContextualOperations(
   site: Site,
-  localOp: ActualizedOperation,
-  remoteOp: ActualizedOperation
+  localOp: ContextualOperation,
+  remoteOp: ContextualOperation
 ): [ ContextualOperation, ContextualOperation ] {
   // returns [localP, remoteP]
   // s.t. apply(apply(text, local), remoteP) === apply(apply(text, remote), localP)
 
   // they should be parented on the same state
-  if (localOp.parentHash !== remoteOp.parentHash) { throw 'wat' }
+  if (localOp.parentState !== remoteOp.parentState) { throw 'wat' }
+
+  // they should diverge
+  if (localOp.resultState === remoteOp.resultState) { throw 'wat, they do not diverge' }
 
   let [local, remote]: [TextOperation, TextOperation] = [localOp.operation, remoteOp.operation]
   let [localP, remoteP]: [TextOperation, TextOperation] = transformOperations(site, local, remote)
 
   // apply(apply(text, local), remoteP) === apply(apply(text, remote), localP)
-  // therefore, remoteP is parented on local's result hash
-  //        and localP is parented on remote's result hash
+  // therefore, remoteP is parented on local's result state
+  //        and localP is parented on remote's result state
+
+  // both remoteP and localP point at a completely new result state
+  let newResult = genUid()
 
   return [
     {
       operation: localP,
-      parentHash: remoteOp.resultHash
+      parentState: remoteOp.resultState,
+      resultState: newResult
     },
     {
       operation: remoteP,
-      parentHash: localOp.resultHash
+      parentState: localOp.resultState,
+      resultState: newResult
     }
   ]
 }
 
-function bridgeContextualOperations(
+function bridgeContextualOperation(
   site: Site,
   remoteOp: ContextualOperation
 ): [ ContextualOperation, ContextualOperation ] {
   // returns [newRemoteOp, newBridgeOp]
   //   s.t. newRemoteOp is parented in the site's history
 
-  // no need to bridge if we're in history
-  if (isParentedInHistory(site, remoteOp)) { throw 'wat' }
-
   // bridge to transform against
-  let bridgeOp = site.bridges[remoteOp.parentHash]
+  let bridgeOp = site.bridges[remoteOp.parentState]
 
   // run the transformation
   let [bridgeOpP, remoteOpP]: [ContextualOperation, ContextualOperation]
-      = transformActualizedOperations(site, bridgeOp, remoteOp)
+      = transformContextualOperations(site, bridgeOp, remoteOp)
 
   // functionally, we've just generated a bridge (remote result => new result)
   // and a new operation (local result => new result)
   let [newBridgeOp, newRemoteOp] = [bridgeOpP, remoteOpP]
 
   // check our invariants
-  if (!isParentedInHistory(site, newRemoteOp)) {
-    throw 'wat, the purpose of the bridge is to get back into the history'
+  if (newRemoteOp.parentState !== bridgeOp.resultState) {
+    throw 'wat, the new op is in the wrong place'
   }
 
-  if (newRemoteOp.parentHash !== bridgeOp.resultHash) {
-    throw 'wat, the new op is in the wrong place'
+  if (newBridgeOp.parentState !== remoteOp.resultState) {
+    throw 'wat, the bridge is in the wrong place'
   }
 
   return [newRemoteOp, newBridgeOp]
 }
 
-function historySince(site: Site, startParentHash: string): Array<ActualizedOperation> {
+function historySince(site: Site, startParentState: string): Array<ContextualOperation> {
   let ops = []
-  let parentHash = startParentHash
+  let parentState = startParentState
 
   while (true) {
-    let nextOp: ActualizedOperation = site.parentToOperationLog[parentHash]
+    let nextOp: ContextualOperation = site.parentToOperationLog[parentState]
     if (nextOp == null) {
       break
     }
 
     ops.push(nextOp)
-    parentHash = nextOp.resultHash
+    parentState = nextOp.resultState
   }
 
-  if (parentHash != hash(site.text)) {
+  if (parentState != site.state) {
     throw 'wat history is incomplete'
   }
 
   return ops
 }
 
-function isImmediatelyApplicable(site: Site, operation: ContextualOperation) {
-  return hash(site.text) === operation.parentHash
-}
-
-function isParentedInHistory(site: Site, operation: ContextualOperation) {
-  return operation.parentHash in site.parentToOperationLog
-}
-
-function isBridgeable(site: Site, operation: ContextualOperation) {
-  return operation.parentHash in site.bridges && !isParentedInHistory(site, operation)
-}
-
-function isApplicable(site: Site, operation: ContextualOperation) {
-  return isImmediatelyApplicable(site, operation) || isParentedInHistory(site, operation) || isBridgeable(site, operation)
-}
-
 function * applyRequests(site: Site): Generator<Request, void, void> {
   while (true) {
-    let requestOp: ?Request = find(request => isApplicable(site, request), site.requests)
+    let isInHistory = (state: SiteState) => state in site.parentToOperationLog
+    let isHead = (state: SiteState) => state === site.state
+    let isNew = (operation: ContextualOperation) =>
+      (!isHead(operation.resultState) && !isInHistory(operation.resultState))
+    let canImmediatelyApply = (operation: ContextualOperation) => isHead(operation.parentState)
+    let canTransform = (operation: ContextualOperation) => isInHistory(operation.parentState)
+    let canBridge = (operation: ContextualOperation) => operation.parentState in site.bridges
+
+    let canApply = request => {
+      return isNew(request)
+          && (canImmediatelyApply(request) || canTransform(request) || canBridge(request))
+    }
+
+    // remove extra requests
+    site.requests = Array.from(reject(request => !isNew(request), site.requests))
+
+    // get the next applicable request
+    let requestOp: ?Request = pop(site.requests, canApply)
     if (requestOp == null) { break }
 
-    // pop this request off the queue
-    site.requests.pop(requestOp)
+    console.log('\nsite: ' + site.kind + ' #' + site.uid + ' @ ' + site.state + ' "' + site.text + '"')
+    console.log('log: start, ' + Array.from(map(o => o.resultState, historySince(site, 'start'))).join(', '))
+    console.log('bridges: ' + Object.keys(site.bridges).join(', '))
+    console.log('  op is ' + requestOp.parentState + ' => ' + requestOp.resultState + ' from #' + requestOp.sourceSiteUid)
+    console.log('  remaining: ' + Array.from(map(r => r.parentState + ' => ' + r.resultState, site.requests)).join(', '))
 
     let op: ContextualOperation = {
-      parentHash: requestOp.parentHash,
+      parentState: requestOp.parentState,
+      resultState: requestOp.resultState,
       operation: requestOp.operation
     }
 
-    let bridge: ContextualOperation = {
-      parentHash: requestOp.resultHash,
+    let bridge: ContextualOperation = { // bridge currently spans nothing
+      parentState: requestOp.resultState,
+      resultState: requestOp.resultState,
       operation: Operations.generateEmpty()
     }
 
-    if (isBridgeable(site, op)) {
-      let [newOp, bridgeSegment] = bridgeContextualOperations(site, op)
+    if (canBridge(op) && !canTransform(op) && !canImmediatelyApply(op)) {
+      let [newOp, bridgeSegment] = bridgeContextualOperation(site, op)
 
-      if (bridgeSegment.parentHash !== requestOp.resultHash) {
+      if (bridgeSegment.parentState !== requestOp.resultState) {
         throw 'wat, the new bridge is in the wrong place'
+      }
+
+      if (!canTransform(newOp) && !canImmediatelyApply(newOp)) {
+        throw 'wat, the purpose of the bridge is to get back into the history'
       }
 
       bridge = composeContextualOperations([bridge, bridgeSegment])
       op = newOp
     }
 
-    if (isParentedInHistory(site, op)) {
+    if (canTransform(op) && !canImmediatelyApply(op)) {
       // transform the request!
-      let localOps: Array<ActualizedOperation> = historySince(site, op.parentHash)
-      let localOp = composeActualizedOperations(localOps)
+      let localOps: Array<ContextualOperation> = historySince(site, op.parentState)
+      let localOp = composeContextualOperations(localOps)
 
-      let [localOpP, opP] = transformActualizedOperations(site, localOp, op)
+      let [localOpP, opP] = transformContextualOperations(site, localOp, op)
 
       // functionally, we've just generated a bridge (remote result => new result)
       // and a new operation (local result => new result)
       let [bridgeSegment, newOp] = [localOpP, opP]
 
-      if (newOp.parentHash === localOp.resultHash) {
+      if (newOp.parentState !== localOp.resultState) {
         throw 'wat, new operation is in the wrong place'
+      }
+
+      if (bridgeSegment.parentState !== op.resultState) {
+        throw 'wat, bridge segment is in the wrong place'
+      }
+
+      if (bridgeSegment.resultState !== newOp.resultState) {
+        throw 'wat, bridge & new op should match'
       }
 
       bridge = composeContextualOperations([bridge, bridgeSegment])
@@ -264,18 +279,25 @@ function * applyRequests(site: Site): Generator<Request, void, void> {
     }
 
     // apply the new operation
-    debugger
+    if (Operations.isEmpty(op.operation)) { continue }
+
+    // check invariants
+    if (!canImmediatelyApply(op)) { throw 'wat it should be applicable by now' }
+
     let newRequest: Request = applyOperation(site, op, requestOp.sourceSiteUid)
-    let newResult = newRequest.resultHash
+    let newResult = newRequest.resultState
 
     // save the bridge
     if (!Operations.isEmpty(bridge.operation)) {
-      site.bridges[bridge.parentHash] = {
-        resultHash: newResult,
-        parentHash: bridge.parentHash,
+      site.bridges[bridge.parentState] = {
+        resultState: newResult,
+        parentState: bridge.parentState,
         operation: bridge.operation
       }
     }
+
+    console.log('\nfinishes #' + site.state + ' "' + site.text + '"\n')
+    console.log('log: start, ' + Array.from(map(o => o.resultState, historySince(site, 'start'))).join(', '))
 
     // yield the request that should be sent to other clients
     yield newRequest
@@ -294,55 +316,63 @@ export function applyRequest(site: Site, request: Request): Array<Request> {
   return Array.from(applyRequests(site))
 }
 
-function applyOperation(site: Site, contextualOp: ContextualOperation, sourceSiteUid: ?SiteUid): Request {
+function applyOperation(site: Site, actualizedOperation: ContextualOperation, sourceSiteUid: ?SiteUid): Request {
   if (sourceSiteUid == null) {
     sourceSiteUid = site.uid
   }
 
   // apply the operation
-  let parentHash = hash(site.text)
-  if (contextualOp.parentHash !== parentHash) {
-    debugger
-    throw 'wat parent hashes differ'
+  let parentState = actualizedOperation.parentState
+  let resultState = actualizedOperation.resultState
+  if (parentState !== site.state) {
+    throw 'wat operation should be parented on current state'
   }
 
-  let op = contextualOp.operation
+  // run the operation
+  let op = actualizedOperation.operation
   site.text = Operations.apply(site.text, op)
-  let resultHash = hash(site.text)
+  site.state = resultState
 
-  // log operation to apply
+  // log applied operation
   let log = {
     kind: 'LogEntry',
     operation: op,
-    parentHash: parentHash,
-    resultHash: resultHash
+    parentState: parentState,
+    resultState: resultState
   }
-
   site.log.push(log)
-  site.parentToOperationLog[parentHash] = log
-  site.loggedOperationToParent[op.uid] = parentHash
-  site.loggedOperationToResult[op.uid] = resultHash
+
+  // update data structures
+  site.parentToOperationLog[parentState] = log
+  site.loggedOperationToParent[op.uid] = parentState
+  site.loggedOperationToResult[op.uid] = resultState
 
   // return request for other sites
   return {
     kind: 'Request',
     sourceSiteUid: sourceSiteUid,
     operation: op,
-    parentHash: parentHash,
-    resultHash: resultHash
+    parentState: parentState,
+    resultState: resultState
   }
 }
 
 export function applyLocalInsert(site: Site, position: number, text: string): Request {
-  let parentHash = hash(site.text)
-  let op = Operations.generateInsert(position, text, parentHash)
-  let request = applyOperation(site, { operation: op, parentHash: parentHash })
+  let op = Operations.generateInsert(position, text)
+  let request = applyOperation(site, {
+    operation: op,
+    parentState: site.state,
+    resultState: genUid()
+  })
   return request
 }
 
 export function applyLocalDelete(site: Site, position: number, num: number): Request {
-  let parentHash = hash(site.text)
-  let op = Operations.generateDelete(position, num, parentHash)
-  let request = applyOperation(site, { operation: op, parentHash: parentHash })
+  let op = Operations.generateDelete(position, num)
+  let request = applyOperation(site, {
+    operation: op,
+    parentState: site.state,
+    resultState: genUid()
+  })
   return request
 }

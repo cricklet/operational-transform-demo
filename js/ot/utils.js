@@ -293,3 +293,14 @@ export function zipPairs <T> (arr: Array<T>): Reiterable<[T ,T]> {
     }
   }
 }
+
+export function pop <T> (arr: Array<T>, f: (t: T) => boolean): ?T {
+  for (let i = 0; i < arr.length; i ++) {
+    if (f(arr[i])) {
+      let t = arr[i]
+      arr.splice(i, 1)
+      return t
+    }
+  }
+  return undefined
+}

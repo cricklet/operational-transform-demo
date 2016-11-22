@@ -21,13 +21,19 @@ describe('onLocalChange()', () => {
     let client = Sites.generateClient()
     let server = Sites.generateServer()
 
-    let request: Request = Sites.applyLocalInsert(client, 0, 'hello!')
-    Sites.applyRequest(server, request)
+    let propogate = (requests: Array<Request>) => {
+      for (let request of requests) {
+        propogate(Sites.applyRequest(client, request))
+        propogate(Sites.applyRequest(server, request))
+      }
+    }
+
+    propogate([Sites.applyLocalInsert(client, 0, 'hello!')])
 
     assert.equal('hello!', client.text)
     assert.equal('hello!', server.text)
   })
-  it.only ('two clients are handled', () => {
+  it ('two clients are handled', () => {
     let client0 = Sites.generateClient()
     let client1 = Sites.generateClient()
     let server = Sites.generateServer()
@@ -71,24 +77,20 @@ describe('onLocalChange()', () => {
     assert.equal('this is hello world', client.text)
     assert.equal('this is hello world', server.text)
   })
-  it ('multiple clients', () => {
+  it.only ('multiple clients', () => {
     type InsertEvent = [ Sites.applyLocalInsert, number, string ]
     type DeleteEvent = [ Sites.applyLocalDelete, number, number ]
     type LocalEvent = InsertEvent | DeleteEvent
 
     let clientEvents: Array<Array<LocalEvent>> = [
       [[Sites.applyLocalInsert, 0, 'hello'], // hello
-       [Sites.applyLocalDelete, 2, 3], // he
-       [Sites.applyLocalInsert, 2, '-man'], // heman
-       [Sites.applyLocalInsert, 6, ' is great']],
+       [Sites.applyLocalDelete, 2, 3]], // he
       [[Sites.applyLocalInsert, 0, 'dog'],
        [Sites.applyLocalDelete, 0, 1],
        [Sites.applyLocalInsert, 0, 'g'],
        [Sites.applyLocalDelete, 2, 1],
        [Sites.applyLocalInsert, 2, 'd']], // god
-      [[Sites.applyLocalInsert, 0, 'the'],
-       [Sites.applyLocalDelete, 0, 2],
-       [Sites.applyLocalInsert, 0, 'l'],
+      [[Sites.applyLocalInsert, 0, 'le'],
        [Sites.applyLocalInsert, 2, ' sigh']] // le sigh
     ]
     let clients = Array.from(map(Sites.generateClient, clientEvents))

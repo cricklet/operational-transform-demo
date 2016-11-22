@@ -28,6 +28,7 @@ import {
   rearray,
   findIndex,
   findLastIndex,
+  pop,
 } from './utils'
 
 import type { Comparison } from './utils.js'
@@ -69,6 +70,24 @@ describe('repeat', () => {
     assert.deepEqual(
       rearray(repeat(10, counter)),
       [0,1,2,3,4,5,6,7,8,9])
+  })
+})
+
+describe('pop', () => {
+  it ('works', () => {
+    let check = x => { return x.a != null && x.a === true }
+
+    assert.deepEqual(
+      pop([{'a': false}, {'b': true}, {'a': true}], check),
+      {'a': true})
+
+    assert.deepEqual(
+      pop([{'a': true}, {'b': true}, {'a': false}], check),
+      {'a': true})
+
+    assert.deepEqual(
+      pop([{'a': false}, {'b': true}, {'a': false}], check),
+      undefined)
   })
 })
 
