@@ -30,10 +30,12 @@ export function clone<T>(object: T): T {
   return Object.assign({}, object)
 }
 
-export function assign<T>(t: T, o: Object): T {
-  // I can't wait for flows utility types to be better (i.e. $Diff, $Supertype, etc).
-  // Then this function will be more correct!
-  return Object.assign(t, o)
+export function assign<A, B>(a: A, b: B): A {
+  return Object.assign(a, b)
+}
+
+export function merge<A, B>(a: A, b: B): A & B {
+  return Object.assign(clone(a), b)
 }
 
 export function specificRange(start: number, stop: number, step: number): Reiterable<number> {
@@ -303,4 +305,13 @@ export function pop <T> (arr: Array<T>, f: (t: T) => boolean): ?T {
     }
   }
   return undefined
+}
+
+export function contains <T> (arr: Array<T>, t: T): boolean {
+  for (let i = 0; i < arr.length; i ++) {
+    if (t === arr[i]) {
+      return true
+    }
+  }
+  return false
 }

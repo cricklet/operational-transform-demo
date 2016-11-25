@@ -1,24 +1,20 @@
 /* @flow */
 
-import { genUid, calculatePrefixLength, calculatePostfixLength, repeat, concat, substring, removeTail, rearray, restring } from './utils.js'
+import { calculatePrefixLength, calculatePostfixLength, repeat, concat, substring, removeTail, rearray, restring } from './utils.js'
 import type { Site } from './sites.js'
 
 export type DeleteOperation = {
   kind: 'DeleteOperation',
   position: number,
-} & Operation
+}
 
 export type InsertOperation = {
   kind: 'InsertOperation',
   position: number,
   character: string,
-} & Operation
+}
 
 export type TextOperation = DeleteOperation | InsertOperation
-
-export type Operation = {
-  uid: string
-}
 
 export function inferOperations(oldText: string, newText: string): Array<TextOperation> {
   if (oldText.length === newText.length) {
@@ -68,7 +64,6 @@ export function inferOperations(oldText: string, newText: string): Array<TextOpe
 
 export function generateDeleteOperation(position: number): DeleteOperation {
   return {
-    uid: genUid(),
     position: position,
     kind: 'DeleteOperation',
   }
@@ -79,7 +74,6 @@ export function generateInsertOperation(position: number, character: string): In
     throw "Bad character: '" + character + "'"
   }
   return {
-    uid: genUid(),
     position: position,
     character: character,
     kind: 'InsertOperation',

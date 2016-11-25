@@ -1,4 +1,4 @@
-/* @flow */
+/* @flownope */
 
 "use strict"
 
@@ -58,6 +58,25 @@ describe('onLocalChange()', () => {
     assert.equal('helloworld', client1.text)
     assert.equal('helloworld', server.text)
   })
+  it ('two clients out of order', () => {
+    let client0 = Sites.generateClient()
+    let client1 = Sites.generateClient()
+    let server = Sites.generateServer()
+
+    let propogate = generatePropogator(server, [client0, client1])
+
+    let r0 = Sites.applyLocalInsert(client1, 0, '01234')
+    let r1 = Sites.applyLocalInsert(client0, 0, 'abc')
+    let r2 = Sites.applyLocalDelete(client0, 0, 3)
+
+    propogate([r1])
+    propogate([r0])
+    propogate([r2])
+
+    assert.equal('01234', client0.text)
+    assert.equal('01234', client1.text)
+    assert.equal('01234', server.text)
+  })
   it ('out of order requests', () => {
     let client = Sites.generateClient()
     let server = Sites.generateServer()
@@ -77,7 +96,7 @@ describe('onLocalChange()', () => {
     assert.equal('this is hello world', client.text)
     assert.equal('this is hello world', server.text)
   })
-  it.only ('multiple clients', () => {
+  it ('multiple clients', () => {
     type InsertEvent = [ Sites.applyLocalInsert, number, string ]
     type DeleteEvent = [ Sites.applyLocalDelete, number, number ]
     type LocalEvent = InsertEvent | DeleteEvent
