@@ -1,6 +1,9 @@
-/* @flownope */
+/* @flow */
 
 "use strict"
+
+let chai = require('chai')
+chai.config.includeStack = true
 
 import { expect } from 'chai'
 import { spy } from 'sinon'
@@ -10,36 +13,47 @@ import { map, zip, flatten } from 'wu'
 
 import * as Operations from './operations.js'
 import * as Sites from './sites.js'
-import { shuffle } from '../utils.js'
-import type { Client, Server, Request } from './sites.js'
+import { shuffle, push } from '../utils.js'
+import type { Client, Server, ClientRequest, ServerRequest } from './sites.js'
 import type { TextOperation } from './operations.js'
 
 let FAKE_STATE = 'xyz'
 
 function generatePropogator(server: Server, clients: Array<Client>) {
-  let propogateFromServer = (requests: Array<Request>) => {
-    for (let request of requests) {
-      for (let client of clients) {
-        propogateFromClient(Sites.applyRequest(client, request))
-      }
+  function propogateFromServer (serverRequest: ?ServerRequest) {
+    if (serverRequest == null) { return }
+
+    let clientRequests = []
+
+    for (let client of clients) {
+      clientRequests = push(clientRequests, Sites.clientRemoteOperation(client, serverRequest))
+    }
+
+    for (let clientRequest of clientRequests) {
+      propogateFromClient(clientRequest)
     }
   }
-  let propogateFromClient = (requests: Array<Request>) => {
-    for (let request of requests) {
-      propogateFromServer(Sites.applyRequest(server, request))
-    }
+  function propogateFromClient (request: ?ClientRequest) {
+    if (request == null) { return }
+    propogateFromServer(Sites.serverRemoteOperation(server, request))
   }
   return propogateFromClient
 }
 
 describe('onLocalChange()', () => {
+  it ('client updates client', () => {
+    let client = Sites.generateClient()
+    Sites.clientLocalInsert(client, 0, 'hello!')
+
+    assert.equal('hello!', client.text)
+  })
   it ('client updates server & client', () => {
     let client = Sites.generateClient()
     let server = Sites.generateServer()
 
     let propogate = generatePropogator(server, [client])
 
-    propogate([Sites.applyLocalInsert(client, 0, 'hello!')])
+    propogate(Sites.clientLocalInsert(client, 0, 'hello!'))
 
     assert.equal('hello!', client.text)
     assert.equal('hello!', server.text)
@@ -51,8 +65,8 @@ describe('onLocalChange()', () => {
 
     let propogate = generatePropogator(server, [client0, client1])
 
-    propogate([Sites.applyLocalInsert(client1, 0, 'world')])
-    propogate([Sites.applyLocalInsert(client0, 0, 'hello')])
+    propogate(Sites.clientLocalInsert(client1, 0, 'world'))
+    propogate(Sites.clientLocalInsert(client0, 0, 'hello'))
 
     assert.equal('helloworld', client0.text)
     assert.equal('helloworld', client1.text)
@@ -65,72 +79,58 @@ describe('onLocalChange()', () => {
 
     let propogate = generatePropogator(server, [client0, client1])
 
-    let r0 = Sites.applyLocalInsert(client1, 0, '01234')
-    let r1 = Sites.applyLocalInsert(client0, 0, 'abc')
-    let r2 = Sites.applyLocalDelete(client0, 0, 3)
+    let c1 = Sites.clientLocalInsert(client1, 0, '01234')
+    let c2a = Sites.clientLocalInsert(client0, 0, 'abc')
+    let c2b = Sites.clientLocalDelete(client0, 0, 3)
 
-    propogate([r1])
-    propogate([r0])
-    propogate([r2])
+    propogate(c2a)
+    propogate(c2b)
+    propogate(c1)
 
     assert.equal('01234', client0.text)
     assert.equal('01234', client1.text)
     assert.equal('01234', server.text)
   })
-  it ('out of order requests', () => {
-    let client = Sites.generateClient()
-    let server = Sites.generateServer()
+  it ('multiple clients with interleaved requests', () => {
+    let client0 = Sites.generateClient()
+    let client1 = Sites.generateClient()
+    let client2 = Sites.generateClient()
 
-    let propogate = generatePropogator(server, [client])
-
-    let request0 = Sites.applyLocalInsert(client, 0, 'world')
-    let request1 = Sites.applyLocalInsert(client, 0, 'hello ')
-    let request2 = Sites.applyLocalInsert(client, 0, 'is ')
-    let request3 = Sites.applyLocalInsert(client, 0, 'this ')
-
-    propogate([request1])
-    propogate([request2])
-    propogate([request0])
-    propogate([request3])
-
-    assert.equal('this is hello world', client.text)
-    assert.equal('this is hello world', server.text)
-  })
-  it ('multiple clients', () => {
-    type InsertEvent = [ Sites.applyLocalInsert, number, string ]
-    type DeleteEvent = [ Sites.applyLocalDelete, number, number ]
-    type LocalEvent = InsertEvent | DeleteEvent
-
-    let clientEvents: Array<Array<LocalEvent>> = [
-      [[Sites.applyLocalInsert, 0, 'hello'], // hello
-       [Sites.applyLocalDelete, 2, 3]], // he
-      [[Sites.applyLocalInsert, 0, 'dog'],
-       [Sites.applyLocalDelete, 0, 1],
-       [Sites.applyLocalInsert, 0, 'g'],
-       [Sites.applyLocalDelete, 2, 1],
-       [Sites.applyLocalInsert, 2, 'd']], // god
-      [[Sites.applyLocalInsert, 0, 'le'],
-       [Sites.applyLocalInsert, 2, ' sigh']] // le sigh
-    ]
-    let clients = Array.from(map(Sites.generateClient, clientEvents))
+    let clients = [client0, client1, client2]
     let server = Sites.generateServer()
 
     let propogate = generatePropogator(server, clients)
 
-    let requests: Array<Request> = []
-    for (let [client, events] of zip(clients, clientEvents)) {
-      for (let [apply, position, value] of events) {
-        let request = apply(client, position, value)
-        requests.push(request)
-      }
-    }
+    let request0 = Sites.clientLocalInsert(client0, 0, 'hello')
+    let request1 = Sites.clientLocalDelete(client0, 2, 3) // he
 
-    // randomize it!
-    for (let request: Request of shuffle(requests)()) {
-      propogate([request])
-    }
+    let request2 = Sites.clientLocalInsert(client1, 0, 'dog')
+    let request3 = Sites.clientLocalDelete(client1, 0, 1)
+    let request4 = Sites.clientLocalInsert(client1, 0, 'g')
+    let request5 = Sites.clientLocalDelete(client1, 2, 1)
 
-    // at this point, each client as inputed a number of operations
-    console.log(Array.from(map(c => c.text, clients)))
+    let request6 = Sites.clientLocalInsert(client1, 2, 'd') // god
+    let request7 = Sites.clientLocalInsert(client2, 0, 'le')
+    let request8 = Sites.clientLocalInsert(client2, 2, ' sigh') // le sigh
+
+    assert.equal('he', client0.text)
+    assert.equal('god', client1.text)
+    assert.equal('le sigh', client2.text)
+    assert.equal('', server.text)
+
+    propogate(request0)
+    propogate(request2)
+    propogate(request6)
+    propogate(request1)
+    propogate(request3)
+    propogate(request7)
+    propogate(request8)
+    propogate(request4)
+    propogate(request5)
+
+    assert.equal('le sighgodhe', client0.text)
+    assert.equal('le sighgodhe', client1.text)
+    assert.equal('le sighgodhe', client2.text)
+    assert.equal('le sighgodhe', server.text)
   })
 })

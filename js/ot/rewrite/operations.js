@@ -21,7 +21,6 @@ export type Retain = {
 export type TextOperation = {
   kind: 'TextOperation',
   ops: Array<Retain|Delete|Insert>,
-  uid: string
 }
 
 function retain(num): Retain {
@@ -41,7 +40,7 @@ export function opString(o: ?(Retain|Insert|Delete)): string {
   if (o.kind === 'Retain') { return 'retain:' + o.num }
   if (o.kind === 'Delete') { return 'delete:' + o.num }
   if (o.kind === 'Insert') { return 'insert:"' + o.text + '"' }
-  throw 'wat'
+  throw new Error('wat, couldn\'t make op string')
 }
 
 export function opsString(ops: TextOperation): string {
@@ -51,7 +50,6 @@ export function opsString(ops: TextOperation): string {
 export function generateEmpty(): TextOperation {
   return {
     kind: 'TextOperation',
-    uid: genUid(),
     ops: []
   }
 }
@@ -59,7 +57,6 @@ export function generateEmpty(): TextOperation {
 export function generateDelete(position: number, num: number): TextOperation {
   return {
     kind: 'TextOperation',
-    uid: genUid(),
     ops: [retain(position), del(num)]
   }
 }
@@ -67,7 +64,6 @@ export function generateDelete(position: number, num: number): TextOperation {
 export function generateInsert(position: number, text: string): TextOperation {
   return {
     kind: 'TextOperation',
-    uid: genUid(),
     ops: [retain(position), insert(text)]
   }
 }
@@ -86,7 +82,7 @@ function adjustment (operation: Retain|Delete|Insert): number {
   if (operation.kind === 'Insert') {
     return operation.text.length
   }
-  throw 'wat'
+  throw new Error('wat, failed adjumstment')
 }
 
 function length (operation: Retain|Delete|Insert): number {
@@ -97,11 +93,11 @@ function length (operation: Retain|Delete|Insert): number {
     if (operation.kind === 'Insert') {
       return operation.text.length
     }
-    throw 'wat'
+    throw new Error('wat, failed length')
   }) ()
 
   if (result < 0) {
-    throw 'wat'
+    throw new Error('wat, < 0 for length')
   }
 
   return result
@@ -147,17 +143,17 @@ export function apply(text: string, textOperations: TextOperation): string {
       i += op.text.length
     }
     if (op.kind === 'Retain') {
-      if (op.num < 0) { throw 'wat' }
+      if (op.num < 0) { throw new Error('wat, failed to retain') }
       i += op.num
     }
     if (op.kind === 'Delete') {
-      if (op.num < 0) { throw 'wat' }
-      if (i + op.num > text.length) { throw 'wat' }
+      if (op.num < 0) { throw new Error('wat, failed to delete') }
+      if (i + op.num > text.length) { throw new Error('wat, trying to delete too much') }
       text = text.slice(0, i) + text.slice(i + op.num)
     }
 
     // make sure we didn't accidentally overshoot
-    if (i > text.length) { throw 'wat' }
+    if (i > text.length) { throw new Error('wat, overshot') }
   }
 
   return text
@@ -197,18 +193,27 @@ export function transformConsumeOps(a: ?(Insert|Delete|Retain), b: ?(Insert|Dele
       return [[undefined, undefined], [aTail, bTail]] // both do the same thing
     }
     if (a.kind === 'Insert' || b.kind === 'Insert') {
-      throw 'wat, should be handled already'
+      throw new Error('wat, should be handled already')
     }
-    throw 'wat'
+    throw new Error('wat')
   }
 
   // one is null
   if (a != null) { return [[a, undefined], [undefined, b]] }
   if (b != null) { return [[undefined, b], [a, undefined]] }
 
-  throw 'wat'
+  throw new Error('wat')
 }
 
+export function transformNullable (clientOps: ?TextOperation, serverOps: ?TextOperation)
+: [?TextOperation, ?TextOperation] {
+  if (clientOps != null && serverOps != null) {
+    let [newClientOps, newServerOps] = transform(clientOps, serverOps)
+    return [newClientOps, newServerOps]
+  } else {
+    return [clientOps, serverOps]
+  }
+}
 
 export function transform(clientOps: TextOperation, serverOps: TextOperation): [TextOperation, TextOperation] {
   // transform (clientOp, serverOp) to (clientOpP, serverOpP) s.t.
@@ -290,24 +295,36 @@ export function composeConsumeOps(a: ?(Insert|Delete|Retain), b: ?(Insert|Delete
       return [undefined, [aTail, bTail]] // delete the inserted portion
     }
     if (a.kind === 'Delete' && b.kind === 'Insert') {
-      throw 'wat, should be handled already'
+      throw new Error('wat, should be handled already')
     }
     if (a.kind === 'Delete' && b.kind === 'Delete') {
-      throw 'wat, should be handled already'
+      throw new Error('wat, should be handled already')
     }
     if (a.kind === 'Insert' && b.kind === 'Insert') {
-      throw 'wat, should be handled already'
+      throw new Error('wat, should be handled already')
     }
-    throw 'wat'
+    throw new Error('wat')
   }
 
   // one of the two ops is null!
   if (a != null) { return [clone(a), [undefined, b]] }
   if (b != null) { return [clone(b), [a, undefined]] }
 
-  throw 'wat'
+  throw new Error('wat')
 }
 
+export function composeNullable (ops1: ?TextOperation, ops2: ?TextOperation)
+: ?TextOperation {
+  if (ops1 != null && ops2 != null) {
+    return compose(ops1, ops2)
+  } else if (ops1 != null) {
+    return ops1
+  } else if (ops2 != null) {
+    return ops2
+  } else {
+    return undefined
+  }
+}
 export function compose(ops1: TextOperation, ops2: TextOperation): TextOperation {
   // compose (ops1, ops2) to composed s.t.
   // apply(apply(text, ops1), ops2) === apply(text, composed)

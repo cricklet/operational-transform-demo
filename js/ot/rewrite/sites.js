@@ -2,7 +2,7 @@
 
 import * as Operations from './operations'
 import type { TextOperation } from './operations'
-import { hash, clone, assign, merge, last, genUid, zipPairs, first, pop, push, contains } from '../utils.js'
+import { hash, clone, assign, merge, last, genUid, zipPairs, first, pop, push, contains, reverse, findLastIndex, subarray } from '../utils.js'
 import { autoFill } from '../observe.js'
 import { find, map, reject } from 'wu'
 
@@ -16,7 +16,7 @@ export type Client = {
   prebuffer: ?ParentedOperation, // the client op that has been sent to the server (but not yet ACKd by the server)
   // together, prebuffer + buffer is the 'bridge'
 
-  requests: Array<ServerRequest>, // pending requests
+  requestIndex: number
 }
 
 export type Server = {
@@ -26,13 +26,11 @@ export type Server = {
   text: string,
 
   log: Array<FullOperation>, // history of local operations, oldest to newest
-  requests: Array<ClientRequest>, // pending requests
-  parentToOperationLog: {[parentState: State]: FullOperation}
 }
 
 export type ServerRequest = {
   kind: 'ServerRequest',
-  logIndex: number, // what is the index of this operation on the server's log
+  index: number, // what is the index of this operation on the server's log
   operation: FullOperation
 }
 
@@ -66,6 +64,10 @@ export type SiteUid = string
 export type State = string
 export type OperationId = string
 
+function generateState(text: string): State {
+  return text
+}
+
 export function generateServer (): Server {
   return {
     kind: 'Server',
@@ -74,8 +76,6 @@ export function generateServer (): Server {
     text: '',
 
     log: [],
-    parentToOperationLog: {},
-    requests: []
   }
 }
 
@@ -90,29 +90,18 @@ export function generateClient (): Client {
     prebuffer: undefined, // the client op that has been sent to the server (but not yet ACKd by the server)
     bridge: undefined, // server ops are transformed against this
 
-    requests: [] // pending requests
-  }
-}
-
-function generateBuffer(
-  previousBuffer: ?ChildedOperation,
-  nextOp: ChildedOperation
-): ChildedOperation {
-  if (previousBuffer != null) {
-    return composeChilded([previousBuffer, nextOp])
-  } else {
-    return nextOp
+    requestIndex: 0,
   }
 }
 
 function serverTransform(clientOp: FullOperation, serverOp: FullOperation)
 : ParentedOperation { // returns new op
   if (clientOp.parentState !== serverOp.parentState) {
-    throw 'wat, to transform, they must have the same parent'
+    throw new Error('wat, to transform, they must have the same parent')
   }
 
-  if (clientOp.childState !== serverOp.childState) {
-    throw 'wat, to transform, they must diverge'
+  if (clientOp.childState === serverOp.childState) {
+    throw new Error('wat, to transform, they must diverge')
   }
 
   let [newO, _] = Operations.transform(clientOp.operation, serverOp.operation)
@@ -124,79 +113,72 @@ function serverTransform(clientOp: FullOperation, serverOp: FullOperation)
   }
 }
 
-function clientTransformWithBridge(bridgeOp: FullOperation, serverOp: FullOperation)
-: [ParentedOperation, ParentedOperation] { // returns [new bridge, new op]
-  if (bridgeOp.parentState !== serverOp.parentState) {
-    throw 'wat, to transform with bridge, they must have the same parent'
+function clientTransformWithBuffers(
+  prebufferOp: ?ParentedOperation,
+  bufferOp: ?StandaloneOperation,
+  serverOp: FullOperation
+): [?ParentedOperation, ?ChildedOperation, StandaloneOperation] { // returns [newPrebuffer, newBuffer, newOp]
+  if (prebufferOp && serverOp && prebufferOp.parentState !== serverOp.parentState) {
+    throw new Error('wat, to transform prebuffer there must be the same parent')
   }
 
-  let [newBridgeO, newO] = Operations.transform(bridgeOp.operation, serverOp.operation)
-  return [
-    { // bridge
-      operationId: bridgeOp.operationId,
-      parentState: serverOp.childState,
-      operation: newBridgeO,
-    },
-    { // new op
-      operationId: serverOp.operationId,
-      parentState: bridgeOp.childState,
-      operation: newO,
-    }
-  ]
-}
+  let prebufferO: ?TextOperation = (prebufferOp || {}).operation
+  let bufferO: ?TextOperation = (bufferOp || {}).operation
+  let bridgeO: ?TextOperation = Operations.composeNullable(prebufferO, bufferO)
+  let serverO: TextOperation = serverOp.operation
 
-function clientTransformBuffers(
-  prebufferOp: ParentedOperation,
-  bufferOp: StandaloneOperation,
-  serverRequest: ServerRequest
-): [ParentedOperation, StandaloneOperation] { // returns [newPrebuffer, newBuffer]
-  let serverOp = serverRequest.operation
-  // TODO check that log index has incremented
+  let [newBridgeO, newO] = Operations.transformNullable(bridgeO, serverO)
 
-  if (prebufferOp.parentState !== serverOp.parentState) {
-    throw 'wat, to transform prebuffer there must be the same parent'
-  }
+  let [newPrebufferO, newPartialO] = Operations.transformNullable(prebufferO, serverO)
+  let [newBufferO, __] = Operations.transformNullable(bufferO, newPartialO)
 
-  let [newPrebufferO, newO] = Operations.transform(prebufferOp.operation, serverOp.operation)
-  let [newBufferO, _] = Operations.transform(bufferOp.operation, newO)
+  // prebuffer begets prebuffer, buffer begets buffer, op always exists
+  if ((newPrebufferO == null) !== (prebufferOp == null)) { throw new Error('wat') }
+  if ((newBufferO == null) !== (bufferOp == null)) { throw new Error('wat') }
+  if (newO == null) { throw new Error('wat') }
 
-  return [
-    { // new prebuffer
+  let newPrebufferOp, newBufferOp, newOp
+
+  if (prebufferOp) {
+    newPrebufferOp = merge(prebufferOp, {
       operation: newPrebufferO,
       parentState: serverOp.childState,
-      operationId: prebufferOp.operationId
-    },
-    { // new buffer
-      operation: newBufferO,
-      operationId: bufferOp.operationId
-    }
-  ]
+    })
+  }
+
+  if (bufferOp) {
+    newBufferOp = merge(bufferOp, {
+      operation: newBufferO
+    })
+  }
+
+  newOp = {
+    operation: newO,
+    operationId: serverOp.operationId
+  }
+
+  return [newPrebufferOp, newBufferOp, newOp]
 }
 
 function historySince(server: Server, startState: string): Array<FullOperation> {
-  let ops = []
-  let parentState = startState
+  let endState = generateState(server.text)
+  if (endState === startState) { return [] }
 
-  while (true) {
-    let nextOp: FullOperation = server.parentToOperationLog[parentState]
-    if (nextOp == null) {
-      break
-    }
+  let i = findLastIndex(o => o.parentState === startState, server.log)
+  if (i == null) { throw new Error('wat') }
 
-    ops.push(nextOp)
-    parentState = nextOp.childState
-  }
+  let ops = Array.from(subarray(server.log, {start: i})())
+  if (ops.length === 0) { throw new Error('wat') }
 
-  if (parentState != hash(server.text)) {
-    throw 'wat history is incomplete'
-  }
+  if (first(ops).parentState !== startState) { throw new Error('wat') }
+  if (last(ops).childState !== endState) { throw new Error('wat') }
 
   return ops
 }
 
 function compose <T: BaseOperation> (operations: T[]): BaseOperation {
   if (operations.length === 0) {
-    throw 'wat can\'t compose empty list'
+    throw new Error('wat can\'t compose empty list')
   }
 
   let composedOs = Operations.composeMany(map(o => o.operation, operations))
@@ -209,7 +191,6 @@ function compose <T: BaseOperation> (operations: T[]): BaseOperation {
 function composeChilded (operations: ChildedOperation[]): ChildedOperation {
   let composed: BaseOperation = compose(operations)
   return merge(composed, {
-    kind: 'ChildedOperation',
     childState: last(operations).childState
   })
 }
@@ -217,7 +198,6 @@ function composeChilded (operations: ChildedOperation[]): ChildedOperation {
 function composeParented (operations: ParentedOperation[]): ParentedOperation {
   let composed: BaseOperation = compose(operations)
   return merge(composed, {
-    kind: 'ParentedOperation',
     parentState: first(operations).parentState
   })
 }
@@ -225,14 +205,16 @@ function composeParented (operations: ParentedOperation[]): ParentedOperation {
 function composeFull (operations: FullOperation[]): FullOperation {
   let composed: BaseOperation = compose(operations)
   return merge(composed, {
-    kind: 'FullOperation',
     parentState: first(operations).parentState,
     childState: last(operations).childState
   })
 }
 
-export function serverRemoteOperation(server: Server, clientOp: FullOperation)
+export function serverRemoteOperation(server: Server, request: ClientRequest)
 : ServerRequest { // return server op to broadcast
+  // grab the requested operation
+  let clientOp = request.operation
+
   // transform
   let history: Array<FullOperation> = historySince(server, clientOp.parentState)
   let transformedOp: ParentedOperation = clientOp
@@ -242,9 +224,9 @@ export function serverRemoteOperation(server: Server, clientOp: FullOperation)
   }
 
   // apply
-  let parentState = hash(server.text)
+  let parentState = generateState(server.text)
   server.text = Operations.apply(server.text, clientOp.operation)
-  let childState = hash(server.text)
+  let childState = generateState(server.text)
 
   // save op
   let serverOp = {
@@ -255,22 +237,79 @@ export function serverRemoteOperation(server: Server, clientOp: FullOperation)
   }
   let logIndex = server.log.length
   server.log.push(serverOp)
-  server.parentToOperationLog[serverOp.parentState] = serverOp
 
   // broadcast!
   return {
     kind: 'ServerRequest',
-    logIndex: logIndex,
+    index: logIndex,
     operation: serverOp
   }
 }
 
-function clientLocalOperation(client: Client, o: TextOperation)
+export function flushBuffer(bufferOp: ?ChildedOperation, bufferParent: State)
+: [?ClientRequest, ?ParentedOperation] { // new request, new prebuffer
+  if (bufferOp == null) {
+    return [undefined, undefined]
+  }
+
+  let fullBufferOp = merge(bufferOp, { parentState: bufferParent })
+
+  return [
+    {
+      kind: 'ClientRequest',
+      operation: fullBufferOp
+    },
+    fullBufferOp
+  ]
+}
+
+export function clientRemoteOperation(client: Client, request: ServerRequest)
+: ?ClientRequest { // request to send to server
+  let op = request.operation
+
+  if (client.requestIndex !== request.index) {
+    throw new Error('wat, out of order requests from the server')
+  } else {
+    client.requestIndex ++
+  }
+
+  if (client.prebuffer != null && op.operationId === client.prebuffer.operationId) {
+    // this is the pre-buffer!
+    let remotePrebuffer = op
+
+    // flush the buffer!
+    let [request, fullBuffer] = flushBuffer(client.buffer, remotePrebuffer.childState)
+
+    // prebuffer is now the buffer
+    client.prebuffer = fullBuffer
+    client.buffer = undefined
+
+    return request
+
+  } else {
+    // transform the prebuffer & buffer & op
+    let [newPrebufferOp, newBufferOp, newOp]
+        = clientTransformWithBuffers(client.prebuffer, client.buffer, op)
+
+    // apply the operation
+    let parentState = generateState(client.text)
+    client.text = Operations.apply(client.text, newOp.operation)
+    let childState = generateState(client.text)
+
+    // update prebuffer & buffer
+    client.prebuffer = newPrebufferOp
+    client.buffer = newBufferOp
+
+    return undefined
+  }
+}
+
+export function clientLocalOperation(client: Client, o: TextOperation)
 : ?ClientRequest { // return client op to broadcast
   // apply the operation
-  let parentState = hash(client.text)
+  let parentState = generateState(client.text)
   client.text = Operations.apply(client.text, o)
-  let childState = hash(client.text)
+  let childState = generateState(client.text)
 
   // the op we just applied!
   let op = {
@@ -281,19 +320,22 @@ function clientLocalOperation(client: Client, o: TextOperation)
   }
 
   // append operation to buffer (& thus bridge)
-  client.buffer = generateBuffer(client.buffer, op)
+  if (client.buffer == null) {
+    client.buffer = op
+  } else {
+    client.buffer = composeChilded([client.buffer, op])
+  }
 
   // if no prebuffer, then broadcast the buffer!
   if (client.prebuffer == null) {
-    return {
-      kind: 'ClientRequest',
-      operation: {
-        operationId: client.buffer.operationId,
-        operation: client.buffer.operation,
-        parentState: parentState,
-        childState: childState,
-      }
-    }
+    // flush the buffer!
+    let [request, fullBuffer] = flushBuffer(client.buffer, parentState)
+
+    // prebuffer is now the buffer
+    client.prebuffer = fullBuffer
+    client.buffer = undefined
+
+    return request
   }
 
   return undefined

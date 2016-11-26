@@ -194,7 +194,7 @@ describe('maxOfIterable', () => {
       if (x > y) return Greater
       if (x < y) return Less
       if (x === y) return Equal
-      throw 'wat'
+      throw new Error('wat')
     }
     let ints = [2,5,3,6,1,9,3,5]
     let maxInt = Math.max(...ints)

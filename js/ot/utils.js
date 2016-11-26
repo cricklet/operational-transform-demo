@@ -34,7 +34,8 @@ export function assign<A, B>(a: A, b: B): A {
   return Object.assign(a, b)
 }
 
-export function merge<A, B>(a: A, b: B): A & B {
+export function merge<A, B, C: A & B>(a: A, b: B): C {
+  // @flow-ignore
   return Object.assign(clone(a), b)
 }
 
@@ -250,12 +251,12 @@ export function hash (str: string): string {
 }
 
 export function last <T> (arr: Array<T>): T {
-  if (arr.length === 0) { throw 'wat no last' }
+  if (arr.length === 0) { throw new Error('wat no last') }
   return arr[arr.length - 1]
 }
 
 export function first <T> (arr: Array<T>): T {
-  if (arr.length === 0) { throw 'wat no first' }
+  if (arr.length === 0) { throw new Error('wat no first') }
   return arr[0]
 }
 
