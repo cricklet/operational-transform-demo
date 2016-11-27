@@ -43,6 +43,7 @@ describe('transform()', () => {
     [generateDelete(1, 5), generateInsert(1, 'asdf')],
     [generateDelete(5, 5), generateInsert(5, 'asdf')],
     [generateDelete(9, 5), generateInsert(9, 'asdf')],
+    [generateDelete(0, 1), generateInsert(1, 'a')],
   ].forEach(([op1, op2]) => {
     it (opsString(op1) + ', ' + opsString(op2) + ' are propertly transformed', () => {
       let [op1P, op2P] = transform(op1, op2)

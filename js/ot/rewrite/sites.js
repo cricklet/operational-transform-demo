@@ -16,6 +16,8 @@ export type Client = {
   prebuffer: ?ParentedOperation, // the client op that has been sent to the server (but not yet ACKd by the server)
   // together, prebuffer + buffer is the 'bridge'
 
+
+
   requestIndex: number
 }
 
@@ -223,9 +225,13 @@ export function serverRemoteOperation(server: Server, request: ClientRequest)
     transformedOp = serverTransform(clientOp, historyOp)
   }
 
+  if (transformedOp.parentState !== generateState(server.text)) {
+    throw new Error('wat')
+  }
+
   // apply
   let parentState = generateState(server.text)
-  server.text = Operations.apply(server.text, clientOp.operation)
+  server.text = Operations.apply(server.text, transformedOp.operation)
   let childState = generateState(server.text)
 
   // save op

@@ -1,6 +1,6 @@
 /* @flow */
 
-import { hash, clone, assign, genUid } from '../utils.js'
+import { hash, clone, assign, genUid, rearray, repeat, calculatePostfixLength, removeTail, calculatePrefixLength, substring, restring } from '../utils.js'
 import { map } from 'wu'
 
 export type Delete = {
@@ -370,4 +370,37 @@ export function composeMany(ops: Iterable<TextOperation>): TextOperation {
     composed = compose(composed, op)
   }
   return composed
+}
+
+export function inferOperations(oldText: string, newText: string): ?TextOperation {
+  if (oldText.length === newText.length) {
+    // we have a no-op
+    if (oldText === newText) {
+      return undefined;
+    }
+  }
+
+  if (newText.length === 0) {
+    return generateDelete(0, oldText.length)
+  }
+
+  if (oldText.length === 0) {
+    return generateInsert(0, newText)
+  }
+
+  // or we have a selection being overwritten. this is well tested!
+  let postfixLength = calculatePostfixLength(oldText, newText)
+  let newTextLeftover = removeTail(newText, postfixLength)
+  let oldTextLeftover = removeTail(oldText, postfixLength)
+  let prefixLength = calculatePrefixLength(oldTextLeftover, newTextLeftover)
+
+  let start = prefixLength
+  let endOld = oldText.length - postfixLength
+  let endNew = newText.length - postfixLength
+
+  let del = generateDelete(start, endOld - start)
+  let insert = generateInsert(start,
+    restring(substring(newText, {start: start, stop: endNew})))
+
+  return compose(del, insert)
 }
