@@ -2,7 +2,7 @@
 
 import * as Operations from './operations'
 import type { TextOperation } from './operations'
-import { hash, clone, assign, merge, last, genUid, zipPairs, first, pop, push, contains, reverse, findLastIndex, subarray } from '../utils.js'
+import { concat, flatten, maybePush, hash, clone, assign, merge, last, genUid, zipPairs, first, pop, push, contains, reverse, findLastIndex, subarray } from '../utils.js'
 import { autoFill } from '../observe.js'
 import { find, map, reject } from 'wu'
 
@@ -16,8 +16,7 @@ export type Client = {
   prebuffer: ?ParentedOperation, // the client op that has been sent to the server (but not yet ACKd by the server)
   // together, prebuffer + buffer is the 'bridge'
 
-
-
+  requestQueue: Array<ServerRequest>,
   requestIndex: number
 }
 
@@ -26,7 +25,6 @@ export type Server = {
   uid: SiteUid,
 
   text: string,
-
   log: Array<FullOperation>, // history of local operations, oldest to newest
 }
 
@@ -66,8 +64,8 @@ export type SiteUid = string
 export type State = string
 export type OperationId = string
 
-function generateState(text: string): State {
-  return text
+function generateState(site: Server | Client): State {
+  return site.text
 }
 
 export function generateServer (): Server {
@@ -92,6 +90,7 @@ export function generateClient (): Client {
     prebuffer: undefined, // the client op that has been sent to the server (but not yet ACKd by the server)
     bridge: undefined, // server ops are transformed against this
 
+    requestQueue: [],
     requestIndex: 0,
   }
 }
@@ -100,10 +99,6 @@ function serverTransform(clientOp: FullOperation, serverOp: FullOperation)
 : ParentedOperation { // returns new op
   if (clientOp.parentState !== serverOp.parentState) {
     throw new Error('wat, to transform, they must have the same parent')
-  }
-
-  if (clientOp.childState === serverOp.childState) {
-    throw new Error('wat, to transform, they must diverge')
   }
 
   let [newO, _] = Operations.transform(clientOp.operation, serverOp.operation)
@@ -163,7 +158,7 @@ function clientTransformWithBuffers(
 }
 
 function historySince(server: Server, startState: string): Array<FullOperation> {
-  let endState = generateState(server.text)
+  let endState = generateState(server)
   if (endState === startState) { return [] }
 
   let i = findLastIndex(o => o.parentState === startState, server.log)
@@ -225,14 +220,14 @@ export function serverRemoteOperation(server: Server, request: ClientRequest)
     transformedOp = serverTransform(clientOp, historyOp)
   }
 
-  if (transformedOp.parentState !== generateState(server.text)) {
+  if (transformedOp.parentState !== generateState(server)) {
     throw new Error('wat')
   }
 
   // apply
-  let parentState = generateState(server.text)
+  let parentState = generateState(server)
   server.text = Operations.apply(server.text, transformedOp.operation)
-  let childState = generateState(server.text)
+  let childState = generateState(server)
 
   // save op
   let serverOp = {
@@ -269,15 +264,9 @@ export function flushBuffer(bufferOp: ?ChildedOperation, bufferParent: State)
   ]
 }
 
-export function clientRemoteOperation(client: Client, request: ServerRequest)
-: ?ClientRequest { // request to send to server
-  let op = request.operation
-
-  if (client.requestIndex !== request.index) {
-    throw new Error('wat, out of order requests from the server')
-  } else {
-    client.requestIndex ++
-  }
+function clientHandleRequest(client: Client, serverRequest)
+: ?ClientRequest {
+  let op = serverRequest.operation
 
   if (client.prebuffer != null && op.operationId === client.prebuffer.operationId) {
     // this is the pre-buffer!
@@ -298,9 +287,9 @@ export function clientRemoteOperation(client: Client, request: ServerRequest)
         = clientTransformWithBuffers(client.prebuffer, client.buffer, op)
 
     // apply the operation
-    let parentState = generateState(client.text)
+    let parentState = generateState(client)
     client.text = Operations.apply(client.text, newOp.operation)
-    let childState = generateState(client.text)
+    let childState = generateState(client)
 
     // update prebuffer & buffer
     client.prebuffer = newPrebufferOp
@@ -310,12 +299,49 @@ export function clientRemoteOperation(client: Client, request: ServerRequest)
   }
 }
 
+function clientHandleRequests(client: Client): Array<ClientRequest> {
+  let clientRequests = []
+
+  while (true) {
+    let nextServerRequest: ?ServerRequest = pop(
+      client.requestQueue,
+      r => r.index === client.requestIndex)
+
+    if (nextServerRequest == null) {
+      break
+    }
+
+    if (client.requestIndex !== nextServerRequest.index) {
+      throw new Error('wat out of order')
+    } else {
+      // record that we're handling this request
+      client.requestIndex ++
+    }
+
+    let clientRequest: ?ClientRequest = clientHandleRequest(client, nextServerRequest)
+    if (clientRequest != null) {
+      clientRequests.push(clientRequest)
+    }
+  }
+
+  return clientRequests
+}
+
+export function clientRemoteOperation(client: Client, serverRequest: ServerRequest)
+: Array<ClientRequest> { // request to send to server
+  // queue request
+  client.requestQueue.push(serverRequest)
+
+  // handle all requests
+  return clientHandleRequests(client)
+}
+
 export function clientLocalOperation(client: Client, o: TextOperation)
 : ?ClientRequest { // return client op to broadcast
   // apply the operation
-  let parentState = generateState(client.text)
+  let parentState = generateState(client)
   client.text = Operations.apply(client.text, o)
-  let childState = generateState(client.text)
+  let childState = generateState(client)
 
   // the op we just applied!
   let op = {
@@ -357,4 +383,60 @@ export function clientLocalDelete(client: Client, position: number, num: number)
 : ?ClientRequest { // return client op to broadcast
   let o = Operations.generateDelete(position, num)
   return clientLocalOperation(client, o)
+}
+
+export function generateAsyncPropogator(server: Server, clients: Array<Client>, logger: ((...xs: Array<?any>) => void)) {
+  function propogateFromServer (serverRequest: ServerRequest) {
+    logger('\n\nPROPOGATING SERVER REQUEST', serverRequest.operation.operationId, serverRequest.operation, '\n')
+
+    for (let client of clients) {
+      setTimeout(() => {
+        let clientRequests = clientRemoteOperation(client, serverRequest)
+        for (let clientRequest of clientRequests) {
+          setTimeout(() => {
+            propogateFromClient(clientRequest)
+          }, Math.random() * 1000)
+        }
+      }, Math.random() * 1000)
+    }
+  }
+  function propogateFromClient (clientRequest: ClientRequest) {
+    logger('\n\nPROPOGATING CLIENT REQUEST', clientRequest.operation.operationId, clientRequest.operation, '\n')
+
+    setTimeout(() => {
+      let serverRequest = serverRemoteOperation(server, clientRequest)
+      setTimeout(() => {
+        propogateFromServer(serverRequest)
+      }, Math.random() * 1000)
+    }, Math.random() * 1000)
+  }
+  return (clientRequest: ?ClientRequest) => {
+    if (clientRequest == null) {
+      return
+    }
+
+    let printClients = () => {
+      for (let c of clients) {
+        logger("CLIENT", c.uid)
+        logger('prebuffer',c.prebuffer)
+        logger('buffer',c.buffer)
+        logger('text',c.text)
+      }
+    }
+    let printServer = () => {
+      logger("SERVER")
+      for (let l of server.log) {
+        logger(l)
+      }
+    }
+    logger('\n\nSTART\n')
+    printClients()
+    printServer()
+
+    propogateFromClient(clientRequest)
+
+    logger('\n\nEND\n')
+    printClients()
+    printServer()
+  }
 }

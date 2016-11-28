@@ -9,11 +9,11 @@ import { expect } from 'chai'
 import { spy } from 'sinon'
 
 import { assert } from 'chai'
-import { map, zip, flatten } from 'wu'
+import { map, zip } from 'wu'
 
 import * as Operations from './operations.js'
 import * as Sites from './sites.js'
-import { shuffle, push } from '../utils.js'
+import { shuffle, push, concat } from '../utils.js'
 import type { Client, Server, ClientRequest, ServerRequest } from './sites.js'
 import type { TextOperation } from './operations.js'
 
@@ -26,7 +26,7 @@ function generatePropogator(server: Server, clients: Array<Client>) {
     let clientRequests = []
 
     for (let client of clients) {
-      clientRequests = push(clientRequests, Sites.clientRemoteOperation(client, serverRequest))
+      clientRequests = concat(clientRequests, Sites.clientRemoteOperation(client, serverRequest))
     }
 
     for (let clientRequest of clientRequests) {

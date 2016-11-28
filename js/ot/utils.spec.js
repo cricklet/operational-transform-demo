@@ -29,9 +29,11 @@ import {
   findIndex,
   findLastIndex,
   pop,
+  maybePush,
+  flatten
 } from './utils'
 
-import type { Comparison } from './utils.js'
+import type { Comparison, Tree } from './utils.js'
 
 describe('iterators', () => {
   it ('range() works', () => {
@@ -88,6 +90,36 @@ describe('pop', () => {
     assert.deepEqual(
       pop([{'a': false}, {'b': true}, {'a': false}], check),
       undefined)
+  })
+})
+
+describe('flatten', () => {
+  it ('works', () => {
+    let x: Tree<number> = [1,2,[3,[4]],5,[6],[7,8]]
+    assert.deepEqual(
+      flatten(x),
+      [1,2,3,4,5,6,7,8])
+  })
+})
+describe('maybePush', () => {
+  it ('works', () => {
+    assert.deepEqual(
+      maybePush([1,2,3], undefined)
+      [1,2,3])
+    assert.deepEqual(
+      maybePush([1,2,3], 4)
+      [1,2,3,4])
+  })
+})
+
+describe('concat', () => {
+  it ('works', () => {
+    assert.deepEqual(
+      concat([1,2,3], [4,5,6]),
+      [1,2,3,4,5,6])
+    assert.deepEqual(
+      concat([1,2,3], [4]),
+      [1,2,3,4])
   })
 })
 

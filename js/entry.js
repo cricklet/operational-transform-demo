@@ -62,57 +62,11 @@ function setupClient(
     let op = Operations.inferOperations(client.text, newText)
     if (op != null) {
       let request = Sites.clientLocalOperation(client, op)
-      setTimeout(() => propogate(request), delay)
+      setTimeout(() => propogate(request), delay + delay * Math.random())
     }
 
     update()
   })
-}
-
-
-function generatePropogator(server: Server, clients: Array<Client>) {
-  function propogateFromServer (serverRequest: ?ServerRequest) {
-    if (serverRequest == null) { return }
-
-    console.log('\n\nPROPOGATING SERVER REQUEST', serverRequest.operation.operationId, serverRequest.operation, '\n')
-
-    let clientRequests = []
-    for (let client of clients) {
-      clientRequests = push(clientRequests, Sites.clientRemoteOperation(client, serverRequest))
-    }
-
-    for (let clientRequest of clientRequests) {
-      propogateFromClient(clientRequest)
-    }
-  }
-  function propogateFromClient (clientRequest: ?ClientRequest) {
-    if (clientRequest == null) { return }
-    console.log('\n\nPROPOGATING CLIENT REQUEST', clientRequest.operation.operationId, clientRequest.operation, '\n')
-    propogateFromServer(Sites.serverRemoteOperation(server, clientRequest))
-  }
-  return (...params) => {
-    let printClients = () => {
-      for (let c of clients) {
-        console.log("CLIENT", c.uid)
-        console.log('prebuffer',c.prebuffer)
-        console.log('buffer',c.buffer)
-        console.log('text',c.text)
-      }
-    }
-    let printServer = () => {
-      console.log("SERVER")
-      for (let l of server.log) {
-        console.log(l)
-      }
-    }
-    console.log('\n\nSTART\n')
-    printClients()
-    printServer()
-    propogateFromClient(...params)
-    console.log('\n\nEND\n')
-    printClients()
-    printServer()
-  }
 }
 
 $(document).ready(() => {
@@ -130,7 +84,7 @@ $(document).ready(() => {
 
   let server = Sites.generateServer()
 
-  let propogate = generatePropogator(server, [client0, client1, client2])
+  let propogate = Sites.generateAsyncPropogator(server, [client0, client1, client2], () => {})
 
   setupClient(client0, propogate, $text0, 500)
   setupClient(client1, propogate, $text1, 1000)

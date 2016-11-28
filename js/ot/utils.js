@@ -268,6 +268,31 @@ export function maybeFirst <T> (arr: Array<T>): ?T {
   return arr[0]
 }
 
+export function maybePush <T> (arr: Array<T>, a: ?T): Array<T> {
+  if (a == null) { return arr }
+  else { return push(arr, a) }
+}
+
+export type Tree<A> = Array<Tree<A> | A>
+
+export function flatten <A> (tree: Tree<A>): Array<A> {
+  let as = []
+
+  let f = (subtree: Tree<A>) => {
+    for (let a: A | Tree<A> of subtree) {
+      if (Array.isArray(a)) {
+        f(a)
+      } else {
+        as.push(a)
+      }
+    }
+  }
+
+  f(tree)
+
+  return as
+}
+
 export function shuffle <T> (arr: Array<T>): Reiterable<T> {
   let indices = Array.from(take(arr.length, counter()))
   let i = indices.length
