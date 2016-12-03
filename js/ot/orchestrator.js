@@ -431,3 +431,28 @@ export function generateAsyncPropogator <O,S> (
     printServer()
   }
 }
+
+export function generatePropogator <O,S> (
+  orchestrator: Orchestrator<O,S>,
+  server: Server<O,S>,
+  clients: Array<Client<O,S>>
+): (r: ?ClientRequest<O>) => void {
+  function propogateFromServer (serverRequest: ?ServerRequest<O>) {
+    if (serverRequest == null) { return }
+
+    let clientRequests = []
+
+    for (let client of clients) {
+      clientRequests = concat(clientRequests, orchestrator.clientRemoteOperation(client, serverRequest))
+    }
+
+    for (let clientRequest of clientRequests) {
+      propogateFromClient(clientRequest)
+    }
+  }
+  function propogateFromClient (request: ?ClientRequest<O>) {
+    if (request == null) { return }
+    propogateFromServer(orchestrator.serverRemoteOperation(server, request))
+  }
+  return propogateFromClient
+}

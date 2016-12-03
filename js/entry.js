@@ -3,10 +3,34 @@
 import { Less, Greater, Equal, reverse, push, findIndex, findLastIndex, subarray } from './ot/utils.js'
 import { count, zip, filter, find, takeWhile, take, map } from 'wu'
 import { observeArray, observeObject } from './ot/observe'
-import type { Client, Server, ServerRequest, ClientRequest } from './ot/rewrite/sites'
-import * as Sites from './ot/rewrite/sites'
-import type { TextOperation } from './ot/rewrite/operations'
-import * as Operations from './ot/rewrite/operations'
+
+import type {
+  Client,
+  Server,
+  ClientRequest,
+  ServerRequest
+} from './ot/orchestrator.js'
+
+import type {
+  IApplier,
+  ITransformer
+} from './ot/operations.js'
+
+import type {
+  SimpleTextOperation,
+  SimpleTextState
+} from './ot/text_operations.js'
+
+import {
+  generateAsyncPropogator,
+  Orchestrator
+} from './ot/orchestrator.js'
+
+import {
+  retainFactory,
+  SuboperationsTransformer,
+  SimpleTextApplier
+} from './ot/text_operations.js'
 
 type Lock = { ignoreEvents: boolean }
 
@@ -22,16 +46,18 @@ function getValuesFromDOMTextbox($text): [string, number, number] {
   ]
 }
 
-function updateDOMTextbox($text, client: { text: string }): void {
+function updateDOMTextbox($text, client: { state: string }): void {
   // cursorStart: number, cursorEnd: number
-  $text.val(client.text)
+  $text.val(client.state)
   // $text.prop("selectionStart", client.cursorStart),
   // $text.prop("selectionEnd", client.cursorEnd)
 }
 
 function setupClient(
-  client: Client,
-  propogate: (clientRequest: ?ClientRequest) => void,
+  applier: IApplier<*,*>,
+  orchestrator: Orchestrator<*,*>,
+  client: Client<*,*>,
+  propogate: (clientRequest: ?ClientRequest<*>) => void,
   $text: any,
   delay: number
 ) {
@@ -59,9 +85,9 @@ function setupClient(
 
     let [newText, newCursorStart, newCursorEnd] = getValuesFromDOMTextbox($text)
 
-    let op = Operations.inferOperations(client.text, newText)
+    let op = applier.inferOs(client.state, newText)
     if (op != null) {
-      let request = Sites.clientLocalOperation(client, op)
+      let request = orchestrator.clientLocalOperation(client, op)
       setTimeout(() => propogate(request), delay + delay * Math.random())
     }
 
@@ -70,23 +96,27 @@ function setupClient(
 }
 
 $(document).ready(() => {
+  let transformer = new SuboperationsTransformer(retainFactory)
+  let applier = new SimpleTextApplier()
+  let orchestrator = new Orchestrator(transformer, applier)
+
   let $text0 = $('#text0')
   let requests0 = []
-  let client0 = Sites.generateClient()
+  let client0 = orchestrator.generateClient('')
 
   let $text1 = $('#text1')
   let requests1 = []
-  let client1 = Sites.generateClient()
+  let client1 = orchestrator.generateClient('')
 
   let $text2 = $('#text2')
   let requests2 = []
-  let client2 = Sites.generateClient()
+  let client2 = orchestrator.generateClient('')
 
-  let server = Sites.generateServer()
+  let server = orchestrator.generateServer('')
 
-  let propogate = Sites.generateAsyncPropogator(server, [client0, client1, client2], () => {})
+  let propogate = generateAsyncPropogator(orchestrator, server, [client0, client1, client2], () => {})
 
-  setupClient(client0, propogate, $text0, 500)
-  setupClient(client1, propogate, $text1, 1000)
-  setupClient(client2, propogate, $text2, 2000)
+  setupClient(applier, orchestrator, client0, propogate, $text0, 500)
+  setupClient(applier, orchestrator, client1, propogate, $text1, 1000)
+  setupClient(applier, orchestrator, client2, propogate, $text2, 2000)
 })

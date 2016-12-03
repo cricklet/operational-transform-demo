@@ -9,7 +9,7 @@ import { ITransformer, IApplier } from './operations.js'
 
 type SuboperationKind = 'Delete'|'Insert'|'Placeholder'|'Retain'
 
-interface ISubOperation {
+type ISubOperation = {
   kind(): SuboperationKind,
   length(): number,
   split(pos: number): [ISubOperation, ISubOperation]
@@ -17,16 +17,20 @@ interface ISubOperation {
 
 //
 
-export function generateInsert(pos: number, text: string): ISubOperation[] {
+export function insertOp(pos: number, text: string): SimpleTextSubop[] {
   return [
     new Retain(pos), new InsertText(text)
   ]
 }
 
-export function generateDelete(pos: number, n: number): ISubOperation[] {
+export function deleteOp(pos: number, n: number): SimpleTextSubop[] {
   return [
     new Retain(pos), new Delete(n)
   ]
+}
+
+export function retainFactory(n: number): Retain {
+  return new Retain(n)
 }
 
 class InsertText {
@@ -172,116 +176,63 @@ class CursorEnd {
 
 //
 
-function composeConsumeOps(a: ?ISubOperation, b: ?ISubOperation)
-: [?ISubOperation, [?ISubOperation, ?ISubOperation]] {
-  // returns [newOp, [a, b]]
 
-  if (a != null && a.kind() === 'Delete') {
-    return [a, [undefined, b]]
+export class SuboperationsTransformer<O: ISubOperation> {
+  retainFactory: (num: number) => O
+  constructor(retainFactory: (num: number) => O) {
+    (this: ITransformer<O[]>)
+    this.retainFactory = retainFactory
   }
+  _transformConsumeOps(a: ?O, b: ?O)
+  : [[?O, ?O], [?O, ?O]] {
+    // returns [[aP, bP], [a, b]]
 
-  if (b != null && b.kind() === 'Insert') {
-    return [b, [a, undefined]]
-  }
+    if (a != null && a.kind() === 'Insert') {
+      return [[a, this.retainFactory(a.length())], [undefined, b]]
+    }
 
-  // neither op is null!
-  if (a != null && b != null) {
-    let minLength = Math.min(a.length(), b.length())
+    if (b != null && b.kind() === 'Insert') {
+      return [[this.retainFactory(b.length()), b], [a, undefined]]
+    }
 
-    let [aHead, aTail] = a.split(minLength)
-    let [bHead, bTail] = b.split(minLength)
+    // neither is null
+    if (a != null && b != null) {
+      let minLength = Math.min(a.length(), b.length())
 
-    if (aHead.length() === 0) { aHead = undefined }
-    if (aTail.length() === 0) { aTail = undefined }
-    if (bHead.length() === 0) { bHead = undefined }
-    if (bTail.length() === 0) { bTail = undefined }
+      let [aHead, aTail] = a.split(minLength)
+      let [bHead, bTail] = b.split(minLength)
 
-    if (a.kind() === 'Retain' && b.kind() === 'Retain') {
-      return [aHead, [aTail, bTail]]
+      if (aHead.length() === 0) { aHead = undefined }
+      if (aTail.length() === 0) { aTail = undefined }
+      if (bHead.length() === 0) { bHead = undefined }
+      if (bTail.length() === 0) { bTail = undefined }
+
+      if (a.kind() === 'Retain' && b.kind() === 'Retain') {
+        return [[aHead, bHead], [aTail, bTail]]
+      }
+      if (a.kind() === 'Delete' && b.kind() === 'Retain') {
+        return [[aHead, undefined], [aTail, bTail]]
+      }
+      if (a.kind() === 'Retain' && b.kind() === 'Delete') {
+        return [[undefined, bHead], [aTail, bTail]]
+      }
+      if (a.kind() === 'Delete' || b.kind() === 'Delete') {
+        return [[undefined, undefined], [aTail, bTail]] // both do the same thing
+      }
+      if (a.kind() === 'Insert' || b.kind() === 'Insert') {
+        throw new Error('wat, should be handled already')
+      }
+      throw new Error('wat')
     }
-    if (a.kind() === 'Insert' && b.kind() === 'Retain') {
-      return [aHead, [aTail, bTail]]
-    }
-    if (a.kind() === 'Retain' && b.kind() === 'Delete') {
-      return [bHead, [aTail, bTail]]
-    }
-    if (a.kind() === 'Insert' && b.kind() === 'Delete') {
-      return [undefined, [aTail, bTail]] // delete the inserted portion
-    }
-    if (a.kind() === 'Delete' && b.kind() === 'Insert') {
-      throw new Error('wat, should be handled already')
-    }
-    if (a.kind() === 'Delete' && b.kind() === 'Delete') {
-      throw new Error('wat, should be handled already')
-    }
-    if (a.kind() === 'Insert' && b.kind() === 'Insert') {
-      throw new Error('wat, should be handled already')
-    }
+
+    // one is null
+    if (a != null) { return [[a, undefined], [undefined, b]] }
+    if (b != null) { return [[undefined, b], [a, undefined]] }
+
     throw new Error('wat')
   }
-
-  // one of the two ops is null!
-  if (a != null) { return [a, [undefined, b]] }
-  if (b != null) { return [b, [a, undefined]] }
-
-  throw new Error('wat')
-}
-
-function transformConsumeOps(a: ?ISubOperation, b: ?ISubOperation)
-: [[?ISubOperation, ?ISubOperation], [?ISubOperation, ?ISubOperation]] {
-  // returns [[aP, bP], [a, b]]
-
-  if (a != null && a.kind() === 'Insert') {
-    return [[a, new Retain(a.length())], [undefined, b]]
-  }
-
-  if (b != null && b.kind() === 'Insert') {
-    return [[new Retain(b.length()), b], [a, undefined]]
-  }
-
-  // neither is null
-  if (a != null && b != null) {
-    let minLength = Math.min(a.length(), b.length())
-
-    let [aHead, aTail] = a.split(minLength)
-    let [bHead, bTail] = b.split(minLength)
-
-    if (aHead.length() === 0) { aHead = undefined }
-    if (aTail.length() === 0) { aTail = undefined }
-    if (bHead.length() === 0) { bHead = undefined }
-    if (bTail.length() === 0) { bTail = undefined }
-
-    if (a.kind() === 'Retain' && b.kind() === 'Retain') {
-      return [[aHead, bHead], [aTail, bTail]]
-    }
-    if (a.kind() === 'Delete' && b.kind() === 'Retain') {
-      return [[aHead, undefined], [aTail, bTail]]
-    }
-    if (a.kind() === 'Retain' && b.kind() === 'Delete') {
-      return [[undefined, bHead], [aTail, bTail]]
-    }
-    if (a.kind() === 'Delete' || b.kind() === 'Delete') {
-      return [[undefined, undefined], [aTail, bTail]] // both do the same thing
-    }
-    if (a.kind() === 'Insert' || b.kind() === 'Insert') {
-      throw new Error('wat, should be handled already')
-    }
-    throw new Error('wat')
-  }
-
-  // one is null
-  if (a != null) { return [[a, undefined], [undefined, b]] }
-  if (b != null) { return [[undefined, b], [a, undefined]] }
-
-  throw new Error('wat')
-}
-
-export class SuboperationsTransformer {
-  constructor() {
-    (this: ITransformer<ISubOperation[]>)
-  }
-  transformNullable(clientOps: ?ISubOperation[], serverOps: ?ISubOperation[])
-  : [?ISubOperation[], ?ISubOperation[]] {
+  transformNullable(clientOps: ?O[], serverOps: ?O[])
+  : [?O[], ?O[]] {
     if (clientOps != null && serverOps != null) {
       let [newClientOps, newServerOps] = this.transform(clientOps, serverOps)
       return [newClientOps, newServerOps]
@@ -289,8 +240,8 @@ export class SuboperationsTransformer {
       return [clientOps, serverOps]
     }
   }
-  transform(clientOps: ISubOperation[], serverOps: ISubOperation[])
-  : [ISubOperation[], ISubOperation[]] {
+  transform(clientOps: O[], serverOps: O[])
+  : [O[], O[]] {
     let ops1 = clientOps
     let ops2 = serverOps
 
@@ -300,8 +251,8 @@ export class SuboperationsTransformer {
     let i1 = 0
     let i2 = 0
 
-    let op1: ?ISubOperation = undefined
-    let op2: ?ISubOperation = undefined
+    let op1: ?O = undefined
+    let op2: ?O = undefined
 
     while (true) {
       if (op1 == null) { op1 = ops1[i1]; i1++ }
@@ -319,7 +270,7 @@ export class SuboperationsTransformer {
         continue
       }
 
-      let [[op1P, op2P], [newOp1, newOp2]] = transformConsumeOps(op1, op2)
+      let [[op1P, op2P], [newOp1, newOp2]] = this._transformConsumeOps(op1, op2)
 
       if (op1P != null) { ops1P.push(op1P) }
       if (op2P != null) { ops2P.push(op2P) }
@@ -329,8 +280,8 @@ export class SuboperationsTransformer {
 
     return [ops1P, ops2P]
   }
-  composeNullable (ops1: ?ISubOperation[], ops2: ?ISubOperation[])
-  : ?ISubOperation[] {
+  composeNullable (ops1: ?O[], ops2: ?O[])
+  : ?O[] {
     if (ops1 != null && ops2 != null) {
       return this.compose(ops1, ops2)
     } else if (ops1 != null) {
@@ -341,8 +292,62 @@ export class SuboperationsTransformer {
       return undefined
     }
   }
-  compose(ops1: ISubOperation[], ops2: ISubOperation[])
-  : ISubOperation[] {
+  _composeConsumeOps(a: ?O, b: ?O)
+  : [?O, [?O, ?O]] {
+    // returns [newOp, [a, b]]
+
+    if (a != null && a.kind() === 'Delete') {
+      return [a, [undefined, b]]
+    }
+
+    if (b != null && b.kind() === 'Insert') {
+      return [b, [a, undefined]]
+    }
+
+    // neither op is null!
+    if (a != null && b != null) {
+      let minLength = Math.min(a.length(), b.length())
+
+      let [aHead, aTail] = a.split(minLength)
+      let [bHead, bTail] = b.split(minLength)
+
+      if (aHead.length() === 0) { aHead = undefined }
+      if (aTail.length() === 0) { aTail = undefined }
+      if (bHead.length() === 0) { bHead = undefined }
+      if (bTail.length() === 0) { bTail = undefined }
+
+      if (a.kind() === 'Retain' && b.kind() === 'Retain') {
+        return [aHead, [aTail, bTail]]
+      }
+      if (a.kind() === 'Insert' && b.kind() === 'Retain') {
+        return [aHead, [aTail, bTail]]
+      }
+      if (a.kind() === 'Retain' && b.kind() === 'Delete') {
+        return [bHead, [aTail, bTail]]
+      }
+      if (a.kind() === 'Insert' && b.kind() === 'Delete') {
+        return [undefined, [aTail, bTail]] // delete the inserted portion
+      }
+      if (a.kind() === 'Delete' && b.kind() === 'Insert') {
+        throw new Error('wat, should be handled already')
+      }
+      if (a.kind() === 'Delete' && b.kind() === 'Delete') {
+        throw new Error('wat, should be handled already')
+      }
+      if (a.kind() === 'Insert' && b.kind() === 'Insert') {
+        throw new Error('wat, should be handled already')
+      }
+      throw new Error('wat')
+    }
+
+    // one of the two ops is null!
+    if (a != null) { return [a, [undefined, b]] }
+    if (b != null) { return [b, [a, undefined]] }
+
+    throw new Error('wat')
+  }
+  compose(ops1: O[], ops2: O[])
+  : O[] {
     // compose (ops1, ops2) to composed s.t.
     // apply(apply(text, ops1), ops2) === apply(text, composed)
 
@@ -353,8 +358,8 @@ export class SuboperationsTransformer {
     let i1 = 0
     let i2 = 0
 
-    let op1: ?ISubOperation = undefined
-    let op2: ?ISubOperation = undefined
+    let op1: ?O = undefined
+    let op2: ?O = undefined
 
     while (true) {
       if (op1 == null) { op1 = ops1[i1]; i1++ }
@@ -372,7 +377,7 @@ export class SuboperationsTransformer {
         continue
       }
 
-      let [composedOp, [newOp1, newOp2]] = composeConsumeOps(op1, op2)
+      let [composedOp, [newOp1, newOp2]] = this._composeConsumeOps(op1, op2)
 
       if (composedOp != null) { composed.push(composedOp) }
       [op1, op2] = [newOp1, newOp2]
@@ -380,9 +385,9 @@ export class SuboperationsTransformer {
 
     return composed
   }
-  composeMany(ops: Iterable<ISubOperation[]>)
-  : ISubOperation[] {
-    let composed: ISubOperation[] = []
+  composeMany(ops: Iterable<O[]>)
+  : O[] {
+    let composed: O[] = []
     for (let op of ops) {
       composed = this.compose(composed, op)
     }
@@ -392,10 +397,9 @@ export class SuboperationsTransformer {
 
 //
 
-type SimpleTextSubops = InsertText | Delete | Retain | Placeholder
-type SimpleTextState = string
-
-type SimpleTextOperation = SimpleTextSubops[]
+type SimpleTextSubop = InsertText | Delete | Retain | Placeholder
+export type SimpleTextState = string
+export type SimpleTextOperation = SimpleTextSubop[]
 
 export class SimpleTextApplier {
   constructor() {
