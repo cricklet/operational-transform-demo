@@ -3,17 +3,17 @@
 import { hash, clone, assign, genUid, rearray, repeat, calculatePostfixLength, removeTail, calculatePrefixLength, substring, restring } from '../utils.js'
 import { map } from 'wu'
 
-export type Delete = {
+type Delete = {
   kind: 'Delete',
   num: number
 }
 
-export type Insert = {
+type Insert = {
   kind: 'Insert',
   text: string
 }
 
-export type Retain = {
+type Retain = {
   kind: 'Retain',
   num: number
 }
@@ -70,19 +70,6 @@ export function generateInsert(position: number, text: string): TextOperation {
 
 export function isEmpty(op: TextOperation): boolean {
   return op.ops.length === 0
-}
-
-function adjustment (operation: Retain|Delete|Insert): number {
-  if (operation.kind === 'Retain') {
-    return operation.num
-  }
-  if (operation.kind === 'Delete') {
-    return - operation.num
-  }
-  if (operation.kind === 'Insert') {
-    return operation.text.length
-  }
-  throw new Error('wat, failed adjumstment')
 }
 
 function length (operation: Retain|Delete|Insert): number {
@@ -159,7 +146,7 @@ export function apply(text: string, textOperations: TextOperation): string {
   return text
 }
 
-export function transformConsumeOps(a: ?(Insert|Delete|Retain), b: ?(Insert|Delete|Retain))
+function transformConsumeOps(a: ?(Insert|Delete|Retain), b: ?(Insert|Delete|Retain))
 : [[?(Insert|Delete|Retain), ?(Insert|Delete|Retain)], [?(Insert|Delete|Retain), ?(Insert|Delete|Retain)]] {
   // returns [[aP, bP], [a, b]]
   if (a != null && a.kind === 'Insert') {
@@ -260,7 +247,7 @@ export function transform(clientOps: TextOperation, serverOps: TextOperation): [
   return [ops1P, ops2P]
 }
 
-export function composeConsumeOps(a: ?(Insert|Delete|Retain), b: ?(Insert|Delete|Retain))
+function composeConsumeOps(a: ?(Insert|Delete|Retain), b: ?(Insert|Delete|Retain))
 : [?(Insert|Delete|Retain), [?(Insert|Delete|Retain), ?(Insert|Delete|Retain)]] {
   // returns [newOp, [a, b]]
 

@@ -247,7 +247,7 @@ export function serverRemoteOperation(server: Server, request: ClientRequest)
   }
 }
 
-export function flushBuffer(bufferOp: ?ChildedOperation, bufferParent: State)
+function flushBuffer(bufferOp: ?ChildedOperation, bufferParent: State)
 : [?ClientRequest, ?ParentedOperation] { // new request, new prebuffer
   if (bufferOp == null) {
     return [undefined, undefined]
