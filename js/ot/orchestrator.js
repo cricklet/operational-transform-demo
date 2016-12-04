@@ -3,6 +3,9 @@
 import type { ITransformer, IApplier } from './operations.js'
 import { concat, flatten, maybePush, hash, clone, assign, merge, last, genUid, zipPairs, first, pop, push, contains, reverse, findLastIndex, subarray } from './utils.js'
 import { find, map, reject } from 'wu'
+import type { Record } from './record'
+import { RecordFactory } from './record'
+import { List } from 'immutable'
 
 export type Client<O,S> = {
   uid: SiteUid,
@@ -71,28 +74,6 @@ export class Orchestrator<O,S> {
 
   _currentStateString(site: Server<O,S> | Client<O,S>): StateString {
     return this.applier.stateString(site.state)
-  }
-
-  generateServer(initialState: S): Server<O,S> {
-    return {
-      uid: genUid(),
-      state: initialState,
-      log: [],
-    }
-  }
-
-  generateClient (initialState: S): Client<O,S> {
-    return {
-      uid: genUid(),
-      state: initialState,
-
-      buffer: undefined, // the client ops not yet sent to the server
-      prebuffer: undefined, // the client op that has been sent to the server (but not yet ACKd by the server)
-      bridge: undefined, // server ops are transformed against this
-
-      requestQueue: [],
-      requestIndex: 0,
-    }
   }
 
   _serverTransform(clientOp: FullOperation<O>, serverOp: FullOperation<O>)
@@ -371,6 +352,28 @@ export class Orchestrator<O,S> {
   }
 }
 
+export function generateServer <O,S> (initialState: S): Server<O,S> {
+  return {
+    uid: genUid(),
+    state: initialState,
+    log: [],
+  }
+}
+
+export function generateClient <O,S> (initialState: S): Client<O,S> {
+  return {
+    uid: genUid(),
+    state: initialState,
+
+    buffer: undefined, // the client ops not yet sent to the server
+    prebuffer: undefined, // the client op that has been sent to the server (but not yet ACKd by the server)
+    bridge: undefined, // server ops are transformed against this
+
+    requestQueue: [],
+    requestIndex: 0,
+  }
+}
+
 export function generateAsyncPropogator <O,S> (
   orchestrator: Orchestrator<O,S>,
   server: Server<O,S>,
@@ -450,9 +453,11 @@ export function generatePropogator <O,S> (
       propogateFromClient(clientRequest)
     }
   }
+
   function propogateFromClient (request: ?ClientRequest<O>) {
     if (request == null) { return }
     propogateFromServer(orchestrator.serverRemoteOperation(server, request))
   }
+
   return propogateFromClient
 }

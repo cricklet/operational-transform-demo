@@ -23,6 +23,8 @@ import type {
 
 import {
   generateAsyncPropogator,
+  generateClient,
+  generateServer,
   Orchestrator
 } from './ot/orchestrator.js'
 
@@ -102,17 +104,17 @@ $(document).ready(() => {
 
   let $text0 = $('#text0')
   let requests0 = []
-  let client0 = orchestrator.generateClient('')
+  let client0 = generateClient('')
 
   let $text1 = $('#text1')
   let requests1 = []
-  let client1 = orchestrator.generateClient('')
+  let client1 = generateClient('')
 
   let $text2 = $('#text2')
   let requests2 = []
-  let client2 = orchestrator.generateClient('')
+  let client2 = generateClient('')
 
-  let server = orchestrator.generateServer('')
+  let server = generateServer('')
 
   let propogate = generateAsyncPropogator(orchestrator, server, [client0, client1, client2], () => {})
 

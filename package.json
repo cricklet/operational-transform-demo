@@ -27,6 +27,8 @@
     "chai": "^3.5.0",
     "flow-bin": "^0.30.0",
     "flow-typed": "^2.0.0",
+    "immutable": "^3.8.1",
+    "immutable-js": "^0.3.1-6",
     "imports-loader": "^0.6.5",
     "mocha": "^3.0.2",
     "object.observe": "^0.2.6",
@@ -36,5 +38,8 @@
     "webpack": "^1.13.1",
     "webpack-dev-server": "^1.16.2",
     "wu": "^2.1.0"
+  },
+  "devDependencies": {
+    "documentation": "^3.0.4"
   }
 }

@@ -27,6 +27,8 @@ import type {
 
 import {
   generatePropogator,
+  generateClient,
+  generateServer,
   Orchestrator
 } from './orchestrator.js'
 
@@ -46,14 +48,14 @@ let orchestrator = new Orchestrator(transformer, applier)
 
 describe('local operation => remote operation => loop', () => {
   it ('client updates client', () => {
-    let client = orchestrator.generateClient('')
+    let client = generateClient('')
     orchestrator.clientLocalOperation(client, insertOp(0, 'hello!'))
 
     assert.equal('hello!', client.state)
   })
   it ('client updates server & client', () => {
-    let client = orchestrator.generateClient('')
-    let server = orchestrator.generateServer('')
+    let client = generateClient('')
+    let server = generateServer('')
 
     let propogate = generatePropogator(orchestrator, server, [client])
 
@@ -63,9 +65,9 @@ describe('local operation => remote operation => loop', () => {
     assert.equal('hello!', server.state)
   })
   it ('two clients are handled', () => {
-    let client0 = orchestrator.generateClient('')
-    let client1 = orchestrator.generateClient('')
-    let server = orchestrator.generateServer('')
+    let client0 = generateClient('')
+    let client1 = generateClient('')
+    let server = generateServer('')
 
     let propogate = generatePropogator(orchestrator, server, [client0, client1])
 
@@ -77,9 +79,9 @@ describe('local operation => remote operation => loop', () => {
     assert.equal('helloworld', server.state)
   })
   it ('two clients out of order', () => {
-    let client0 = orchestrator.generateClient('')
-    let client1 = orchestrator.generateClient('')
-    let server = orchestrator.generateServer('')
+    let client0 = generateClient('')
+    let client1 = generateClient('')
+    let server = generateServer('')
 
     let propogate = generatePropogator(orchestrator, server, [client0, client1])
 
@@ -96,12 +98,12 @@ describe('local operation => remote operation => loop', () => {
     assert.equal('01234', server.state)
   })
   it ('multiple clients with interleaved requests', () => {
-    let client0 = orchestrator.generateClient('')
-    let client1 = orchestrator.generateClient('')
-    let client2 = orchestrator.generateClient('')
+    let client0 = generateClient('')
+    let client1 = generateClient('')
+    let client2 = generateClient('')
 
     let clients = [client0, client1, client2]
-    let server = orchestrator.generateServer('')
+    let server = generateServer('')
 
     let propogate = generatePropogator(orchestrator, server, clients)
 
