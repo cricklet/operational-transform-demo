@@ -1,6 +1,6 @@
 /* @flow */
 
-import { hash, clone, assign, genUid, rearray, repeat, calculatePostfixLength, removeTail, calculatePrefixLength, substring, restring } from './utils.js'
+import { hash, clone, genUid, rearray, repeat, calculatePostfixLength, removeTail, calculatePrefixLength, substring, restring } from './utils.js'
 import { map } from 'wu'
 import { ITransformer, IApplier } from './operations.js'
 

@@ -27,11 +27,8 @@ export function genUid(): string {
 }
 
 export function clone<T>(object: T): T {
+  // @flow-ignore
   return Object.assign({}, object)
-}
-
-export function assign<A, B>(a: A, b: B): A {
-  return Object.assign(a, b)
 }
 
 export function merge<A, B, C: A & B>(a: A, b: B): C {
