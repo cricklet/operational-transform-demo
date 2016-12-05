@@ -27,4 +27,12 @@ describe('record', () => {
 
     assert.throws(() => ABRecordFactory({a:1, b:2}))
   })
+
+  it('works for generics', () => {
+    type ABRecord = Record<{a: number, b: number}>
+    type CRecord<A> = Record<{ c: A }>
+    let CRecordFactory: RecordFactory<CRecord<*>> = generateRecordFactory('c')
+
+    assert.throws(() => CRecordFactory({c: {a:1, b:2}}))
+  })
 })
