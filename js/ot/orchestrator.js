@@ -46,7 +46,6 @@ export type ClientRequest<O> = Record<{
 const ClientRequestFactory = generateRecordFactory(
   'kind', 'operation')
 
-
 type FullOperation<O> = {
   childState: StateString,
   parentState: StateString,
@@ -217,7 +216,7 @@ export class Orchestrator<O,S> {
     let childState = this._currentStateString(server)
 
     // save op
-    let serverOp = {
+    let serverOp: FullOperation<O> = {
       parentState: parentState,
       childState: childState,
       operation: transformedOp.operation,
@@ -227,11 +226,12 @@ export class Orchestrator<O,S> {
     server.log.push(serverOp)
 
     // broadcast!
-    return {
+    let serverRequest: ServerRequest<O> = ServerRequestFactory({
       kind: 'ServerRequest',
-      index: logIndex,
       operation: serverOp
-    }
+    })
+
+    return serverRequest
   }
 
   _flushBuffer(bufferOp: ?ChildedOperation<O>, bufferParent: StateString)
@@ -241,12 +241,13 @@ export class Orchestrator<O,S> {
     }
 
     let fullBufferOp = merge(bufferOp, { parentState: bufferParent })
+    let clientRequest: ClientRequest<O> = ClientRequestFactory({
+      kind: 'ClientRequest',
+      operation: fullBufferOp
+    })
 
     return [
-      {
-        kind: 'ClientRequest',
-        operation: fullBufferOp
-      },
+      clientRequest,
       fullBufferOp
     ]
   }
@@ -362,25 +363,26 @@ export class Orchestrator<O,S> {
 }
 
 export function generateServer <O,S> (initialState: S): Server<O,S> {
-  return {
+  let server: Server<O,S> = ServerFactory({
     uid: genUid(),
     state: initialState,
     log: [],
-  }
+  })
+  return server
 }
 
 export function generateClient <O,S> (initialState: S): Client<O,S> {
-  return {
+  let client: Client<O,S> = ClientFactory({
     uid: genUid(),
     state: initialState,
 
     buffer: undefined, // the client ops not yet sent to the server
     prebuffer: undefined, // the client op that has been sent to the server (but not yet ACKd by the server)
-    bridge: undefined, // server ops are transformed against this
 
     requestQueue: [],
     requestIndex: 0,
-  }
+  })
+  return client
 }
 
 export function generateAsyncPropogator <O,S> (
