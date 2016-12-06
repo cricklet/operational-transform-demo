@@ -3,11 +3,8 @@
 import type { ITransformer, IApplier } from './operations.js'
 import { concat, flatten, maybePush, hash, clone, merge, last, genUid, zipPairs, first, pop, push, contains, reverse, findLastIndex, subarray } from './utils.js'
 import { find, map, reject } from 'wu'
-import type { Record } from './record'
-import { generateRecordFactory } from './record'
-import { List } from 'immutable'
 
-export type Client<O,S> = Record<{
+export type Client<O,S> = {
   uid: SiteUid,
 
   state: S,
@@ -18,33 +15,25 @@ export type Client<O,S> = Record<{
 
   requestQueue: Array<ServerRequest<O>>,
   requestIndex: number
-}>
-const ClientFactory = generateRecordFactory(
-  'uid', 'state', 'buffer', 'prebuffer', 'requestQueue', 'requestIndex')
+}
 
-export type Server<O,S> = Record<{
+export type Server<O,S> = {
   uid: SiteUid,
 
   state: S,
   log: Array<FullOperation<O>>, // history of local operations, oldest to newest
-}>
-const ServerFactory = generateRecordFactory(
-  'uid', 'state', 'log')
+}
 
-export type ServerRequest<O> = Record<{
+export type ServerRequest<O> = {
   kind: 'ServerRequest',
   index: number, // what is the index of this operation on the server's log
   operation: FullOperation<O>
-}>
-const ServerRequestFactory = generateRecordFactory(
-  'kind', 'index', 'operation')
+}
 
-export type ClientRequest<O> = Record<{
+export type ClientRequest<O> = {
   kind: 'ClientRequest',
   operation: FullOperation<O>
-}>
-const ClientRequestFactory = generateRecordFactory(
-  'kind', 'operation')
+}
 
 
 type FullOperation<O> = {
