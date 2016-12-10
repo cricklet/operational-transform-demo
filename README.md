@@ -1,6 +1,6 @@
 # blue-ot.js
 
-![](http://im2.ezgif.com/tmp/ezgif.com-06ee02d99c.gif)
+![](http://i.imgur.com/v5DMkCr.gif)
 
 This is an implementation/demo of collaborative text editing via operational transforms. It's mostly inspired by Daniel Spiewak's [description](http://www.codecommit.com/blog/java/understanding-and-applying-operational-transformation) of operational transform.
 
