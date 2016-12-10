@@ -2,7 +2,7 @@
 
 import { hash, clone, genUid, rearray, repeat, calculatePostfixLength, removeTail, calculatePrefixLength, substring, restring } from './utils.js'
 import { map } from 'wu'
-import { ITransformer, IApplier } from './operations.js'
+import { ITransformer, IApplier, IInferrer } from './operations.js'
 
 
 //
@@ -398,17 +398,16 @@ export class SuboperationsTransformer<O: ISubOperation> {
 //
 
 type SimpleTextSubop = InsertText | Delete | Retain | Placeholder
-export type SimpleTextState = string
 export type SimpleTextOperation = SimpleTextSubop[]
 
 export class SimpleTextApplier {
   constructor() {
-    (this: IApplier<SimpleTextOperation, SimpleTextState>)
+    (this: IApplier<SimpleTextOperation, string>)
   }
-  stateString(text: SimpleTextState): string {
+  stateString(text: string): string {
     return text
   }
-  apply(text: SimpleTextState, op: SimpleTextOperation): SimpleTextState {
+  apply(text: string, op: SimpleTextOperation): string {
     let i = 0
     for (let subop of op) {
       if (subop instanceof InsertText) {
@@ -433,7 +432,13 @@ export class SimpleTextApplier {
 
     return text
   }
-  inferOs(oldText: SimpleTextState, newText: SimpleTextState): ?SimpleTextOperation {
+}
+
+export class SimpleTextInferrer {
+  constructor() {
+    (this: IInferrer<SimpleTextOperation, string>)
+  }
+  inferOps(oldText: string, newText: string): ?SimpleTextOperation {
     if (oldText.length === newText.length) {
       // we have a no-op
       if (oldText === newText) {
@@ -464,5 +469,68 @@ export class SimpleTextApplier {
       new Delete(endOld - start),
       new InsertText(restring(substring(newText, {start: start, stop: endNew})))
     ]
+  }
+}
+
+//
+
+export type SimpleCursorState = {start: number, end: number}
+
+export class SimpleCursorApplier {
+  constructor() {
+    (this: IApplier<SimpleTextOperation, SimpleCursorState>)
+  }
+  stateString(state: SimpleCursorState): string {
+    throw new Error('not implemented')
+  }
+  _adjustPosition(pos: number, op: SimpleTextOperation): number {
+    let i = 0
+    for (let subop of op) {
+      if (i >= pos) { break }
+
+      if (subop instanceof InsertText) {
+        i += subop.length()
+        pos += subop.length()
+      }
+
+      if (subop instanceof Retain) {
+        i += subop.num
+      }
+
+      if (subop instanceof Delete) {
+        pos -= subop.length()
+      }
+    }
+    return pos
+  }
+  apply(state: SimpleCursorState, op: SimpleTextOperation): SimpleCursorState {
+    return {
+      start: this._adjustPosition(state.start, op),
+      end: this._adjustPosition(state.end, op)
+    }
+  }
+}
+
+//
+
+export type TextState = {cursor: SimpleCursorState, text: string}
+
+export class TextApplier {
+  cursorApplier: SimpleCursorApplier
+  textApplier: SimpleTextApplier
+
+  constructor() {
+    (this: IApplier<SimpleTextOperation, TextState>)
+    this.cursorApplier = new SimpleCursorApplier() // no DI :()
+    this.textApplier = new SimpleTextApplier()
+  }
+  stateString(state: TextState): string {
+    return this.textApplier.stateString(state.text)
+  }
+  apply(state: TextState, op: SimpleTextOperation): TextState {
+    return {
+      cursor: this.cursorApplier.apply(state.cursor, op),
+      text: this.textApplier.apply(state.text, op)
+    }
   }
 }

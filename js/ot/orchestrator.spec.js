@@ -22,7 +22,7 @@ import type {
 
 import type {
   SimpleTextOperation,
-  SimpleTextState
+  TextState
 } from './text_operations.js'
 
 import {

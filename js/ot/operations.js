@@ -2,8 +2,11 @@
 
 export interface IApplier<O,S> {
   stateString(s: S): string,
-  apply(state: S, op: O): S,
-  inferOs(oldState: S, newState: S): ?O,
+  apply(state: S, op: O): S
+}
+
+export interface IInferrer<O,S> {
+  inferOps(state: S, newState: S): ?O
 }
 
 export interface ITransformer<O> {
