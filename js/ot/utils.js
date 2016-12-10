@@ -14,6 +14,13 @@ export type Comparitor<T> = (a: T, b: T) => Comparison
 //         Less    if a  <  b
 //         Equal   if a === b
 
+export function mapObject(obj: Object, mapFunc: any): Object {
+  return Object.keys(obj).reduce(function(newObj, value) {
+      newObj[value] = mapFunc(obj[value]);
+      return newObj;
+  }, {});
+}
+
 export function reiterable <T> (it: Iterable<T>): Reiterable<T> {
   return () => it
 }
@@ -311,7 +318,7 @@ export function shuffle <T> (arr: Array<T>): Reiterable<T> {
   }
 }
 
-export function zipPairs <T> (arr: Array<T>): Reiterable<[T ,T]> {
+export function pairs <T> (arr: Array<T>): Reiterable<[T ,T]> {
   return function * () {
     for (let i = 0; i < arr.length - 1; i ++) {
       yield [arr[i], arr[i+1]]

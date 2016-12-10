@@ -6,6 +6,9 @@ import { expect } from 'chai'
 import { spy } from 'sinon'
 import { assert } from 'chai'
 
+import { zip } from 'wu'
+import { mapObject } from 'utils'
+
 import {
   insertOp,
   deleteOp,
@@ -20,6 +23,19 @@ function opsString <A> (as: A[]): string {
 
 let applier = new SimpleTextApplier()
 let transformer = new SuboperationsTransformer(retainFactory)
+
+function opsEqual <O: {equals: (o: any) => boolean}> (arr1: O[], arr2: O[]): boolean {
+  if (arr1.length !== arr2.length) {
+    return false
+  }
+
+  for (let [o1, o2] of zip(arr1, arr2)) {
+    if (!o1.equals(o2)) {
+      return false
+    }
+  }
+  return true
+}
 
 describe('apply()', () => {
   [ { text: '0123', op: insertOp(-1, 'a'), throws: true },

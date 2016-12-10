@@ -1,6 +1,6 @@
 /* @flow */
 
-import { hash, clone, genUid, rearray, repeat, calculatePostfixLength, removeTail, calculatePrefixLength, substring, restring } from './utils.js'
+import { first, subarray, hash, clone, genUid, rearray, repeat, calculatePostfixLength, removeTail, calculatePrefixLength, substring, restring } from './utils.js'
 import { map } from 'wu'
 import { ITransformer, IApplier } from './operations.js'
 
@@ -12,7 +12,9 @@ type SuboperationKind = 'Delete'|'Insert'|'Placeholder'|'Retain'
 type ISubOperation = {
   kind(): SuboperationKind,
   length(): number,
-  split(pos: number): [ISubOperation, ISubOperation]
+  adjustment(): number,
+  split(pos: number): [ISubOperation, ISubOperation],
+  combine(next: ISubOperation): ?ISubOperation
 }
 
 //
@@ -55,8 +57,21 @@ class InsertText {
       new InsertText(this.text.substring(offset))
     ]
   }
+  combine(next: ISubOperation): ?ISubOperation {
+    if (next instanceof InsertText) {
+      return new InsertText(this.text + next.text)
+    } else {
+      return undefined
+    }
+  }
   length(): number {
     return this.text.length
+  }
+  adjustment(): number {
+    return this.length()
+  }
+  apply(text: string, i: number): string {
+    return text.slice(0, i) + this.text + text.slice(i)
   }
 }
 
@@ -82,8 +97,23 @@ class Delete {
       new Delete(this.num - offset)
     ]
   }
+  combine(next: ISubOperation): ?ISubOperation {
+    if (next instanceof Delete) {
+      return new Delete(this.num + next.num)
+    } else {
+      return undefined
+    }
+  }
   length(): number {
     return this.num
+  }
+  adjustment(): number {
+    return 0
+  }
+  apply(text: string, i: number): string {
+    if (this.num < 0) { throw new Error('wat, failed to delete') }
+    if (i + this.num > text.length) { throw new Error('wat, trying to delete too much') }
+    return text.slice(0, i) + text.slice(i + this.num)
   }
 }
 
@@ -109,8 +139,18 @@ class Retain {
       new Retain(this.num - offset)
     ]
   }
+  combine(next: ISubOperation): ?ISubOperation {
+    if (next instanceof Retain) {
+      return new Retain(this.num + next.num)
+    } else {
+      return undefined
+    }
+  }
   length(): number {
     return this.num
+  }
+  adjustment(): number {
+    return this.length()
   }
 }
 
@@ -125,9 +165,15 @@ class Placeholder {
     return 'Placeholder'
   }
   split (offset: number): [ISubOperation, ISubOperation] {
-    throw new Error('wat')
+    throw new Error()
+  }
+  combine (next: ISubOperation): ?ISubOperation {
+    return undefined
   }
   length(): number {
+    return 0
+  }
+  adjustment(): number {
     return 0
   }
 }
@@ -140,7 +186,7 @@ class CursorStart {
     this.owner = owner
   }
   toString(): string {
-    return 'placeholder'
+    return `cursor start ${this.owner}`
   }
   kind(): SuboperationKind {
     return 'Placeholder'
@@ -148,7 +194,13 @@ class CursorStart {
   split (offset: number): [ISubOperation, ISubOperation] {
     throw new Error('wat')
   }
+  combine (next: ISubOperation): ?ISubOperation {
+    return undefined
+  }
   length(): number {
+    return 0
+  }
+  adjustment(): number {
     return 0
   }
 }
@@ -161,7 +213,7 @@ class CursorEnd {
     this.owner = owner
   }
   toString(): string {
-    return 'placeholder'
+    return `cursor end ${this.owner}`
   }
   kind(): SuboperationKind {
     return 'Placeholder'
@@ -169,7 +221,13 @@ class CursorEnd {
   split (offset: number): [ISubOperation, ISubOperation] {
     throw new Error('wat')
   }
+  combine (next: ISubOperation): ?ISubOperation {
+    return undefined
+  }
   length(): number {
+    return 0
+  }
+  adjustment(): number {
     return 0
   }
 }
@@ -182,6 +240,27 @@ export class SuboperationsTransformer<O: ISubOperation> {
   constructor(retainFactory: (num: number) => O) {
     (this: ITransformer<O[]>)
     this.retainFactory = retainFactory
+  }
+  _shorten(ops: O[]): O[] {
+    if (ops.length === 0) {
+      return []
+    }
+
+    let results = []
+    let previous: O = first(ops)
+
+    for (let current: O of subarray(ops, {start: 1})()) {
+      let result = previous.combine(current)
+      if (result == null) {
+        results.push(previous)
+        previous = current
+      } else {
+        previous = result
+      }
+    }
+    results.push(previous)
+
+    return results
   }
   _transformConsumeOps(a: ?O, b: ?O)
   : [[?O, ?O], [?O, ?O]] {
@@ -278,7 +357,7 @@ export class SuboperationsTransformer<O: ISubOperation> {
       [op1, op2] = [newOp1, newOp2]
     }
 
-    return [ops1P, ops2P]
+    return [this._shorten(ops1P), this._shorten(ops2P)]
   }
   composeNullable (ops1: ?O[], ops2: ?O[])
   : ?O[] {
@@ -383,7 +462,7 @@ export class SuboperationsTransformer<O: ISubOperation> {
       [op1, op2] = [newOp1, newOp2]
     }
 
-    return composed
+    return this._shorten(composed)
   }
   composeMany(ops: Iterable<O[]>)
   : O[] {
@@ -412,20 +491,14 @@ export class SimpleTextApplier {
     let i = 0
     for (let subop of op) {
       if (subop instanceof InsertText) {
-        text = text.slice(0, i) + subop.text + text.slice(i)
-        i += subop.text.length
+        text = subop.apply(text, i)
       }
-
-      if (subop instanceof Retain) {
-        if (subop.num < 0) { throw new Error('wat, failed to retain') }
-        i += subop.num
-      }
-
       if (subop instanceof Delete) {
-        if (subop.num < 0) { throw new Error('wat, failed to delete') }
-        if (i + subop.num > text.length) { throw new Error('wat, trying to delete too much') }
-        text = text.slice(0, i) + text.slice(i + subop.num)
+        text = subop.apply(text, i)
       }
+
+      // adjust our index into the text
+      i += subop.adjustment()
 
       // make sure we didn't accidentally overshoot
       if (i > text.length) { throw new Error('wat, overshot') }
@@ -464,5 +537,95 @@ export class SimpleTextApplier {
       new Delete(endOld - start),
       new InsertText(restring(substring(newText, {start: start, stop: endNew})))
     ]
+  }
+}
+
+//
+
+type SimpleCursorSubop = Retain | CursorStart | CursorEnd
+export type SimpleCursorState = { [owner: string]: [number, number] }
+export type SimpleCursorOperation = SimpleCursorSubop[]
+
+export class SimpleCursorApplier {
+  constructor() {
+    (this: IApplier<SimpleCursorOperation, SimpleCursorState>)
+  }
+  stateString(state: SimpleCursorState): string {
+    let result = ''
+    for (let owner of Object.keys(state).sort()) {
+      let [start, end] = state[owner]
+      result += `${owner}: ${start}, ${end}`
+    }
+    return result
+  }
+  apply(state: SimpleCursorState, op: SimpleCursorOperation): SimpleCursorState {
+    let starts: {[owner: string]: number} = {}
+    let ends: {[owner: string]: number} = {}
+
+    let i = 0
+    for (let subop of op) {
+      if (subop instanceof CursorStart) {
+        starts[subop.owner] = i
+      }
+
+      if (subop instanceof CursorEnd) {
+        ends[subop.owner] = i
+      }
+
+      // adjust our index into the text
+      i += subop.adjustment()
+    }
+
+    for (let owner in ends) {
+      if (!(owner in starts)) { throw new Error() }
+    }
+
+    for (let owner in starts) {
+      if (!(owner in ends)) { throw new Error() }
+    }
+
+    let newState: SimpleCursorState = clone(state)
+
+    for (let owner in starts) {
+      newState[owner] = [starts[owner], ends[owner]]
+    }
+
+    return newState
+  }
+  inferOs(oldState: SimpleCursorState, newState: SimpleCursorState): ?SimpleCursorOperation {
+    let cursors = []
+    for (let owner in newState) {
+      let [start, end] = newState[owner]
+      cursors.push([owner, start, 'start'])
+      cursors.push([owner, end, 'end'])
+    }
+
+    cursors.sort(([owner1, pos1, type1], [owner2, pos2, type2]) => {
+      if (pos1 < pos2) return -1
+      if (pos1 == pos2) return 0
+      if (pos1 > pos2) return 1
+      throw new Error()
+    })
+
+    let ops = []
+    let i = 0
+    for (let [owner, pos, type] of cursors) {
+      if (pos > i) {
+        ops.push(new Retain(pos - i))
+      } else if (pos === i) {
+      } else {
+        throw new Error()
+      }
+
+      if (type === 'start') {
+        ops.push(new CursorStart(owner))
+      } else if (type === 'end') {
+        ops.push(new CursorEnd(owner))
+      }
+
+      i = pos
+    }
+
+    return ops
   }
 }
