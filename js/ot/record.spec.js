@@ -33,6 +33,6 @@ describe('record', () => {
     type CRecord<A> = Record<{ c: A }>
     let CRecordFactory: RecordFactory<CRecord<*>> = generateRecordFactory('c')
 
-    CRecordFactory({c: {a:1, b:2}})
+    assert.throws(() => CRecordFactory({c: {a:1, b:2}}))
   })
 })

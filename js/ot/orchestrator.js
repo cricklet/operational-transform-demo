@@ -1,7 +1,7 @@
 /* @flow */
 
 import type { ITransformer, IApplier } from './operations.js'
-import { concat, flatten, maybePush, hash, clone, merge, last, genUid, first, pop, push, contains, reverse, findLastIndex, subarray } from './utils.js'
+import { concat, flatten, maybePush, hash, clone, merge, last, genUid, zipPairs, first, pop, push, contains, reverse, findLastIndex, subarray } from './utils.js'
 import { find, map, reject } from 'wu'
 
 export type Client<O,S> = {
