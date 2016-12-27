@@ -114,85 +114,25 @@ class Retain {
   }
 }
 
-class Placeholder {
-  constructor() {
-    (this: ISubOperation)
-  }
-  toString(): string {
-    return 'placeholder'
-  }
-  kind(): SuboperationKind {
-    return 'Placeholder'
-  }
-  split (offset: number): [ISubOperation, ISubOperation] {
-    throw new Error('wat')
-  }
-  length(): number {
-    return 0
-  }
-}
-
-class CursorStart {
-  owner: string
-
-  constructor(owner: string) {
-    (this: ISubOperation)
-    this.owner = owner
-  }
-  toString(): string {
-    return 'placeholder'
-  }
-  kind(): SuboperationKind {
-    return 'Placeholder'
-  }
-  split (offset: number): [ISubOperation, ISubOperation] {
-    throw new Error('wat')
-  }
-  length(): number {
-    return 0
-  }
-}
-
-class CursorEnd {
-  owner: string
-
-  constructor(owner: string) {
-    (this: ISubOperation)
-    this.owner = owner
-  }
-  toString(): string {
-    return 'placeholder'
-  }
-  kind(): SuboperationKind {
-    return 'Placeholder'
-  }
-  split (offset: number): [ISubOperation, ISubOperation] {
-    throw new Error('wat')
-  }
-  length(): number {
-    return 0
-  }
-}
-
 //
 
 
 export class SuboperationsTransformer<O: ISubOperation> {
-  retainFactory: (num: number) => O
+  _retainFactory: (num: number) => O
   constructor(retainFactory: (num: number) => O) {
     (this: ITransformer<O[]>)
-    this.retainFactory = retainFactory
+    this._retainFactory = retainFactory
   }
   _transformConsumeOps(a: ?O, b: ?O)
   : [[?O, ?O], [?O, ?O]] {
     // returns [[aP, bP], [a, b]]
 
     if (a != null && a.kind() === 'Insert') {
-      return [[a, this.retainFactory(a.length())], [undefined, b]]
+      return [[a, this._retainFactory(a.length())], [undefined, b]]
     }
 
     if (b != null && b.kind() === 'Insert') {
-      return [[this.retainFactory(b.length()), b], [a, undefined]]
+      return [[this._retainFactory(b.length()), b], [a, undefined]]
     }
 
     // neither is null
@@ -397,7 +337,7 @@ export class SuboperationsTransformer<O: ISubOperation> {
 
 //
 
-type SimpleTextSubop = InsertText | Delete | Retain | Placeholder
+type SimpleTextSubop = InsertText | Delete | Retain
 export type SimpleTextOperation = SimpleTextSubop[]
 
 export class SimpleTextApplier {

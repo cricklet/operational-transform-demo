@@ -7,8 +7,8 @@ import { spy } from 'sinon'
 import { assert } from 'chai'
 
 import {
-  insertOp,
-  deleteOp,
+  generateInsertion,
+  generateDeletion,
   retainFactory,
   SimpleTextApplier,
   SuboperationsTransformer

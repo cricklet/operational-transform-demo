@@ -34,8 +34,8 @@ import {
 
 import {
   retainFactory,
-  insertOp,
-  deleteOp,
+  generateInsertion,
+  generateDeletion,
   SuboperationsTransformer,
   SimpleTextApplier
 } from './text_operations.js'
