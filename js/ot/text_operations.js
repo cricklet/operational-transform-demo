@@ -17,13 +17,13 @@ type ISubOperation = {
 
 //
 
-export function insertOp(pos: number, text: string): SimpleTextSubop[] {
+export function generateInsertion(pos: number, text: string): SimpleTextSubop[] {
   return [
     new Retain(pos), new InsertText(text)
   ]
 }
 
-export function deleteOp(pos: number, n: number): SimpleTextSubop[] {
+export function generateDeletion(pos: number, n: number): SimpleTextSubop[] {
   return [
     new Retain(pos), new Delete(n)
   ]

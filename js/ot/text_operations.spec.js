@@ -22,15 +22,15 @@ let applier = new SimpleTextApplier()
 let transformer = new SuboperationsTransformer(retainFactory)
 
 describe('apply()', () => {
-  [ { text: '0123', op: insertOp(-1, 'a'), throws: true },
-    { text: '0123', op: insertOp(5, 'a'),  throws: true },
-    { text: '0123', op: insertOp(1, 'a'),  result: '0a123' },
-    { text: '0123', op: insertOp(4, 'a'),  result: '0123a' },
-    { text: '0123', op: deleteOp(-1, 1),   throws: true },
-    { text: '0123', op: deleteOp(-1, 0),   throws: true },
-    { text: '0123', op: deleteOp(0, 4),    result: '' },
-    { text: '0123', op: deleteOp(0, 5),    throws: true },
-    { text: '0123', op: deleteOp(3, 1),    result: '012' }
+  [ { text: '0123', op: generateInsertion(-1, 'a'), throws: true },
+    { text: '0123', op: generateInsertion(5, 'a'),  throws: true },
+    { text: '0123', op: generateInsertion(1, 'a'),  result: '0a123' },
+    { text: '0123', op: generateInsertion(4, 'a'),  result: '0123a' },
+    { text: '0123', op: generateDeletion(-1, 1),   throws: true },
+    { text: '0123', op: generateDeletion(-1, 0),   throws: true },
+    { text: '0123', op: generateDeletion(0, 4),    result: '' },
+    { text: '0123', op: generateDeletion(0, 5),    throws: true },
+    { text: '0123', op: generateDeletion(3, 1),    result: '012' }
   ].forEach((test) => {
     if (test.throws) {
       it ('raises an error for op: ' + opsString(test.op) + ' on text: ' + test.text, () => {
@@ -46,16 +46,16 @@ describe('apply()', () => {
 
 describe('transform()', () => {
   [
-    [insertOp(1, 'asdf'), insertOp(3, 'qwerty')],
-    [insertOp(5, 'asdf'), insertOp(3, 'qwerty')],
-    [insertOp(9, 'asdf'), insertOp(3, 'qwerty')],
-    [insertOp(1, 'asdf'), deleteOp(3, 5)],
-    [insertOp(5, 'asdf'), deleteOp(3, 5)],
-    [insertOp(9, 'asdf'), deleteOp(3, 5)],
-    [deleteOp(1, 5), insertOp(1, 'asdf')],
-    [deleteOp(5, 5), insertOp(5, 'asdf')],
-    [deleteOp(9, 5), insertOp(9, 'asdf')],
-    [deleteOp(0, 1), insertOp(1, 'a')],
+    [generateInsertion(1, 'asdf'), generateInsertion(3, 'qwerty')],
+    [generateInsertion(5, 'asdf'), generateInsertion(3, 'qwerty')],
+    [generateInsertion(9, 'asdf'), generateInsertion(3, 'qwerty')],
+    [generateInsertion(1, 'asdf'), generateDeletion(3, 5)],
+    [generateInsertion(5, 'asdf'), generateDeletion(3, 5)],
+    [generateInsertion(9, 'asdf'), generateDeletion(3, 5)],
+    [generateDeletion(1, 5), generateInsertion(1, 'asdf')],
+    [generateDeletion(5, 5), generateInsertion(5, 'asdf')],
+    [generateDeletion(9, 5), generateInsertion(9, 'asdf')],
+    [generateDeletion(0, 1), generateInsertion(1, 'a')],
   ].forEach(([op1, op2]) => {
     it (opsString(op1) + ', ' + opsString(op2) + ' are propertly transformed', () => {
       let [op1P, op2P] = transformer.transform(op1, op2)
@@ -69,10 +69,10 @@ describe('transform()', () => {
 
 describe('compose()', () => {
   [
-    ['012345', insertOp(1, 'asdf'), insertOp(3, 'qwerty'), '0asqwertydf12345'],
-    ['012345', insertOp(1, 'asdf'), deleteOp(3, 3), '0as2345'],
-    ['012345', deleteOp(1, 3), deleteOp(1, 1), '05'],
-    ['012345', deleteOp(1, 3), insertOp(2, 'asdf'), '04asdf5']
+    ['012345', generateInsertion(1, 'asdf'), generateInsertion(3, 'qwerty'), '0asqwertydf12345'],
+    ['012345', generateInsertion(1, 'asdf'), generateDeletion(3, 3), '0as2345'],
+    ['012345', generateDeletion(1, 3), generateDeletion(1, 1), '05'],
+    ['012345', generateDeletion(1, 3), generateInsertion(2, 'asdf'), '04asdf5']
   ].forEach(([start, op1, op2, result]) => {
     it (start + ' becomes ' + result + ' via ' + opsString(op1) + ', ' + opsString(op2), () => {
       assert.equal(
@@ -88,10 +88,10 @@ describe('compose()', () => {
 
 describe('combinatorial', () => {
   let ops = [
-    insertOp(1, 'asdf'), insertOp(3, 'qwerty'),
-    // insertOp(5, 'banana'),
-    deleteOp(0, 2), deleteOp(2, 2),]
-    // deleteOp(4, 3)]
+    generateInsertion(1, 'asdf'), generateInsertion(3, 'qwerty'),
+    // generateInsertion(5, 'banana'),
+    generateDeletion(0, 2), generateDeletion(2, 2),]
+    // generateDeletion(4, 3)]
 
   ops.forEach(op1 => {
     ops.forEach(op2 => {

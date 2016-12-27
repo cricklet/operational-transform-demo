@@ -49,7 +49,7 @@ let orchestrator = new Orchestrator(transformer, applier)
 describe('local operation => remote operation => loop', () => {
   it ('client updates client', () => {
     let client = generateClient('')
-    orchestrator.clientLocalOperation(client, insertOp(0, 'hello!'))
+    orchestrator.clientLocalOperation(client, generateInsertion(0, 'hello!'))
 
     assert.equal('hello!', client.state)
   })
@@ -59,7 +59,7 @@ describe('local operation => remote operation => loop', () => {
 
     let propogate = generatePropogator(orchestrator, server, [client])
 
-    propogate(orchestrator.clientLocalOperation(client, insertOp(0, 'hello!')))
+    propogate(orchestrator.clientLocalOperation(client, generateInsertion(0, 'hello!')))
 
     assert.equal('hello!', client.state)
     assert.equal('hello!', server.state)
@@ -71,8 +71,8 @@ describe('local operation => remote operation => loop', () => {
 
     let propogate = generatePropogator(orchestrator, server, [client0, client1])
 
-    propogate(orchestrator.clientLocalOperation(client1, insertOp(0, 'world')))
-    propogate(orchestrator.clientLocalOperation(client0, insertOp(0, 'hello')))
+    propogate(orchestrator.clientLocalOperation(client1, generateInsertion(0, 'world')))
+    propogate(orchestrator.clientLocalOperation(client0, generateInsertion(0, 'hello')))
 
     assert.equal('helloworld', client0.state)
     assert.equal('helloworld', client1.state)
@@ -85,9 +85,9 @@ describe('local operation => remote operation => loop', () => {
 
     let propogate = generatePropogator(orchestrator, server, [client0, client1])
 
-    let c1 = orchestrator.clientLocalOperation(client1, insertOp(0, '01234'))
-    let c2a = orchestrator.clientLocalOperation(client0, insertOp(0, 'abc'))
-    let c2b = orchestrator.clientLocalOperation(client0, deleteOp(0, 3))
+    let c1 = orchestrator.clientLocalOperation(client1, generateInsertion(0, '01234'))
+    let c2a = orchestrator.clientLocalOperation(client0, generateInsertion(0, 'abc'))
+    let c2b = orchestrator.clientLocalOperation(client0, generateDeletion(0, 3))
 
     propogate(c2a)
     propogate(c2b)
@@ -107,17 +107,17 @@ describe('local operation => remote operation => loop', () => {
 
     let propogate = generatePropogator(orchestrator, server, clients)
 
-    let request0 = orchestrator.clientLocalOperation(client0, insertOp(0, 'hello'))
-    let request1 = orchestrator.clientLocalOperation(client0, deleteOp(2, 3)) // he
+    let request0 = orchestrator.clientLocalOperation(client0, generateInsertion(0, 'hello'))
+    let request1 = orchestrator.clientLocalOperation(client0, generateDeletion(2, 3)) // he
 
-    let request2 = orchestrator.clientLocalOperation(client1, insertOp(0, 'dog'))
-    let request3 = orchestrator.clientLocalOperation(client1, deleteOp(0, 1))
-    let request4 = orchestrator.clientLocalOperation(client1, insertOp(0, 'g'))
-    let request5 = orchestrator.clientLocalOperation(client1, deleteOp(2, 1))
+    let request2 = orchestrator.clientLocalOperation(client1, generateInsertion(0, 'dog'))
+    let request3 = orchestrator.clientLocalOperation(client1, generateDeletion(0, 1))
+    let request4 = orchestrator.clientLocalOperation(client1, generateInsertion(0, 'g'))
+    let request5 = orchestrator.clientLocalOperation(client1, generateDeletion(2, 1))
 
-    let request6 = orchestrator.clientLocalOperation(client1, insertOp(2, 'd')) // god
-    let request7 = orchestrator.clientLocalOperation(client2, insertOp(0, 'le'))
-    let request8 = orchestrator.clientLocalOperation(client2, insertOp(2, ' sigh')) // le sigh
+    let request6 = orchestrator.clientLocalOperation(client1, generateInsertion(2, 'd')) // god
+    let request7 = orchestrator.clientLocalOperation(client2, generateInsertion(0, 'le'))
+    let request8 = orchestrator.clientLocalOperation(client2, generateInsertion(2, ' sigh')) // le sigh
 
     assert.equal('he', client0.state)
     assert.equal('god', client1.state)
