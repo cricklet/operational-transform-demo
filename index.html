@@ -6,6 +6,8 @@
 		<script type="text/javascript" src="./js/libs/jquery.js" charset="utf-8"></script>
 		<script type="text/javascript" src="./build/bundle.js" charset="utf-8"></script>
 
+		<link rel="stylesheet" href="./style.css"></link>
+
 		<style>
 			*,
 			*::before,
@@ -15,13 +17,32 @@
 			            box-sizing: border-box;
 			}
 			body {
-				font-family: sans-serif;
+				padding-top: 16px;
 			}
-			.main {
+			div.wrapper.wide {
+			  width:870px;
+			}
+			section.wide {
+			  width:640px;
+			  float:right;
+			  padding-bottom:50px;
+			}
+			@media print, screen and (max-width: 960px) {
+				div.wrapper.wide {
+					width: auto;
+				}
+				section.wide {
+			    width:auto;
+				}
+			}
+			.code {
+			  font-family:Monaco, Bitstream Vera Sans Mono, Lucida Console, Terminal;
+				font-size: 0.84em;
+				padding-left: 0.1em;
+				padding-right: 0.1em;
+			}
+			.explanation {
 				padding: 8px;
-				max-width: 800px;
-				margin-left: auto;
-				margin-right: auto;
 			}
 			.demo {
 				background-color: #f5f5f5;
@@ -57,7 +78,7 @@
 				-webkit-flex-grow: 1;
 				flex-grow: 1;
 
-				min-width: 200px;
+				min-width: 180px;
 				margin-bottom: 0.4em;
 			}
 			.computer div {
@@ -90,27 +111,167 @@
 
 	<body>
 
-		<div class="main">
-			<h1>Collaborative Editing via Operational Transform</h1>
-
-			<div class="demo">
-				<div id="computers">
-					<div class="computer"></div>
-					<div class="computer"></div>
-					<div class="computer"></div>
+		<div class="wrapper wide">
+			<section class="wide">
+				<div class="top">
+					<br/>
+					<br/>
+					<h1><a href="https://github.com/cricklet/blue-ot.js">Collaborative Editing via OT</a></h1>
 				</div>
-				<button id="add-client">Add Client</button>
-			</div>
 
-			<p>
-				This is an implementation/demo of collaborative text editing via operational transforms.
-				The implementation is mostly based on
-				<a href="http://www.codecommit.com/blog/java/understanding-and-applying-operational-transformation">Daniel Spiewak's description</a>
-				of operational transforms.
-			</p>
-			<p></p>
+				<br/>
+				<div class="demo">
+					<div id="computers">
+						<div class="computer"></div>
+						<div class="computer"></div>
+						<div class="computer"></div>
+					</div>
+					<button id="add-client">Add Client</button>
+				</div>
 
+				<br/>
+				<br/>
+				<div class="explanation">
+					<p>
+						This is an implementation/demo of collaborative text editing via operational transforms,
+						based significantly on
+						<a href="http://www.codecommit.com/blog/java/understanding-and-applying-operational-transformation">Daniel Spiewak's description</a>
+						of the algorithm. OT is one of the core technologies behind Google Docs.
+					</p>
+
+					<p>
+						Other algorithms for realtime collaboartive systems include
+						<a href="https://code.google.com/p/google-diff-match-patch/">Diff-Patch-Match</a>,
+						<a href="https://hal.inria.fr/inria-00071240/document">WOOT</a>, and
+						<a href="https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type">CRDT</a>.
+						I'm particularly interested in learning more about WOOT &amp; CRDT.
+					</p>
+
+					<br/>
+					<h2><a href="https://github.com/cricklet/blue-ot.js/blob/master/js/ot/text_operations.js">js/ot/text_operations.js</a></h2>
+
+					<p>
+						In OT, a document is represented as a series of operations
+						(i.e. insert text here, delete text there).
+					</p>
+
+					<p>
+						When conflicting operations arise, each operation is transformed in a
+						method similar to <span class="code">git merge</span>: a new operation
+						is created which can be applied directly to a client's state without
+						that client needing to change it's history.
+						In contrast, <a href="">other algorithms</a> act more like <span class="code">git rebase</span>.
+					</p>
+
+					<p>
+						In my implementation (and in most practical implementations), the algorithm
+						is centralized: the server dictates which operations should take precedence
+						during a conflict. While OT intends to be a distributed algorithm, it is
+						much easier to implement/understand when centralized.
+					</p>
+
+					<br/>
+					<h2><a href="https://github.com/cricklet/blue-ot.js/blob/master/js/ot/orchestrator.js">js/ot/orchestrator.js</a></h2>
+
+					<p>
+						The most complicated part of the algorithm (and the most difficult
+						part to test) is the orchestration of the clients and servers.
+						When a client and a server have multiple operations out of sync,
+						how are the operations transmitted &amp; and how are they applied?
+					</p>
+
+					<p>
+						Part of the difficulty is that the client and server
+						do not have full knowledge of each other. It would be too
+						costly for the server to track the history and state of each
+						individual client.
+					</p>
+
+					<p>
+						In addition, each client/server has a different history of operations.
+						Because OT acts like a <span class="code">git merge</span> rather
+						than a <span class="code">git rebase</span>, operation
+						histories are never re-written and thus can diverge wildly.
+					</p>
+
+					<p>
+						In a hand-wavey way, the client only sends it's operations
+						to the server after it has finished synchronizing with
+						the server's state. This allows the server to be relatively dumb
+						and moves most computation onto the clients.
+					</p>
+
+					<p>
+						For a more complete explanation,
+						<a href="http://www.codecommit.com/blog/java/understanding-and-applying-operational-transformation">
+							Daniel Spedwak's write-up is fantastic
+						</a>.
+					</p>
+
+					<h2>//</h2>
+
+					<p>
+						In addition to smooth real-time interaction,
+						OT allows for intuitive offline access, seamless interactions in
+						high-latency situations, and the possibility for version
+						control for all sorts of domains.
+					</p>
+
+					<p>
+						Part of what excites me about OT is that it has been used
+						to implement collaborative, realtime systems in domains outside of
+						document editing (for example, by
+						<a href="https://realtime-cube.appspot.com/">Google's Realtime API</a>).
+						I think there will be a wealth of applications for seamless
+						optimistic writes	and eventual consistency.
+					</p>
+
+					<p>
+						OT isn't prohibitively difficult to implement for a
+					 	simple text system, especially with only two kinds of
+						operations (insert &amp; delete).
+					</p>
+
+					<p>
+						Unfortunately, it seems to get pretty complicated pretty fast.
+						Transformations must be defined between every pair of types of
+						operations (leading to a combinatorial explosion of cases).
+						Modelling more complex domains with the necessarily	in-order
+						application of operations also seems unintuitive.
+					</p>
+
+					<p>
+						Other interesting algorithms &amp; implementations:
+						<ul>
+							<li>
+								<a href="https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type">CRDTs</a>
+								rely on commutative operations (rather than in-order operations).
+							</li>
+							<li>
+								<a href="http://marijnhaverbeke.nl/blog/collaborative-editing.html">Marijn Haverbeke's</a>
+								implementation of collaborative editing avoids OT by using
+								a position map describing how the positions in a document
+								change from one time to another.
+							</li>
+							<li><a href="https://github.com/leahsteinberg/co">Leah Steinberg</a>
+								implements collaborative text editing via WOOT.
+							</li>
+						</ul>
+					</p>
+
+					<br/>
+					<br/>
+					<br/>
+					<p>
+						PS: I'm looking for a new job! I like collaborative systems,
+						(typed) Javascript, interaction/UI, and graphics. Check out
+						<a href="http://cricklet.github.io/">my portfolio</a>
+						and send me an email if you're hiring! (kenrick dot rilee at gmail)
+					</p>
+
+
+				</div>
+			</section>
 		</div>
-
 	</body>
 </html>
