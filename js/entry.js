@@ -140,7 +140,7 @@ function createClientDOM(title, randomizeChecked) {
   let $text = $client.find('.text')
   let $randomize = $client.find('.randomize')
 
-  ellipsize($client)
+  animateEllipses($client)
 
   let shouldRandomize = createBoundObject(
     () => {
@@ -155,17 +155,17 @@ function createClientDOM(title, randomizeChecked) {
 }
 
 function createBoundDelay($delay) {
-  let delay = createBoundObject(
-    () => {
+  let delay: { minDelay: number, maxDelay: number } = createBoundObject(
+    () => { // generate the delay object based on $delay's value
       return {
         minDelay: Math.max(0, parseInt($delay.val()) - 500),
         maxDelay: parseInt($delay.val())
       }
     },
-    (f) => $delay.change(f),
+    (f) => $delay.change(f), // update the delay object when $delay changes
     {
-      validate: obj => (obj.minDelay <= obj.maxDelay),
-      reset: obj => $delay.val(obj.maxDelay)
+      validate: obj => (obj.minDelay <= obj.maxDelay), // if min delay doesn't make sense
+      reset: obj => $delay.val(obj.maxDelay) // reset $delay to the previous value
     }
   )
   return delay
@@ -179,6 +179,16 @@ function createBoundObject(
     reset: (o: Object) => void
   }
 ): Object {
+  // This lil function generates an object who's values are automatically
+  // updated & validated.
+
+  // In general, this is used with DOM elements:
+
+  // createBoundObject(() => {prop: $el.val()},
+  //                   (f) => $el.change(f),
+  //                   { validate: o => o.prop < 10, reset: o => $el.val(o.prop)})
+  // This creates an object {prop: ?} which always matches the value of $el.
+
   let object = generate()
   listener(() => {
     let newObject = generate()
@@ -246,7 +256,7 @@ function randomlyAdjustText(
   }) ();
 }
 
-function ellipsize($el) {
+function animateEllipses($el) {
   let $ellipses = $el.find('.ellipses');
 
   (async () => {
@@ -268,8 +278,9 @@ $(document).ready(() => {
   let inferrer = new SimpleTextInferrer()
   let orchestrator = new Orchestrator(transformer, applier)
 
-  // client containers
   let $computers = $('#computers')
+
+  // client container
   let clients: Client<*,*>[] = []
 
   // server
@@ -278,16 +289,15 @@ $(document).ready(() => {
 
   let server = generateServer({cursor: {start: 0, end: 0}, text: ''})
   observeObject(server,
-    (_, key) => {// added
-    },
-    (_, key) => {// deleted
-    },
+    (_, key) => {},// added
+    (_, key) => {},// deleted
     (_, key) => {// changed
       $serverText.val(server.state.text)
     },
   )
 
   // propogator between server & clients
+  // this is basically the network that broadcasts client & server requests
   let propogator = generateAsyncPropogator(orchestrator, server, clients, console.log, delay)
 
   let clientId = 1

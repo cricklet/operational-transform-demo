@@ -439,8 +439,12 @@ export function generateAsyncPropogator <O,S> (
   }
 
   async function asyncPropogateFromServer (serverRequest: ServerRequest<O>) {
-    logger('\n\nPROPOGATING SERVER REQUEST', serverRequest.operation.operationId, serverRequest.operation, '\n')
-
+    // propogate server updates to the clients
+    logger(
+      '\n\nPropogating server request: ',
+      serverRequest.operation.operationId,
+      serverRequest.operation, '\n'
+    )
     let clientPromises: Promise<*>[] = clients.map(async (client) => {
       await asyncDelay()
       let clientRequests = orchestrator.clientRemoteOperation(client, serverRequest)
@@ -453,7 +457,12 @@ export function generateAsyncPropogator <O,S> (
     await Promise.all(clientPromises)
   }
   async function asyncPropogateFromClient (clientRequest: ClientRequest<O>) {
-    logger('\n\nPROPOGATING CLIENT REQUEST', clientRequest.operation.operationId, clientRequest.operation, '\n')
+    // propogate client updates to the server
+    logger(
+      '\n\nPropogating client request',
+      clientRequest.operation.operationId,
+      clientRequest.operation, '\n'
+    )
 
     let serverRequest = orchestrator.serverRemoteOperation(server, clientRequest)
 
@@ -461,6 +470,7 @@ export function generateAsyncPropogator <O,S> (
     await asyncPropogateFromServer(serverRequest)
   }
   async function asyncSetupClient(client: Client<O,S>) {
+    // when a client joins the network, it asks the server for the initial state
     let setup = orchestrator.serverGenerateSetup(server)
     await asyncDelay()
     let clientRequests = orchestrator.clientApplySetup(client, setup)
@@ -479,16 +489,18 @@ export function generateAsyncPropogator <O,S> (
 
     let printClients = () => {
       for (let c of clients) {
-        logger("CLIENT", c.uid)
+        logger("Client", c.uid)
         logger('   prebuffer',c.prebuffer)
         logger('   buffer', c.buffer)
         logger('   state', c.state)
         logger('   next index', c.nextIndex)
+        logger('\n')
       }
     }
     let printServer = () => {
-      logger("SERVER")
+      logger("Server")
       logger('   next index', server.log.length)
+      logger('\n')
     }
 
     printClients()
@@ -506,6 +518,8 @@ export function generatePropogator <O,S> (
   server: Server<O,S>,
   clients: Array<Client<O,S>>
 ): (r: ?ClientRequest<O>) => void {
+  // This setups a fake network between a server & multiple clients.
+
   function propogateFromServer (serverRequest: ?ServerRequest<O>) {
     if (serverRequest == null) { return }
 
