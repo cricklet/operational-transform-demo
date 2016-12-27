@@ -309,7 +309,7 @@ export class Orchestrator<O,S> {
     return clientRequests
   }
 
-  serverGenerateSetup(server: Server<O,S>)
+  serverGenerateSetup(server: Server<O,S>) // TODO: untested
   : SetupRequest<O> {
     if (server.log.length > 0) {
       return {
@@ -330,12 +330,12 @@ export class Orchestrator<O,S> {
     }
   }
 
-  clientApplySetup(client: Client<O,S>, setupRequest: SetupRequest<O>)
+  clientApplySetup(client: Client<O,S>, setupRequest: SetupRequest<O>) // TODO: untested
   : Array<ClientRequest<O>> {
     // this client has already been updated, ignore
     if (client.nextIndex !== -1) return []
 
-    // we're about to fast-forward the client the request's next index
+    // we're about to fast-forward the client
     client.nextIndex = setupRequest.nextIndex
 
     // only keep requests that happen after this fast-forwarded point
@@ -430,6 +430,10 @@ export function generateAsyncPropogator <O,S> (
     maxDelay: number
   }
 ): (r: ?ClientRequest<O>) => Promise<void> {
+  // This setups a fake network between a server & multiple clients.
+  // Most of what it's doing is manually moving requests between the
+  // client and the server.
+
   async function asyncDelay() {
     await asyncWait(opts.minDelay + Math.random() * (opts.maxDelay - opts.minDelay))
   }
@@ -467,6 +471,7 @@ export function generateAsyncPropogator <O,S> (
   }
 
   observeEach(clients, client => asyncSetupClient(client))
+
   return async (clientRequest: ?ClientRequest<O>) => {
     if (clientRequest == null) {
       return

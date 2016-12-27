@@ -438,7 +438,7 @@ export class SimpleTextInferrer {
   constructor() {
     (this: IInferrer<SimpleTextOperation, string>)
   }
-  inferOps(oldText: string, newText: string): ?SimpleTextOperation {
+  inferOps(oldText: string, newText: string): ?SimpleTextOperation {  // TODO: untested
     if (oldText.length === newText.length) {
       // we have a no-op
       if (oldText === newText) {
@@ -454,7 +454,7 @@ export class SimpleTextInferrer {
       return [new InsertText(newText)]
     }
 
-    // or we have a selection being overwritten. this is well tested!
+    // or we have a selection being overwritten.
     let postfixLength = calculatePostfixLength(oldText, newText)
     let newTextLeftover = removeTail(newText, postfixLength)
     let oldTextLeftover = removeTail(oldText, postfixLength)
