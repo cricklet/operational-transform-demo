@@ -1,8 +1,9 @@
 /* @flow */
 
 import type { ITransformer, IApplier } from './operations.js'
+import { observeArray, observeEach } from './observe.js'
 import { concat, flatten, maybePush, hash, clone, merge, last, genUid, zipPairs, first, pop, push, contains, reverse, findLastIndex, subarray, asyncWait } from './utils.js'
-import { find, map, reject } from 'wu'
+import { find, map, reject, filter } from 'wu'
 
 export type Client<O,S> = {
   uid: SiteUid,
@@ -14,7 +15,7 @@ export type Client<O,S> = {
   // together, prebuffer + buffer is the 'bridge'
 
   requestQueue: Array<ServerRequest<O>>,
-  requestIndex: number
+  nextIndex: number
 }
 
 export type Server<O,S> = {
@@ -22,6 +23,12 @@ export type Server<O,S> = {
 
   state: S,
   log: Array<FullOperation<O>>, // history of local operations, oldest to newest
+}
+
+export type SetupRequest<O> = {
+  kind: 'SetupRequest',
+  nextIndex: number,
+  request: ?ServerRequest<O>
 }
 
 export type ServerRequest<O> = {
@@ -212,13 +219,12 @@ export class Orchestrator<O,S> {
       operation: transformedOp.operation,
       operationId: transformedOp.operationId
     }
-    let logIndex = server.log.length
     server.log.push(serverOp)
 
     // broadcast!
     return {
       kind: 'ServerRequest',
-      index: logIndex,
+      index: server.log.length - 1,
       operation: serverOp
     }
   }
@@ -281,17 +287,17 @@ export class Orchestrator<O,S> {
     while (true) {
       let nextServerRequest: ?ServerRequest<O> = pop(
         client.requestQueue,
-        r => r.index === client.requestIndex)
+        r => r.index === client.nextIndex)
 
       if (nextServerRequest == null) {
         break
       }
 
-      if (client.requestIndex !== nextServerRequest.index) {
+      if (client.nextIndex !== nextServerRequest.index) {
         throw new Error('wat out of order')
       } else {
         // record that we're handling this request
-        client.requestIndex ++
+        client.nextIndex ++
       }
 
       let clientRequest: ?ClientRequest<O> = this._clientHandleRequest(client, nextServerRequest)
@@ -301,6 +307,48 @@ export class Orchestrator<O,S> {
     }
 
     return clientRequests
+  }
+
+  serverGenerateSetup(server: Server<O,S>)
+  : SetupRequest<O> {
+    if (server.log.length > 0) {
+      return {
+        kind: 'SetupRequest',
+        nextIndex: server.log.length - 1,
+        request: {
+          kind: 'ServerRequest',
+          operation: this._composeFull(server.log),
+          index: server.log.length - 1
+        }
+      }
+    } else {
+      return {
+        kind: 'SetupRequest',
+        nextIndex: 0,
+        request: undefined
+      }
+    }
+  }
+
+  clientApplySetup(client: Client<O,S>, setupRequest: SetupRequest<O>)
+  : Array<ClientRequest<O>> {
+    // this client has already been updated, ignore
+    if (client.nextIndex !== -1) return []
+
+    // we're about to fast-forward the client the request's next index
+    client.nextIndex = setupRequest.nextIndex
+
+    // only keep requests that happen after this fast-forwarded point
+    client.requestQueue = Array.from(filter(
+      r => r.index > client.nextIndex,
+      client.requestQueue))
+
+    // run the fast-forwarded request!
+    if (setupRequest.request) {
+      return this.clientRemoteOperation(client, setupRequest.request)
+    } else {
+      return this._clientHandleRequests(client)
+    }
   }
 
   clientRemoteOperation(client: Client<O,S>, serverRequest: ServerRequest<O>)
@@ -368,7 +416,7 @@ export function generateClient <O,S> (initialState: S): Client<O,S> {
     bridge: undefined, // server ops are transformed against this
 
     requestQueue: [],
-    requestIndex: 0,
+    nextIndex: -1,
   }
 }
 
@@ -408,6 +456,17 @@ export function generateAsyncPropogator <O,S> (
     await asyncDelay()
     await asyncPropogateFromServer(serverRequest)
   }
+  async function asyncSetupClient(client: Client<O,S>) {
+    let setup = orchestrator.serverGenerateSetup(server)
+    await asyncDelay()
+    let clientRequests = orchestrator.clientApplySetup(client, setup)
+    for (let clientRequest of clientRequests) {
+      await asyncDelay()
+      await asyncPropogateFromClient(clientRequest)
+    }
+  }
+
+  observeEach(clients, client => asyncSetupClient(client))
   return async (clientRequest: ?ClientRequest<O>) => {
     if (clientRequest == null) {
       return

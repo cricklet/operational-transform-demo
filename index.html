@@ -35,7 +35,10 @@
 				flex-wrap: wrap;
 			}
 			#computers > * + * {
-				margin-left: 8px;
+				margin-right: 8px;
+			}
+			#computers > :first-child {
+				margin-right: 8px;
 			}
 			.computer {
   			-webkit-flex: 1;
@@ -45,13 +48,14 @@
 				flex-grow: 1;
 
 				min-width: 200px;
+				margin-bottom: 0.4em;
 			}
 			.computer div {
-				font-size: 0.7em;
+				font-size: 0.8em;
 			}
 			.computer h4 {
-				margin-top: 0em;
-				margin-bottom: 0.4em;
+				margin-top: 0.4em;
+				margin-bottom: 0.2em;
 			}
 			.computer > textarea {
 				width: 100%;
@@ -59,16 +63,17 @@
 			.computer > * + * {
 				margin-top: 2px;
 			}
-			.options {
-				font-size: 0.8em;
-				text-align: right;
-			}
-			button#add-client {
+			.demo button {
 				cursor: pointer;
-				font-size: 100%;
-				background-color: #fefefe;
+				font-size: 0.8em;
+				background-color: #fdfdfd;
 				border-color: #fff #fff #f0f0f0 #f0f0f0;
 				border-width: 2px;
+			}
+			.demo button#add-client {
+			}
+			.demo button#add-client:hover {
+				background-color: #fff;
 			}
 		</style>
 	</head>
@@ -82,9 +87,7 @@
 				<div class="computer"></div>
 			</div>
 
-			<div class="options">
-				<button id="add-client">Add Client</button>
-			</div>
+			<button id="add-client">Add Client</button>
 		</div>
 
 	</body>

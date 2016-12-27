@@ -30,6 +30,16 @@ export function observeArray <O> (
   return observer
 }
 
+export function observeEach <O> (
+  objects: Array<O>,
+  map: (obj: O) => void,
+): Observer {
+  observeArray(objects, o => map(o), o => {})
+  for (let o of objects) {
+    map(o)
+  }
+}
+
 export function observeObject <O> (
   object: O,
   onKeyAdded: (obj: O, key: string) => void,

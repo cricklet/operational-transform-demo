@@ -119,7 +119,6 @@ function createServerDOM(title) {
     <h4>${title}</h4>
     <textarea readonly class="text" rows="4" cols="50"></textarea>
     <div>~ <input type="number" class="delay" value="1000"> ms latency</div>
-    <br/>
   </div>`)
 
   let $text = $server.find('.text')
@@ -130,88 +129,67 @@ function createServerDOM(title) {
 }
 
 
-function createClientDOM(title, insertChecked, deleteChecked) {
-  insertChecked = insertChecked ? 'checked' : ''
-  deleteChecked = deleteChecked ? 'checked' : ''
+function createClientDOM(title, randomizeChecked) {
+  randomizeChecked = randomizeChecked ? 'checked' : ''
 
   let $client = $(`<div class="computer">
     <h4>${title} <span class="converging ellipses"></span></h4>
   	<textarea class="text" rows="4" cols="50"></textarea>
-  	<div>~ <input type="number" class="delay" value="1000"> ms latency</div>
-  	<div><input type="checkbox" ${insertChecked} class="randomWords"> insert every <input type="number" class="randomWordsDelay" value="2000"> ms</div>
-  	<div><input type="checkbox" ${deleteChecked} class="randomDeletes"> delete every <input type="number" class="randomDeletesDelay" value="4000"> ms</div>
-  	<br/>
+  	<div><input type="checkbox" ${randomizeChecked} class="randomize"> randomly edit</div>
   </div>`)
   let $text = $client.find('.text')
-  let $delay = $client.find('.delay')
-  let $randomWords = $client.find('.randomWords')
-  let $randomWordsDelay = $client.find('.randomWordsDelay')
-  let $randomDeletes = $client.find('.randomDeletes')
-  let $randomDeletesDelay = $client.find('.randomDeletesDelay')
+  let $randomize = $client.find('.randomize')
 
-  let delay = createBoundDelay($delay)
+  ellipsize($client)
 
-  let shouldInsert = createBoundObject(
-    { enabled: () => $randomWords[0].checked,          delay: () => parseInt($randomWordsDelay.val()) },
-    { enabled: (v) => $randomWords.prop('checked', v), delay: (v) => $randomWordsDelay.val(v) },
-    { enabled: (f) => $randomWords.change(f),          delay: (f) => $randomWordsDelay.change(f) },
-  )
-  let shouldDelete = createBoundObject(
-    { enabled: () => $randomDeletes[0].checked,          delay: () => parseInt($randomDeletesDelay.val()) },
-    { enabled: (v) => $randomDeletes.prop('checked', v), delay: (v) => $randomDeletesDelay.val(v) },
-    { enabled: (f) => $randomDeletes.change(f),          delay: (f) => $randomDeletesDelay.change(f) },
+  let shouldRandomize = createBoundObject(
+    () => {
+      return {
+        enabled: $randomize[0].checked
+      }
+    },
+    (f) => $randomize.change(f)
   )
 
-  return [ $client, $text, delay, shouldInsert, shouldDelete ]
+  return [ $client, $text, shouldRandomize ]
 }
 
 function createBoundDelay($delay) {
   let delay = createBoundObject(
-    { minDelay: () => Math.max(0, parseInt($delay.val()) - 500),
-      maxDelay: () => parseInt($delay.val()) },
-    { minDelay: (v) => $delay.val(v),         maxDelay: (v) => $delay.val(v) },
-    { minDelay: (f) => $delay.change(f),      maxDelay: (f) => $delay.change(f) },
-    obj => obj.minDelay <= obj.maxDelay
+    () => {
+      return {
+        minDelay: Math.max(0, parseInt($delay.val()) - 500),
+        maxDelay: parseInt($delay.val())
+      }
+    },
+    (f) => $delay.change(f),
+    {
+      validate: obj => (obj.minDelay <= obj.maxDelay),
+      reset: obj => $delay.val(obj.maxDelay)
+    }
   )
   return delay
 }
 
 function createBoundObject(
-  getters: {[prop: string]: (() => any)},
-  setters: {[prop: string]: ((v: any) => void)},
-  listeners: {[prop: string]: (callback: () => void) => void},
-  validate?: (o: {[prop: string]: any}) => boolean
-): {[prop: string]: any} {
-
-  // I wish I knew how to type-check this s.t. all objects are guarunteed to
-  // have the same keys :O
-
-  let props = Object.keys(getters)
-  let prev = {}
-  let obj = {}
-
-  for (let prop of props) {
-    let getter = getters[prop]
-    let setter = setters[prop]
-    let listener = listeners[prop]
-
-    obj[prop] = getter()
-    prev[prop] = obj[prop]
-    listener(() => {
-      obj[prop] = getter()
-
-      if (validate === undefined || validate(obj)) {
-        // whoops
-        prev[prop] = obj[prop]
-      } else {
-        // revert!
-        setter(prev[prop])
-        obj[prop] = prev[prop]
-      }
-    })
+  generate: () => Object,
+  listener: (callback: () => void) => void,
+  validator?: {
+    validate: (o: Object) => boolean,
+    reset: (o: Object) => void
   }
+): Object {
+  let object = generate()
+  listener(() => {
+    let newObject = generate()
+    if (validator === undefined || validator.validate(newObject)) {
+      Object.assign(object, newObject)
+    } else {
+      validator.reset(object)
+    }
+  })
 
-  return obj
+  return object
 }
 
 let WORDS = [
@@ -247,30 +225,38 @@ function deletePortion(text) {
 
 function randomlyAdjustText(
   $text,
-  shouldInsert: {enabled: boolean, delay: number},
-  shouldDelete: {enabled: boolean, delay: number}
+  shouldRandomize: {enabled: boolean},
+  randomizeDelay: number
 ) {
   (async () => {
     while (true) {
-      if (shouldInsert.enabled) {
-        $text.val(addWord($text.val()))
-        $text.trigger("change")
-        await asyncWait(shouldInsert.delay)
+      if (shouldRandomize.enabled) {
+        if (Math.random() > 0.3) {
+          $text.val(addWord($text.val()))
+          $text.trigger("change")
+        } else {
+          $text.val(deletePortion($text.val()))
+          $text.trigger("change")
+        }
+        await asyncWait(randomizeDelay)
       } else {
         await asyncWait(1000)
       }
     }
   }) ();
+}
+
+function ellipsize($el) {
+  let $ellipses = $el.find('.ellipses');
 
   (async () => {
     while (true) {
-      if (shouldDelete.enabled) {
-        $text.val(deletePortion($text.val()))
-        $text.trigger("change")
-        await asyncWait(shouldDelete.delay)
-      } else {
-        await asyncWait(1000)
-      }
+      await asyncWait(400)
+      $ellipses.text('.')
+      await asyncWait(400)
+      $ellipses.text('..')
+      await asyncWait(400)
+      $ellipses.text('...')
     }
   }) ();
 }
@@ -287,7 +273,7 @@ $(document).ready(() => {
   let clients: Client<*,*>[] = []
 
   // server
-  let [$server, $serverText, serverDelay] = createServerDOM("Server")
+  let [$server, $serverText, delay] = createServerDOM("Server")
   $computers.prepend($server)
 
   let server = generateServer({cursor: {start: 0, end: 0}, text: ''})
@@ -302,15 +288,17 @@ $(document).ready(() => {
   )
 
   // propogator between server & clients
-  let propogator = generateAsyncPropogator(orchestrator, server, clients, () => {}, serverDelay)
+  let propogator = generateAsyncPropogator(orchestrator, server, clients, () => {}, delay)
 
-  for (let i = 2; i >= 1; i --) {
-    let [$client, $text, delay, shouldInsert, shouldDelete] = createClientDOM(`Client ${i}`, i === 1, false)
-    $computers.prepend($client)
+  let clientId = 1
+  function addClient() {
+    let [$client, $text, shouldRandomize] = createClientDOM(`Client ${clientId}`, clientId === 1, false)
+    $client.insertBefore($server)
+    clientId ++
 
     let client = generateClient({cursor: {start: 0, end: 0}, text: ''})
     setupClient(applier, inferrer, orchestrator, client, propogator, $text, delay)
-    randomlyAdjustText($text, shouldInsert, shouldDelete)
+    randomlyAdjustText($text, shouldRandomize, 500)
 
     clients.push(client);
 
@@ -326,16 +314,9 @@ $(document).ready(() => {
     }) ();
   }
 
-  let $ellipses = $('.ellipses');
+  addClient()
+  addClient()
 
-  (async () => {
-    while (true) {
-      await asyncWait(400)
-      $ellipses.text('.')
-      await asyncWait(400)
-      $ellipses.text('..')
-      await asyncWait(400)
-      $ellipses.text('...')
-    }
-  }) ();
+  let $clientButton = $('#add-client')
+  $clientButton.click(() => addClient())
 })
