@@ -114,52 +114,43 @@ function setupClient(
   })
 }
 
-function createServerDOM() {
+function createServerDOM(title) {
   let $server = $(`<div class="computer">
+    <h4>${title}</h4>
     <textarea readonly class="text" rows="4" cols="50"></textarea>
-    <div><input type="number" class="minDelay" value="500"> ms - <input type="number" class="maxDelay" value="1000"> ms delay</div>
+    <div>~ <input type="number" class="delay" value="1000"> ms latency</div>
     <br/>
   </div>`)
 
   let $text = $server.find('.text')
-  let $minDelay = $server.find('.minDelay')
-  let $maxDelay = $server.find('.maxDelay')
+  let $delay = $server.find('.delay')
+  let delay = createBoundDelay($delay)
 
-  let delay = createBoundObject(
-    { minDelay: () => parseInt($minDelay.val()), maxDelay: () => parseInt($maxDelay.val()) },
-    { minDelay: (v) => $minDelay.val(v),         maxDelay: (v) => $maxDelay.val(v) },
-    { minDelay: (f) => $minDelay.change(f),      maxDelay: (f) => $maxDelay.change(f) },
-    obj => obj.minDelay <= obj.maxDelay
-  )
   return [$server, $text, delay]
 }
 
 
-function createClientDOM(insertChecked, deleteChecked) {
+function createClientDOM(title, insertChecked, deleteChecked) {
   insertChecked = insertChecked ? 'checked' : ''
   deleteChecked = deleteChecked ? 'checked' : ''
 
   let $client = $(`<div class="computer">
+    <h4>${title} <span class="converging ellipses"></span></h4>
   	<textarea class="text" rows="4" cols="50"></textarea>
-  	<div><input type="number" class="minDelay" value="500"> - <input type="number" class="maxDelay" value="1000"> ms delay</div>
+  	<div>~ <input type="number" class="delay" value="1000"> ms latency</div>
   	<div><input type="checkbox" ${insertChecked} class="randomWords"> insert every <input type="number" class="randomWordsDelay" value="2000"> ms</div>
   	<div><input type="checkbox" ${deleteChecked} class="randomDeletes"> delete every <input type="number" class="randomDeletesDelay" value="4000"> ms</div>
   	<br/>
   </div>`)
   let $text = $client.find('.text')
-  let $minDelay = $client.find('.minDelay')
-  let $maxDelay = $client.find('.maxDelay')
+  let $delay = $client.find('.delay')
   let $randomWords = $client.find('.randomWords')
   let $randomWordsDelay = $client.find('.randomWordsDelay')
   let $randomDeletes = $client.find('.randomDeletes')
   let $randomDeletesDelay = $client.find('.randomDeletesDelay')
 
-  let delay = createBoundObject(
-    { minDelay: () => parseInt($minDelay.val()), maxDelay: () => parseInt($maxDelay.val()) },
-    { minDelay: (v) => $minDelay.val(v),         maxDelay: (v) => $maxDelay.val(v) },
-    { minDelay: (f) => $minDelay.change(f),      maxDelay: (f) => $maxDelay.change(f) },
-    (obj) => obj.minDelay <= obj.maxDelay
-  )
+  let delay = createBoundDelay($delay)
+
   let shouldInsert = createBoundObject(
     { enabled: () => $randomWords[0].checked,          delay: () => parseInt($randomWordsDelay.val()) },
     { enabled: (v) => $randomWords.prop('checked', v), delay: (v) => $randomWordsDelay.val(v) },
@@ -172,6 +163,17 @@ function createClientDOM(insertChecked, deleteChecked) {
   )
 
   return [ $client, $text, delay, shouldInsert, shouldDelete ]
+}
+
+function createBoundDelay($delay) {
+  let delay = createBoundObject(
+    { minDelay: () => Math.max(0, parseInt($delay.val()) - 500),
+      maxDelay: () => parseInt($delay.val()) },
+    { minDelay: (v) => $delay.val(v),         maxDelay: (v) => $delay.val(v) },
+    { minDelay: (f) => $delay.change(f),      maxDelay: (f) => $delay.change(f) },
+    obj => obj.minDelay <= obj.maxDelay
+  )
+  return delay
 }
 
 function createBoundObject(
@@ -281,14 +283,12 @@ $(document).ready(() => {
   let orchestrator = new Orchestrator(transformer, applier)
 
   // client containers
-  let $clientsContainer = $('#clients-container')
-  let $texts = []
+  let $computers = $('#computers')
   let clients: Client<*,*>[] = []
 
   // server
-  let $serverContainer = $('#server-container')
-  let [$server, $serverText, serverDelay] = createServerDOM()
-  $serverContainer.append($server)
+  let [$server, $serverText, serverDelay] = createServerDOM("Server")
+  $computers.prepend($server)
 
   let server = generateServer({cursor: {start: 0, end: 0}, text: ''})
   observeObject(server,
@@ -304,16 +304,26 @@ $(document).ready(() => {
   // propogator between server & clients
   let propogator = generateAsyncPropogator(orchestrator, server, clients, () => {}, serverDelay)
 
-  for (let i = 0; i < 3; i ++) {
-    let [$client, $text, delay, shouldInsert, shouldDelete] = createClientDOM(i === 0, false)
-    $clientsContainer.append($client)
+  for (let i = 2; i >= 1; i --) {
+    let [$client, $text, delay, shouldInsert, shouldDelete] = createClientDOM(`Client ${i}`, i === 1, false)
+    $computers.prepend($client)
 
     let client = generateClient({cursor: {start: 0, end: 0}, text: ''})
     setupClient(applier, inferrer, orchestrator, client, propogator, $text, delay)
     randomlyAdjustText($text, shouldInsert, shouldDelete)
 
-    clients.push(client)
-    $texts.push($text)
+    clients.push(client);
+
+    (async () => {
+      while (true) {
+        await asyncWait(500)
+        if (client.state.text === server.state.text) {
+          $client.find('.converging').hide()
+        } else {
+          $client.find('.converging').show()
+        }
+      }
+    }) ();
   }
 
   let $ellipses = $('.ellipses');
@@ -326,25 +336,6 @@ $(document).ready(() => {
       $ellipses.text('..')
       await asyncWait(400)
       $ellipses.text('...')
-    }
-  }) ();
-
-  let $converging = $('.converging')
-  let $converged = $('.converged')
-
-  $converging.hide()
-  $converged.show();
-
-  (async () => {
-    while (true) {
-      await asyncWait(500)
-      if (allEqual($texts.map($t => $t.val()))) {
-        $converging.hide()
-        $converged.show()
-      } else {
-        $converging.show()
-        $converged.hide()
-      }
     }
   }) ();
 })
