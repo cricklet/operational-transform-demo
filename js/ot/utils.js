@@ -149,6 +149,24 @@ export function push<T1, T2>(a: Array<T1>, t: T2): Array<T1 | T2> {
   return a.concat(t) // not mutating :)
 }
 
+export function insert<T1, T2>(a: Array<T1>, t: T2, i: number): Array<T1 | T2> {
+  return a.slice(0, i).concat([t]).concat(a.slice(i))
+}
+
+export function remove<T>(a: Array<T>, i: number): Array<T> {
+  return a.slice(0, Math.max(0, i - 1)).concat(a.slice(i))
+}
+
+export function allEqual<T>(as: T[]): boolean {
+  let val = as[0]
+  for (let a of as) {
+    if (val !== a) {
+      return false
+    }
+  }
+  return true
+}
+
 export function characters (
   s: string,
   indices: ?Reiterable<number>
@@ -337,4 +355,12 @@ export function contains <T> (arr: Array<T>, t: T): boolean {
     }
   }
   return false
+}
+
+export async function asyncWait(ms: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      resolve()
+    }, ms)
+  })
 }

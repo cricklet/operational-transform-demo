@@ -1,7 +1,7 @@
 /* @flow */
 
 import type { ITransformer, IApplier } from './operations.js'
-import { concat, flatten, maybePush, hash, clone, merge, last, genUid, zipPairs, first, pop, push, contains, reverse, findLastIndex, subarray } from './utils.js'
+import { concat, flatten, maybePush, hash, clone, merge, last, genUid, zipPairs, first, pop, push, contains, reverse, findLastIndex, subarray, asyncWait } from './utils.js'
 import { find, map, reject } from 'wu'
 
 export type Client<O,S> = {
@@ -376,33 +376,39 @@ export function generateAsyncPropogator <O,S> (
   orchestrator: Orchestrator<O,S>,
   server: Server<O,S>,
   clients: Array<Client<O,S>>,
-  logger: ((...xs: Array<?any>) => void)
-): (r: ?ClientRequest<O>) => void {
-  function propogateFromServer (serverRequest: ServerRequest<O>) {
+  logger: ((...xs: Array<?any>) => void),
+  opts: {
+    minDelay: number,
+    maxDelay: number
+  }
+): (r: ?ClientRequest<O>) => Promise<void> {
+  async function asyncDelay() {
+    await asyncWait(opts.minDelay + Math.random() * (opts.maxDelay - opts.minDelay))
+  }
+
+  async function asyncPropogateFromServer (serverRequest: ServerRequest<O>) {
     logger('\n\nPROPOGATING SERVER REQUEST', serverRequest.operation.operationId, serverRequest.operation, '\n')
 
-    for (let client of clients) {
-      setTimeout(() => {
-        let clientRequests = orchestrator.clientRemoteOperation(client, serverRequest)
-        for (let clientRequest of clientRequests) {
-          setTimeout(() => {
-            propogateFromClient(clientRequest)
-          }, Math.random() * 1000)
-        }
-      }, Math.random() * 1000)
-    }
+    let clientPromises: Promise<*>[] = clients.map(async (client) => {
+      await asyncDelay()
+      let clientRequests = orchestrator.clientRemoteOperation(client, serverRequest)
+      for (let clientRequest of clientRequests) {
+        await asyncDelay()
+        await asyncPropogateFromClient(clientRequest)
+      }
+    })
+
+    await Promise.all(clientPromises)
   }
-  function propogateFromClient (clientRequest: ClientRequest<O>) {
+  async function asyncPropogateFromClient (clientRequest: ClientRequest<O>) {
     logger('\n\nPROPOGATING CLIENT REQUEST', clientRequest.operation.operationId, clientRequest.operation, '\n')
 
-    setTimeout(() => {
-      let serverRequest = orchestrator.serverRemoteOperation(server, clientRequest)
-      setTimeout(() => {
-        propogateFromServer(serverRequest)
-      }, Math.random() * 1000)
-    }, Math.random() * 1000)
+    let serverRequest = orchestrator.serverRemoteOperation(server, clientRequest)
+
+    await asyncDelay()
+    await asyncPropogateFromServer(serverRequest)
   }
-  return (clientRequest: ?ClientRequest<O>) => {
+  return async (clientRequest: ?ClientRequest<O>) => {
     if (clientRequest == null) {
       return
     }
@@ -421,11 +427,12 @@ export function generateAsyncPropogator <O,S> (
         logger(l)
       }
     }
+
     logger('\n\nSTART\n')
     printClients()
     printServer()
 
-    propogateFromClient(clientRequest)
+    await asyncPropogateFromClient(clientRequest)
 
     logger('\n\nEND\n')
     printClients()
