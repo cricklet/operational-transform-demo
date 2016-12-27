@@ -480,25 +480,22 @@ export function generateAsyncPropogator <O,S> (
     let printClients = () => {
       for (let c of clients) {
         logger("CLIENT", c.uid)
-        logger('prebuffer',c.prebuffer)
-        logger('buffer',c.buffer)
-        logger('state',c.state)
+        logger('   prebuffer',c.prebuffer)
+        logger('   buffer', c.buffer)
+        logger('   state', c.state.text)
+        logger('   next index', c.nextIndex)
       }
     }
     let printServer = () => {
       logger("SERVER")
-      for (let l of server.log) {
-        logger(l)
-      }
+      logger('   next index', server.log.length)
     }
 
-    logger('\n\nSTART\n')
     printClients()
     printServer()
 
     await asyncPropogateFromClient(clientRequest)
 
-    logger('\n\nEND\n')
     printClients()
     printServer()
   }

@@ -231,7 +231,7 @@ function randomlyAdjustText(
   (async () => {
     while (true) {
       if (shouldRandomize.enabled) {
-        if (Math.random() > 0.3) {
+        if (Math.random() > 0.4) {
           $text.val(addWord($text.val()))
           $text.trigger("change")
         } else {
@@ -288,7 +288,7 @@ $(document).ready(() => {
   )
 
   // propogator between server & clients
-  let propogator = generateAsyncPropogator(orchestrator, server, clients, () => {}, delay)
+  let propogator = generateAsyncPropogator(orchestrator, server, clients, console.log, delay)
 
   let clientId = 1
   function addClient() {

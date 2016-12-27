@@ -16,9 +16,6 @@
 			       -moz-box-sizing: border-box;
 			            box-sizing: border-box;
 			}
-			body {
-				padding-top: 16px;
-			}
 			div.wrapper.wide {
 			  width:870px;
 			}
@@ -112,11 +109,18 @@
 	<body>
 
 		<div class="wrapper wide">
+      <header id="header">
+        <h1>Kenrick Rilee</h1>
+        <a href="/">Projects</a><br/>
+				<br/>
+				<a href="files/kenrick-rilee-resume-2016.pdf">Resume</a><br/>
+				<a href="https://github.com/cricklet">GitHub</a><br/>
+				<br/>
+				<a href="contact.html">Contact</a><br/>
+      </header>
 			<section class="wide">
 				<div class="top">
-					<br/>
-					<br/>
-					<h1><a href="https://github.com/cricklet/blue-ot.js">Collaborative Editing via OT</a></h1>
+					<h1>Collaborative Editing via OT (<a href="https://github.com/cricklet/blue-ot.js">GitHub</a>)</h1>
 				</div>
 
 				<br/>
@@ -222,23 +226,20 @@
 						to implement collaborative, realtime systems in domains outside of
 						document editing (for example, by
 						<a href="https://realtime-cube.appspot.com/">Google's Realtime API</a>).
-						I think there will be a wealth of applications for seamless
-						optimistic writes	and eventual consistency.
 					</p>
 
 					<p>
 						OT isn't prohibitively difficult to implement for a
 					 	simple text system, especially with only two kinds of
-						operations (insert &amp; delete).
+						operations (insert &amp; delete). However, it gets
+						complicated pretty fast.
 					</p>
 
 					<p>
-						Unfortunately, it seems to get pretty complicated pretty fast.
-						Transformations must be defined between every pair of types of
-						operations (leading to a combinatorial explosion of cases).
-						Modelling more complex domains with the necessarily	in-order
-						application of operations &amp; transformations/merges also seems
-						unintuitive.
+						Adding operations becomes complex because transformations
+						need to be described for every possible pair of operations.
+						In addition, operations must be applied and transformed
+						in very specific orders.
 					</p>
 
 					<p>
