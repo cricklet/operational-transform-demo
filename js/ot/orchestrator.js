@@ -482,7 +482,7 @@ export function generateAsyncPropogator <O,S> (
         logger("CLIENT", c.uid)
         logger('   prebuffer',c.prebuffer)
         logger('   buffer', c.buffer)
-        logger('   state', c.state.text)
+        logger('   state', c.state)
         logger('   next index', c.nextIndex)
       }
     }
