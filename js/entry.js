@@ -298,7 +298,8 @@ $(document).ready(() => {
 
   // propogator between server & clients
   // this is basically the network that broadcasts client & server requests
-  let propogator = generateAsyncPropogator(orchestrator, server, clients, console.log, delay)
+  let logger = () => {} // console.log
+  let propogator = generateAsyncPropogator(orchestrator, server, clients, logger, delay)
 
   let clientId = 1
   function addClient() {

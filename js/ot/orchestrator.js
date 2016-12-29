@@ -20,7 +20,8 @@ export type Client<O,S> = {
   // together, prebuffer + buffer is the 'bridge'
 
   requestQueue: Array<ServerRequest<O>>,
-  nextIndex: number
+  nextIndex: number,
+  isSetup: boolean // flag set to true after the client inits
 }
 
 export type Server<O,S> = {
@@ -348,6 +349,9 @@ export class Orchestrator<O,S> {
     // we're about to fast-forward the client
     client.nextIndex = setupRequest.nextIndex
 
+    // we're about to setup!
+    client.isSetup = true
+
     // only keep requests that happen after this fast-forwarded point
     client.requestQueue = Array.from(filter(
       r => r.index > client.nextIndex,
@@ -393,7 +397,7 @@ export class Orchestrator<O,S> {
     }
 
     // if no prebuffer, then broadcast the buffer!
-    if (client.prebuffer == null && client.nextIndex !== -1) {
+    if (client.prebuffer == null && client.isSetup === true) {
       // flush the buffer!
       let [request, fullBuffer] = this._flushFullBuffer(client.buffer)
 
@@ -427,6 +431,7 @@ export function generateClient <O,S> (initialState: S): Client<O,S> {
 
     requestQueue: [],
     nextIndex: -1,
+    isSetup: false
   }
 }
 
@@ -479,11 +484,10 @@ export function generateAsyncPropogator <O,S> (
     await asyncDelay()
     await asyncPropogateFromServer(serverRequest)
   }
+
   async function asyncSetupClient(client: Client<O,S>) {
     // when a client joins the network, it asks the server for the initial state
     let setup = orchestrator.serverGenerateSetup(server)
-    await asyncDelay()
-    await asyncDelay()
     await asyncDelay()
     await asyncDelay()
     let clientRequests = orchestrator.clientApplySetup(client, setup)
@@ -551,6 +555,17 @@ export function generatePropogator <O,S> (
     if (request == null) { return }
     propogateFromServer(orchestrator.serverRemoteOperation(server, request))
   }
+
+  function setupClient(client: Client<O,S>) {
+    // when a client joins the network, it asks the server for the initial state
+    let setup = orchestrator.serverGenerateSetup(server)
+    let clientRequests = orchestrator.clientApplySetup(client, setup)
+    for (let clientRequest of clientRequests) {
+      propogateFromClient(clientRequest)
+    }
+  }
+
+  observeEach(clients, client => setupClient(client))
 
   return propogateFromClient
 }
