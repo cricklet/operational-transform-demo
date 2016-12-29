@@ -10,8 +10,13 @@ export type Client<O,S> = {
 
   state: S,
 
-  buffer: ?ChildedOperation<O>, // the client ops not yet sent to the server
-  prebuffer: ?ParentedOperation<O>, // the client op that has been sent to the server (but not yet ACKd by the server)
+  // buffer: ?(ChildedOperation<O> & $Shape<ParentedOperation<O>>),
+  buffer: ?(ChildedOperation<O> & $Shape<FullOperation<O>>),
+  // the client ops not yet sent to the server.
+  // sometimes we know the full state of this buffer (hence ParentedOperation<O>)
+  // if the buffer has been transformed, we don't know the full state (hence $Shape)
+  prebuffer: ?ParentedOperation<O>,
+  // the client op that has been sent to the server (but not yet ACKd by the server)
   // together, prebuffer + buffer is the 'bridge'
 
   requestQueue: Array<ServerRequest<O>>,
@@ -229,21 +234,29 @@ export class Orchestrator<O,S> {
     }
   }
 
+  _flushFullBuffer(bufferOp: ?FullOperation<O>)
+  : [?ClientRequest<O>, ?ParentedOperation<O>] { // new request, new prebuffer
+    if (bufferOp == null) {
+      return [undefined, undefined]
+    }
+
+    return [
+      {
+        kind: 'ClientRequest',
+        operation: bufferOp
+      },
+      bufferOp
+    ]
+  }
+
   _flushBuffer(bufferOp: ?ChildedOperation<O>, bufferParent: StateString)
   : [?ClientRequest<O>, ?ParentedOperation<O>] { // new request, new prebuffer
     if (bufferOp == null) {
       return [undefined, undefined]
     }
 
-    let fullBufferOp = merge(bufferOp, { parentState: bufferParent })
-
-    return [
-      {
-        kind: 'ClientRequest',
-        operation: fullBufferOp
-      },
-      fullBufferOp
-    ]
+    return this._flushFullBuffer(
+      merge(bufferOp, { parentState: bufferParent }))
   }
 
   _clientHandleRequest(client: Client<O,S>, serverRequest: ServerRequest<O>)
@@ -365,7 +378,7 @@ export class Orchestrator<O,S> {
     let childState = this._currentStateString(client)
 
     // the op we just applied!
-    let op = {
+    let op: FullOperation<O> = {
       operation: o,
       operationId: genUid(),
       parentState: parentState,
@@ -376,13 +389,13 @@ export class Orchestrator<O,S> {
     if (client.buffer == null) {
       client.buffer = op
     } else {
-      client.buffer = this._composeChilded([client.buffer, op])
+      client.buffer = this._composeFull([client.buffer, op])
     }
 
     // if no prebuffer, then broadcast the buffer!
     if (client.prebuffer == null && client.nextIndex !== -1) {
       // flush the buffer!
-      let [request, fullBuffer] = this._flushBuffer(client.buffer, parentState)
+      let [request, fullBuffer] = this._flushFullBuffer(client.buffer)
 
       // prebuffer is now the buffer
       client.prebuffer = fullBuffer
