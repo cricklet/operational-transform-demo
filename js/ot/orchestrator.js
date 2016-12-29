@@ -332,9 +332,6 @@ export class Orchestrator<O,S> {
 
   clientApplySetup(client: Client<O,S>, setupRequest: SetupRequest<O>) // TODO: untested
   : Array<ClientRequest<O>> {
-    // this client has already been updated, ignore
-    if (client.nextIndex !== -1) return []
-
     // we're about to fast-forward the client
     client.nextIndex = setupRequest.nextIndex
 
@@ -383,7 +380,7 @@ export class Orchestrator<O,S> {
     }
 
     // if no prebuffer, then broadcast the buffer!
-    if (client.prebuffer == null) {
+    if (client.prebuffer == null && client.nextIndex !== -1) {
       // flush the buffer!
       let [request, fullBuffer] = this._flushBuffer(client.buffer, parentState)
 
@@ -472,6 +469,9 @@ export function generateAsyncPropogator <O,S> (
   async function asyncSetupClient(client: Client<O,S>) {
     // when a client joins the network, it asks the server for the initial state
     let setup = orchestrator.serverGenerateSetup(server)
+    await asyncDelay()
+    await asyncDelay()
+    await asyncDelay()
     await asyncDelay()
     let clientRequests = orchestrator.clientApplySetup(client, setup)
     for (let clientRequest of clientRequests) {
