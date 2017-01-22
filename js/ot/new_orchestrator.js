@@ -177,13 +177,56 @@ export class FullOperationHelper<O, S> {
     let clientHash = this.applier.stateString(clientState)
 
     if (clientOp.childHash !== clientHash) {
-      throw new Error('wat, parent hashes must match')
+      throw new Error('wat, client op should lead to client state')
     }
 
     let [a, b] = [clientOp, serverOp]
     let [aT, bT] = this.transformer.transform(a.operation, b.operation)
 
     let newState = this.applier.apply(clientState, bT)
+    let newHash = this.applier.stateString(newState)
+
+    return [
+      {
+        operation: aT,
+        operationId: genUid(),
+        parentHash: b.childHash,
+        childHash: newHash,
+      },
+      {
+        operation: bT,
+        operationId: genUid(),
+        parentHash: a.childHash,
+        childHash: newHash,
+      },
+      newState
+    ]
+  }
+
+  transformOnServer (
+    clientOp: FullOperation<O>, // client op
+    serverOp: FullOperation<O>, // server op
+    serverState: S
+  ): [FullOperation<O>, FullOperation<O>, S] { // returns [aP, bP, newState]
+    //   a /\ b
+    //    /  \
+    // bP \  / aP
+    //     \/
+
+    if (clientOp.parentHash !== serverOp.parentHash) {
+      throw new Error('wat, parent hashes must match')
+    }
+
+    let serverHash = this.applier.stateString(serverState)
+
+    if (serverOp.childHash !== serverHash) {
+      throw new Error('wat, server op should lead to server hash')
+    }
+
+    let [a, b] = [clientOp, serverOp]
+    let [aT, bT] = this.transformer.transform(a.operation, b.operation)
+
+    let newState = this.applier.apply(serverState, aT)
     let newHash = this.applier.stateString(newState)
 
     return [
@@ -359,12 +402,48 @@ export class ClientOrchestrator<O,S> {
 }
 
 export class ServerOrchestrator<O,S> {
+  server: Server<O,S>
   transformer: ITransformer<O>
   applier: IApplier<O,S>
+  helper: FullOperationHelper<O,S>
 
-  constructor(transformer: ITransformer<O>, applier: IApplier<O,S>) {
+  constructor(server: Server<O,S>, transformer: ITransformer<O>, applier: IApplier<O,S>) {
     this.transformer = transformer
     this.applier = applier
+    this.server = server
+    this.helper = new FullOperationHelper(transformer, applier)
   }
+
+  _historySince(startHash: StateHash): Array<FullOperation<O>> {
+    let endHash = this.applier.stateString(this.server.state)
+    if (endHash === startHash) { return [] }
+
+    let i = findLastIndex(o => o.parentHash === startHash, this.server.log)
+    if (i == null) { throw new Error('wat') }
+
+    let ops = Array.from(subarray(this.server.log, {start: i})())
+    if (ops.length === 0) { throw new Error('wat') }
+
+    if (first(ops).parentHash !== startHash) { throw new Error('wat') }
+    if (last(ops).childHash !== endHash) { throw new Error('wat') }
+
+    return ops
+  }
+
+  // handleClientRequest(clientRequest: ClientEditRequest<O>)
+  // : [ServerEditResponse<O>, ServerBroadcast<O>] {
+  //   //   a /\ b
+  //   //    /  \
+  //   // bP \  / aP
+  //   //     \/
+  //
+  //   let clientOp = clientRequest.operation
+  //
+  //   let history: Array<FullOperation<O>> = this._historySince(clientOp.parentHash)
+  //   if (history.length === 0) {
+  //   }
+  //   let historyOp: FullOperation<O> = this.helper.composeFull(history)
+  //   transformedOp = this._serverTransform(clientOp, historyOp)
+  // }
 
 }
