@@ -21,7 +21,6 @@ import type {
 } from './orchestrator.js'
 
 import type {
-  SimpleTextOperation,
   TextState
 } from './text_operations.js'
 

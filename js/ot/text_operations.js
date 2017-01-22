@@ -7,23 +7,23 @@ import { ITransformer, IApplier, IInferrer } from './operations.js'
 
 //
 
-type SuboperationKind = 'Delete'|'Insert'|'Placeholder'|'Retain'
+type OperationKind = 'Delete'|'Insert'|'Placeholder'|'Retain'
 
-type ISubOperation = {
-  kind(): SuboperationKind,
+type IOperation = {
+  kind(): OperationKind,
   length(): number,
-  split(pos: number): [ISubOperation, ISubOperation]
+  split(pos: number): [IOperation, IOperation]
 }
 
 //
 
-export function generateInsertion(pos: number, text: string): SimpleTextSubop[] {
+export function generateInsertion(pos: number, text: string): TextOperation[] {
   return [
     new Retain(pos), new InsertText(text)
   ]
 }
 
-export function generateDeletion(pos: number, n: number): SimpleTextSubop[] {
+export function generateDeletion(pos: number, n: number): TextOperation[] {
   return [
     new Retain(pos), new Delete(n)
   ]
@@ -37,16 +37,16 @@ class InsertText {
   text: string
 
   constructor(text: string) {
-    (this: ISubOperation)
+    (this: IOperation)
     this.text = text
   }
   toString(): string {
     return `insert "${this.text}"`
   }
-  kind(): SuboperationKind {
+  kind(): OperationKind {
     return 'Insert'
   }
-  split (offset: number): [ISubOperation, ISubOperation] {
+  split (offset: number): [IOperation, IOperation] {
     if (offset < 0 || offset > this.text.length) {
       throw new Error()
     }
@@ -64,16 +64,16 @@ class Delete {
   num: number
 
   constructor(num: number) {
-    (this: ISubOperation)
+    (this: IOperation)
     this.num = num
   }
   toString(): string {
     return `delete #${this.num}`
   }
-  kind(): SuboperationKind {
+  kind(): OperationKind {
     return 'Delete'
   }
-  split (offset: number): [ISubOperation, ISubOperation] {
+  split (offset: number): [IOperation, IOperation] {
     if (offset < 0 || offset > this.num) {
       throw new Error()
     }
@@ -91,16 +91,16 @@ class Retain {
   num: number
 
   constructor(num: number) {
-    (this: ISubOperation)
+    (this: IOperation)
     this.num = num
   }
   toString(): string {
     return `retain #${this.num}`
   }
-  kind(): SuboperationKind {
+  kind(): OperationKind {
     return 'Retain'
   }
-  split (offset: number): [ISubOperation, ISubOperation] {
+  split (offset: number): [IOperation, IOperation] {
     if (offset < 0 || offset > this.num) {
       throw new Error()
     }
@@ -117,10 +117,10 @@ class Retain {
 //
 
 
-export class SuboperationsTransformer<O: ISubOperation> {
+export class SuboperationsTransformer<O: IOperation> {
   _retainFactory: (num: number) => O
   constructor(retainFactory: (num: number) => O) {
-    (this: ITransformer<O[]>)
+    (this: ITransformer<O>)
     this._retainFactory = retainFactory
   }
   _transformConsumeOps(a: ?O, b: ?O)
@@ -340,33 +340,32 @@ export class SuboperationsTransformer<O: ISubOperation> {
 
 //
 
-type SimpleTextSubop = InsertText | Delete | Retain
-export type SimpleTextOperation = SimpleTextSubop[]
+export type TextOperation = InsertText | Delete | Retain
 
 export class SimpleTextApplier {
   constructor() {
-    (this: IApplier<SimpleTextOperation, string>)
+    (this: IApplier<TextOperation, string>)
   }
   stateString(text: string): string {
     return text
   }
-  apply(text: string, op: SimpleTextOperation): string {
+  apply(text: string, ops: TextOperation[]): string {
     let i = 0
-    for (let subop of op) {
-      if (subop instanceof InsertText) {
-        text = text.slice(0, i) + subop.text + text.slice(i)
-        i += subop.text.length
+    for (let op of ops) {
+      if (op instanceof InsertText) {
+        text = text.slice(0, i) + op.text + text.slice(i)
+        i += op.text.length
       }
 
-      if (subop instanceof Retain) {
-        if (subop.num < 0) { throw new Error('wat, failed to retain') }
-        i += subop.num
+      if (op instanceof Retain) {
+        if (op.num < 0) { throw new Error('wat, failed to retain') }
+        i += op.num
       }
 
-      if (subop instanceof Delete) {
-        if (subop.num < 0) { throw new Error('wat, failed to delete') }
-        if (i + subop.num > text.length) { throw new Error('wat, trying to delete too much') }
-        text = text.slice(0, i) + text.slice(i + subop.num)
+      if (op instanceof Delete) {
+        if (op.num < 0) { throw new Error('wat, failed to delete') }
+        if (i + op.num > text.length) { throw new Error('wat, trying to delete too much') }
+        text = text.slice(0, i) + text.slice(i + op.num)
       }
 
       // make sure we didn't accidentally overshoot
@@ -379,9 +378,9 @@ export class SimpleTextApplier {
 
 export class SimpleTextInferrer {
   constructor() {
-    (this: IInferrer<SimpleTextOperation, string>)
+    (this: IInferrer<TextOperation, string>)
   }
-  inferOps(oldText: string, newText: string): ?SimpleTextOperation {  // TODO: untested
+  inferOps(oldText: string, newText: string): ?TextOperation[] {  // TODO: untested
     if (oldText.length === newText.length) {
       // we have a no-op
       if (oldText === newText) {
@@ -421,35 +420,35 @@ export type SimpleCursorState = {start: number, end: number}
 
 export class SimpleCursorApplier {
   constructor() {
-    (this: IApplier<SimpleTextOperation, SimpleCursorState>)
+    (this: IApplier<TextOperation, SimpleCursorState>)
   }
   stateString(state: SimpleCursorState): string {
     throw new Error('not implemented')
   }
-  _adjustPosition(pos: number, op: SimpleTextOperation): number {
+  _adjustPosition(pos: number, ops: TextOperation[]): number {
     let i = 0
-    for (let subop of op) {
+    for (let op of ops) {
       if (i >= pos) { break }
 
-      if (subop instanceof InsertText) {
-        i += subop.length()
-        pos += subop.length()
+      if (op instanceof InsertText) {
+        i += op.length()
+        pos += op.length()
       }
 
-      if (subop instanceof Retain) {
-        i += subop.num
+      if (op instanceof Retain) {
+        i += op.num
       }
 
-      if (subop instanceof Delete) {
-        pos -= subop.length()
+      if (op instanceof Delete) {
+        pos -= op.length()
       }
     }
     return pos
   }
-  apply(state: SimpleCursorState, op: SimpleTextOperation): SimpleCursorState {
+  apply(state: SimpleCursorState, ops: TextOperation[]): SimpleCursorState {
     return {
-      start: this._adjustPosition(state.start, op),
-      end: this._adjustPosition(state.end, op)
+      start: this._adjustPosition(state.start, ops),
+      end: this._adjustPosition(state.end, ops)
     }
   }
 }
@@ -463,17 +462,17 @@ export class TextApplier {
   textApplier: SimpleTextApplier
 
   constructor() {
-    (this: IApplier<SimpleTextOperation, TextState>)
+    (this: IApplier<TextOperation, TextState>)
     this.cursorApplier = new SimpleCursorApplier() // no DI :()
     this.textApplier = new SimpleTextApplier()
   }
   stateString(state: TextState): string {
     return this.textApplier.stateString(state.text)
   }
-  apply(state: TextState, op: SimpleTextOperation): TextState {
+  apply(state: TextState, ops: TextOperation[]): TextState {
     return {
-      cursor: this.cursorApplier.apply(state.cursor, op),
-      text: this.textApplier.apply(state.text, op)
+      cursor: this.cursorApplier.apply(state.cursor, ops),
+      text: this.textApplier.apply(state.text, ops)
     }
   }
 }

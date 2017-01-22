@@ -18,7 +18,6 @@ import type {
 } from './ot/operations.js'
 
 import type {
-  SimpleTextOperation,
   TextState
 } from './ot/text_operations.js'
 
@@ -100,9 +99,9 @@ function setupClient(
     let [newText, newCursorStart, newCursorEnd] = getValuesFromDOMTextbox($text)
 
     // handle new text
-    let op = inferrer.inferOps(client.state.text, newText)
-    if (op != null) {
-      let request = orchestrator.clientLocalOperation(client, op)
+    let ops = inferrer.inferOps(client.state.text, newText)
+    if (ops != null) {
+      let request = orchestrator.clientLocalOperation(client, ops)
       setTimeout(() => propogate(request), delay.minDelay + (delay.maxDelay - delay.minDelay) * Math.random())
     }
 

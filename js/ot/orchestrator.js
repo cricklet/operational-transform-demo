@@ -66,7 +66,7 @@ type StandaloneOperation<O> = {
 } & BaseOperation<O>
 
 type BaseOperation<O> = {
-  operation: O,
+  subops: O[],
   operationId: OperationId // id which stays the same throughout transforms
 }
 
@@ -93,12 +93,12 @@ export class Orchestrator<O,S> {
       throw new Error('wat, to transform, they must have the same parent')
     }
 
-    let [newO, _] = this.transformer.transform(clientOp.operation, serverOp.operation)
+    let [newO, _] = this.transformer.transform(clientOp.subops, serverOp.subops)
 
     return { // new operation to apply
       operationId: clientOp.operationId,
       parentState: serverOp.childState,
-      operation: newO,
+      subops: newO,
     }
   }
 
@@ -111,10 +111,10 @@ export class Orchestrator<O,S> {
       throw new Error('wat, to transform prebuffer there must be the same parent')
     }
 
-    let prebufferO: ?O = (prebufferOp || {}).operation
-    let bufferO: ?O = (bufferOp || {}).operation
-    let bridgeO: ?O = this.transformer.composeNullable(prebufferO, bufferO)
-    let serverO: O = serverOp.operation
+    let prebufferO: ?O[] = (prebufferOp || {}).subops
+    let bufferO: ?O[] = (bufferOp || {}).subops
+    let bridgeO: ?O[] = this.transformer.composeNullable(prebufferO, bufferO)
+    let serverO: O[] = serverOp.subops
 
     let [newBridgeO, newO] = this.transformer.transformNullable(bridgeO, serverO)
 
@@ -130,19 +130,19 @@ export class Orchestrator<O,S> {
 
     if (prebufferOp) {
       newPrebufferOp = merge(prebufferOp, {
-        operation: newPrebufferO,
+        subops: newPrebufferO,
         parentState: serverOp.childState,
       })
     }
 
     if (bufferOp) {
       newBufferOp = merge(bufferOp, {
-        operation: newBufferO
+        subops: newBufferO
       })
     }
 
     newOp = {
-      operation: newO,
+      subops: newO,
       operationId: serverOp.operationId
     }
 
@@ -170,9 +170,9 @@ export class Orchestrator<O,S> {
       throw new Error('wat can\'t compose empty list')
     }
 
-    let composedOs: O = this.transformer.composeMany(map(o => o.operation, operations))
+    let composedOs: O[] = this.transformer.composeMany(map(o => o.subops, operations))
     return {
-      operation: composedOs,
+      subops: composedOs,
       operationId: genUid(),
     }
   }
@@ -215,14 +215,14 @@ export class Orchestrator<O,S> {
     // apply
     let parentState = this._currentStateString(server)
     if (transformedOp.parentState !== parentState) { throw new Error() }
-    server.state = this.applier.apply(server.state, transformedOp.operation)
+    server.state = this.applier.apply(server.state, transformedOp.subops)
     let childState = this._currentStateString(server)
 
     // save op
     let serverOp = {
       parentState: parentState,
       childState: childState,
-      operation: transformedOp.operation,
+      subops: transformedOp.subops,
       operationId: transformedOp.operationId
     }
     server.log.push(serverOp)
@@ -284,7 +284,7 @@ export class Orchestrator<O,S> {
 
       // apply the operation
       let parentState = this._currentStateString(client)
-      client.state = this.applier.apply(client.state, newOp.operation)
+      client.state = this.applier.apply(client.state, newOp.subops)
       let childState = this._currentStateString(client)
 
       // update prebuffer & buffer
@@ -374,7 +374,7 @@ export class Orchestrator<O,S> {
     return this._clientHandleRequests(client)
   }
 
-  clientLocalOperation(client: Client<O,S>, o: O)
+  clientLocalOperation(client: Client<O,S>, o: O[])
   : ?ClientRequest<O> { // return client op to broadcast
     // apply the operation
     let parentState = this._currentStateString(client)
@@ -383,7 +383,7 @@ export class Orchestrator<O,S> {
 
     // the op we just applied!
     let op: FullOperation<O> = {
-      operation: o,
+      subops: o,
       operationId: genUid(),
       parentState: parentState,
       childState: childState
