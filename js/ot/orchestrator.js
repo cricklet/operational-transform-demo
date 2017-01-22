@@ -170,7 +170,7 @@ export class Orchestrator<O,S> {
       throw new Error('wat can\'t compose empty list')
     }
 
-    let composedOs = this.transformer.composeMany(map(o => o.operation, operations))
+    let composedOs: O = this.transformer.composeMany(map(o => o.operation, operations))
     return {
       operation: composedOs,
       operationId: genUid(),

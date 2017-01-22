@@ -333,6 +333,9 @@ export class SuboperationsTransformer<O: ISubOperation> {
     }
     return composed
   }
+  // equals(ops1: O[], ops2: O[]): bool {
+  //
+  // }
 }
 
 //
