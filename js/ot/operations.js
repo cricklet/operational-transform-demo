@@ -1,7 +1,8 @@
 /* @flow */
 
 export interface IApplier<O,S> {
-  stateString(s: S): string,
+  initial(): S,
+  stateHash(s: S): string,
   apply(state: S, ops: O[]): S
 }
 
@@ -9,7 +10,7 @@ export interface IInferrer<O,S> {
   inferOps(state: S, newState: S): ?O[]
 }
 
-export interface ITransformer<O> {
+export interface IOperator<O> {
   transformNullable(clientOps: ?O[], serverOps: ?O[]): [?O[], ?O[]],
   transform(clientOps: O[], serverOps: O[]): [O[], O[]],
   composeNullable (ops1: ?O[], ops2P: ?O[]): ?O[],

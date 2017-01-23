@@ -1,6 +1,6 @@
 /* @flow */
 
-import type { ITransformer, IApplier } from './operations.js'
+import type { IOperator, IApplier } from './operations.js'
 import { observeArray, observeEach } from './observe.js'
 import { concat, flatten, popRandom, maybePush, hash, clone, merge, last, genUid, zipPairs, first, pop, push, contains, reverse, findLastIndex, subarray, asyncWait } from './utils.js'
 import { find, map, reject, filter } from 'wu'
@@ -71,12 +71,12 @@ export type ServerResetResponse<S> = {
 
 //
 
-export class ContextualOperationHelper<O, S> {
-  transformer: ITransformer<O>
+export class ContextualOperator<O, S> {
+  operator: IOperator<O>
   applier: IApplier<O,S>
 
-  constructor(transformer: ITransformer<O>, applier: IApplier<O,S>) {
-    this.transformer = transformer
+  constructor(operator: IOperator<O>, applier: IApplier<O,S>) {
+    this.operator = operator
     this.applier = applier
   }
 
@@ -94,7 +94,7 @@ export class ContextualOperationHelper<O, S> {
       throw new Error('wat can\'t compose empty list')
     }
 
-    let composedOs: O[] = this.transformer.composeMany(map(o => o.subops, operations))
+    let composedOs: O[] = this.operator.composeMany(map(o => o.subops, operations))
     return {
       subops: composedOs,
       operationId: genUid(),
@@ -135,18 +135,18 @@ export class ContextualOperationHelper<O, S> {
       throw new Error('wat, you need to pass in one half of the transform')
     }
 
-    let [_aT, _bP] = this.transformer.transform(a.subops, b.subops)
+    let [_aT, _bP] = this.operator.transform(a.subops, b.subops)
 
     return [
       aT || {
         subops: _aT,
-        operationId: genUid(),
+        operationId: a.operationId,
         parentHash: b.childHash,
         childHash: resultHash,
       },
       bT || {
         subops: _bP,
-        operationId: genUid(),
+        operationId: b.operationId,
         parentHash: a.childHash,
         childHash: resultHash,
       }
@@ -190,16 +190,15 @@ export class ContextualOperationHelper<O, S> {
       throw new Error('wat, parent hashes must match')
     }
 
-    let [aT, bT] = this.transformer.transform(a.subops, b.subops)
-
+    let [aT, bT] = this.operator.transform(a.subops, b.subops)
 
     let newState, newHash
     if (params.clientState != null) {
       newState = this.applier.apply(params.clientState, bT)
-      newHash = this.applier.stateString(newState)
+      newHash = this.applier.stateHash(newState)
     } else if (params.serverState != null) {
       newState = this.applier.apply(params.serverState, aT)
-      newHash = this.applier.stateString(newState)
+      newHash = this.applier.stateHash(newState)
     } else {
       throw new Error('need client or server state to apply transformed op to')
     }
@@ -207,33 +206,30 @@ export class ContextualOperationHelper<O, S> {
     return [
       {
         subops: aT,
-        operationId: genUid(),
+        operationId: a.operationId,
         parentHash: b.childHash,
         childHash: newHash,
       },
       {
         subops: bT,
-        operationId: genUid(),
+        operationId: b.operationId,
         parentHash: a.childHash,
         childHash: newHash,
       },
       newState
     ]
   }
-
 }
 
 export class ClientOrchestrator<O,S> {
   client: Client<O,S>
-  transformer: ITransformer<O>
+  operator: ContextualOperator<O,S>
   applier: IApplier<O,S>
-  helper: ContextualOperationHelper<O,S>
 
-  constructor(client: Client<O,S>, transformer: ITransformer<O>, applier: IApplier<O,S>) {
-    this.transformer = transformer
+  constructor(client: Client<O,S>, operator: ContextualOperator<O,S>, applier: IApplier<O,S>) {
     this.applier = applier
+    this.operator = operator
     this.client = client
-    this.helper = new ContextualOperationHelper(transformer, applier)
   }
 
   uid(): SiteUid {
@@ -251,7 +247,7 @@ export class ClientOrchestrator<O,S> {
       throw new Error('prebuffer should point to buffer')
     }
 
-    if (buffer.parentHash !== clientStateHash) {
+    if (buffer.childHash !== clientStateHash) {
       throw new Error('buffer should point to current state')
     }
   }
@@ -262,18 +258,18 @@ export class ClientOrchestrator<O,S> {
     let clientState = this.client.state
     let clientStateHash = this.client.stateHash
 
-    if (this.client.prebuffer) {
+    if (this.client.sentOperation.subops.length > 0) {
       return // we're waiting for a response elsewhere... ignore this update
     }
 
-    if (serverOp.parentHash !== clientStateHash) {
-      throw new Error('wat')
+    if (serverOp.childHash !== clientStateHash) {
+      throw new Error('wat') // figure out what to do!
     }
 
     let serverO = serverOp.subops
 
     let newState = this.applier.apply(clientState, serverO)
-    let newStateHash = this.applier.stateString(newState)
+    let newStateHash = this.applier.stateHash(newState)
 
     this.client.state = newState
     this.client.stateHash = newStateHash
@@ -298,7 +294,7 @@ export class ClientOrchestrator<O,S> {
 
     // prebuffer is now the buffer
     this.client.sentOperation = this.client.bufferedOperation
-    this.client.bufferedOperation = this.helper.empty(this.client.stateHash)
+    this.client.bufferedOperation = this.operator.empty(this.client.stateHash)
 
     this._checkInvariants()
 
@@ -346,10 +342,10 @@ export class ClientOrchestrator<O,S> {
     }
 
     // transform & apply!
-    let bP = this.helper.transform2nd(a, b, aP)
-    let [cP, bPP, newState] = this.helper.transformAndApply(
+    let bP = this.operator.transform2nd(a, b, aP)
+    let [cP, bPP, newState] = this.operator.transformAndApply(
       c, bP, { clientState: clientState })
-    let newHash = this.applier.stateString(newState)
+    let newHash = this.applier.stateHash(newState)
 
     if (newHash !== bPP.childHash || newHash !== cP.childHash) {
       throw new Error('we got to the wrong end state...')
@@ -359,8 +355,8 @@ export class ClientOrchestrator<O,S> {
     this.client.state = newState
     this.client.stateHash = newHash
 
-    // clear out the sent buffer
-    this.client.sentOperation = this.helper.empty(aP.childHash)
+    // ack that we've handled the sent buffer
+    this.client.sentOperation = this.operator.empty(aP.childHash)
     this.client.bufferedOperation = cP
 
     //
@@ -370,7 +366,6 @@ export class ClientOrchestrator<O,S> {
       throw new Error('the buffer should now be parented on the server state')
     }
 
-    // ack that we've handled the sent buffer
     // and send the buffer operation if we can
     return this._flushBuffer()
   }
@@ -382,9 +377,10 @@ export class ClientOrchestrator<O,S> {
     let clientStateHash = this.client.stateHash
 
     let newState = this.applier.apply(clientState, ops)
-    let newStateHash = this.applier.stateString(newState)
+    let newStateHash = this.applier.stateHash(newState)
 
     this.client.state = newState
+    this.client.stateHash = newStateHash
 
     // the op we just applied!
     let op: ContextualOperation<O> = {
@@ -395,7 +391,7 @@ export class ClientOrchestrator<O,S> {
     }
 
     // append operation to buffer (& thus bridge)
-    this.client.bufferedOperation = this.helper.composeFull([
+    this.client.bufferedOperation = this.operator.composeFull([
       this.client.bufferedOperation,
       op
     ])
@@ -406,23 +402,20 @@ export class ClientOrchestrator<O,S> {
 
 export class ServerOrchestrator<O,S> {
   server: Server<O,S>
-  transformer: ITransformer<O>
+  operator: ContextualOperator<O,S>
   applier: IApplier<O,S>
-  helper: ContextualOperationHelper<O,S>
 
-  constructor(server: Server<O,S>, transformer: ITransformer<O>, applier: IApplier<O,S>) {
-    this.transformer = transformer
+  constructor(server: Server<O,S>, operator: ContextualOperator<O,S>, applier: IApplier<O,S>) {
+    this.operator = operator
     this.applier = applier
     this.server = server
-    this.helper = new ContextualOperationHelper(transformer, applier)
   }
 
   uid(): SiteUid {
     return this.server.uid
   }
 
-  _historySince(startHash: StateHash): Array<ContextualOperation<O>> {
-    let endHash = this.applier.stateString(this.server.state)
+  _historyBetween(startHash: StateHash, endHash: StateHash): Array<ContextualOperation<O>> {
     if (endHash === startHash) { return [] }
 
     let i = findLastIndex(o => o.parentHash === startHash, this.server.log)
@@ -437,6 +430,16 @@ export class ServerOrchestrator<O,S> {
     return ops
   }
 
+  _historyOp(startHash: StateHash): ContextualOperation<O> {
+    let endHash = this.applier.stateHash(this.server.state)
+    if (endHash === startHash) {
+      return this.operator.empty(endHash)
+    } else {
+      let historyOps = this._historyBetween(startHash, endHash)
+      return this.operator.composeFull(historyOps)
+    }
+  }
+
   handleClientRequest(clientRequest: ClientEditRequest<O>)
   : [ServerEditResponse<O>, ServerBroadcast<O>] {
     //   a /\ b
@@ -446,12 +449,14 @@ export class ServerOrchestrator<O,S> {
 
     let clientOp = clientRequest.operation
 
-    let history: Array<ContextualOperation<O>> = this._historySince(clientOp.parentHash)
-    let historyOp: ContextualOperation<O> = this.helper.composeFull(history)
+    let historyOp: ContextualOperation<O> = this._historyOp(clientOp.parentHash)
 
     let [a, b] = [clientOp, historyOp]
-    let [aP, bP, newState] = this.helper.transformAndApply(
+    let [aP, bP, newState] = this.operator.transformAndApply(
       a, b, { serverState: this.server.state })
+
+    this.server.state = newState
+    this.server.log.push(aP)
 
     return [
       {
@@ -553,14 +558,23 @@ export class NetworkSimulator<O,S> {
     }
   }
 
-  async asyncRun() {
-    while (true) {
-      await asyncWait(Math.random() * 1000)
+  deliverPackets(num: number) {
+    for (let i = 0; i < num; i ++) {
+      if (this.packets.length === 0) { break }
 
       let packet: Packet<O,S> = popRandom(this.packets)
       for (let newPacket of this._handlePacket(packet)) {
         this.packets.push(newPacket)
       }
+    }
+  }
+
+  dropPackets(num: number) {
+    for (let i = 0; i < num; i ++) {
+      if (this.packets.length === 0) { break }
+
+      let packet: Packet<O,S> = popRandom(this.packets)
+      // drop :(
     }
   }
 }

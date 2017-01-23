@@ -14,11 +14,11 @@ import type {
 import type {
   IApplier,
   IInferrer,
-  ITransformer
+  IOperator
 } from './ot/operations.js'
 
 import type {
-  TextState
+  DocumentState
 } from './ot/text_operations.js'
 
 import {
@@ -29,10 +29,9 @@ import {
 } from './ot/orchestrator.js'
 
 import {
-  retainFactory,
-  SuboperationsTransformer,
-  TextApplier,
-  SimpleTextInferrer,
+  LinearOperator,
+  DocumentApplier,
+  TextInferrer,
 } from './ot/text_operations.js'
 
 type Lock = { ignoreEvents: boolean }
@@ -49,7 +48,7 @@ function getValuesFromDOMTextbox($text): [string, number, number] {
   ]
 }
 
-function updateDOMTextbox($text, state: TextState): void {
+function updateDOMTextbox($text, state: DocumentState): void {
   // cursorStart: number, cursorEnd: number
   $text.val(state.text)
   $text.prop("selectionStart", state.cursor.start),
@@ -272,9 +271,9 @@ function animateEllipses($el) {
 
 $(document).ready(() => {
   // stuff to dependency inject
-  let transformer = new SuboperationsTransformer(retainFactory)
-  let applier = new TextApplier()
-  let inferrer = new SimpleTextInferrer()
+  let transformer = new LinearOperator()
+  let applier = new DocumentApplier()
+  let inferrer = new TextInferrer()
   let orchestrator = new Orchestrator(transformer, applier)
 
   let $computers = $('#computers')

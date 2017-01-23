@@ -21,7 +21,7 @@ import type {
 } from './orchestrator.js'
 
 import type {
-  TextState
+  DocumentState
 } from './text_operations.js'
 
 import {
@@ -32,17 +32,16 @@ import {
 } from './orchestrator.js'
 
 import {
-  retainFactory,
   generateInsertion,
   generateDeletion,
-  SuboperationsTransformer,
-  SimpleTextApplier
+  LinearOperator,
+  TextApplier
 } from './text_operations.js'
 
 let FAKE_STATE = 'xyz'
 
-let transformer = new SuboperationsTransformer(retainFactory)
-let applier = new SimpleTextApplier()
+let transformer = new LinearOperator()
+let applier = new TextApplier()
 let orchestrator = new Orchestrator(transformer, applier)
 
 describe('local operation => remote operation => loop', () => {

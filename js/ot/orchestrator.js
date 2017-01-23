@@ -1,6 +1,6 @@
 /* @flow */
 
-import type { ITransformer, IApplier } from './operations.js'
+import type { IOperator, IApplier } from './operations.js'
 import { observeArray, observeEach } from './observe.js'
 import { concat, flatten, maybePush, hash, clone, merge, last, genUid, zipPairs, first, pop, push, contains, reverse, findLastIndex, subarray, asyncWait } from './utils.js'
 import { find, map, reject, filter } from 'wu'
@@ -75,16 +75,16 @@ type StateString = string
 type OperationId = string
 
 export class Orchestrator<O,S> {
-  transformer: ITransformer<O>
+  transformer: IOperator<O>
   applier: IApplier<O,S>
 
-  constructor(transformer: ITransformer<O>, applier: IApplier<O,S>) {
+  constructor(transformer: IOperator<O>, applier: IApplier<O,S>) {
     this.transformer = transformer
     this.applier = applier
   }
 
   _currentStateString(site: Server<O,S> | Client<O,S>): StateString {
-    return this.applier.stateString(site.state)
+    return this.applier.stateHash(site.state)
   }
 
   _serverTransform(clientOp: FullOperation<O>, serverOp: FullOperation<O>)
