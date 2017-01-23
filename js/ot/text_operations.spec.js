@@ -9,17 +9,16 @@ import { assert } from 'chai'
 import {
   generateInsertion,
   generateDeletion,
-  retainFactory,
-  SimpleTextApplier,
-  SuboperationsTransformer
+  TextApplier,
+  LinearOperator
 } from './text_operations.js'
 
 function opsString <A> (as: A[]): string {
   return "[" + as.join(', ') + "]"
 }
 
-let applier = new SimpleTextApplier()
-let transformer = new SuboperationsTransformer(retainFactory)
+let applier = new TextApplier()
+let transformer = new LinearOperator()
 
 describe('apply()', () => {
   [ { text: '0123', op: generateInsertion(-1, 'a'), throws: true },

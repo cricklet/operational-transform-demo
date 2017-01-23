@@ -8,7 +8,7 @@ Originally, I implemented the seminal (though, unfortunately incorrect) [Concurr
 
 This implementation includes transformation/composition of operations, generation of operations based on text changes, and application of operations to text. In addition, it includes all the logic necessary for handling communication and conflict resolution between multiple clients over an out-of-order high-latency network.
 
-The test coverage is reasonably complete. I still have to add tests for inferring operations from changed text (i.e. testing `SimpleTextInferrer`) & adjusting cursor locations based on operations (i.e. testing `SimpleCursorApplier`).
+The test coverage is reasonably complete. I still have to add tests for inferring operations from changed text (i.e. testing `TextInferrer`) & adjusting cursor locations based on operations (i.e. testing `CursorApplier`).
 
 I found the use of FlowType invaluable for my sanity while working on this project.
 

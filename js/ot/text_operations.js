@@ -2,18 +2,18 @@
 
 import { hash, clone, genUid, rearray, repeat, calculatePostfixLength, removeTail, calculatePrefixLength, substring, restring } from './utils.js'
 import { map } from 'wu'
-import { ITransformer, IApplier, IInferrer } from './operations.js'
+import { IOperator, IApplier, IInferrer } from './operations.js'
 
 
 //
 
-type OperationKind = 'Delete'|'Insert'|'Placeholder'|'Retain'
+type LinearOpKind = 'Delete'|'Insert'|'Placeholder'|'Retain'
 
-type IOperation = {
-  kind(): OperationKind,
+type ILinearOp = {
+  kind(): LinearOpKind,
   length(): number,
-  split(pos: number): [IOperation, IOperation]
-}
+  split(pos: number): [ILinearOp, ILinearOp]
+} | Retain // retains can't be custom... they're just fill space
 
 //
 
@@ -29,24 +29,20 @@ export function generateDeletion(pos: number, n: number): TextOperation[] {
   ]
 }
 
-export function retainFactory(n: number): Retain {
-  return new Retain(n)
-}
-
 class InsertText {
   text: string
 
   constructor(text: string) {
-    (this: IOperation)
+    (this: ILinearOp)
     this.text = text
   }
   toString(): string {
     return `insert "${this.text}"`
   }
-  kind(): OperationKind {
+  kind(): LinearOpKind {
     return 'Insert'
   }
-  split (offset: number): [IOperation, IOperation] {
+  split (offset: number): [ILinearOp, ILinearOp] {
     if (offset < 0 || offset > this.text.length) {
       throw new Error()
     }
@@ -64,16 +60,16 @@ class Delete {
   num: number
 
   constructor(num: number) {
-    (this: IOperation)
+    (this: ILinearOp)
     this.num = num
   }
   toString(): string {
     return `delete #${this.num}`
   }
-  kind(): OperationKind {
+  kind(): LinearOpKind {
     return 'Delete'
   }
-  split (offset: number): [IOperation, IOperation] {
+  split (offset: number): [ILinearOp, ILinearOp] {
     if (offset < 0 || offset > this.num) {
       throw new Error()
     }
@@ -91,16 +87,16 @@ class Retain {
   num: number
 
   constructor(num: number) {
-    (this: IOperation)
+    (this: ILinearOp)
     this.num = num
   }
   toString(): string {
     return `retain #${this.num}`
   }
-  kind(): OperationKind {
+  kind(): LinearOpKind {
     return 'Retain'
   }
-  split (offset: number): [IOperation, IOperation] {
+  split (offset: number): [ILinearOp, ILinearOp] {
     if (offset < 0 || offset > this.num) {
       throw new Error()
     }
@@ -117,22 +113,20 @@ class Retain {
 //
 
 
-export class SuboperationsTransformer<O: IOperation> {
-  _retainFactory: (num: number) => O
-  constructor(retainFactory: (num: number) => O) {
-    (this: ITransformer<O>)
-    this._retainFactory = retainFactory
+export class LinearOperator<O: ILinearOp> {
+  constructor() {
+    (this: IOperator<O>)
   }
   _transformConsumeOps(a: ?O, b: ?O)
   : [[?O, ?O], [?O, ?O]] {
     // returns [[aP, bP], [a, b]]
 
     if (a != null && a.kind() === 'Insert') {
-      return [[a, this._retainFactory(a.length())], [undefined, b]]
+      return [[a, new Retain(a.length())], [undefined, b]]
     }
 
     if (b != null && b.kind() === 'Insert') {
-      return [[this._retainFactory(b.length()), b], [a, undefined]]
+      return [[new Retain(b.length()), b], [a, undefined]]
     }
 
     // neither is null
@@ -342,11 +336,14 @@ export class SuboperationsTransformer<O: IOperation> {
 
 export type TextOperation = InsertText | Delete | Retain
 
-export class SimpleTextApplier {
+export class TextApplier {
   constructor() {
     (this: IApplier<TextOperation, string>)
   }
-  stateString(text: string): string {
+  initial(): string {
+    return ''
+  }
+  stateHash(text: string): string {
     return text
   }
   apply(text: string, ops: TextOperation[]): string {
@@ -376,7 +373,7 @@ export class SimpleTextApplier {
   }
 }
 
-export class SimpleTextInferrer {
+export class TextInferrer {
   constructor() {
     (this: IInferrer<TextOperation, string>)
   }
@@ -416,13 +413,16 @@ export class SimpleTextInferrer {
 
 //
 
-export type SimpleCursorState = {start: number, end: number}
+export type CursorState = {start: number, end: number}
 
-export class SimpleCursorApplier {
+export class CursorApplier {
   constructor() {
-    (this: IApplier<TextOperation, SimpleCursorState>)
+    (this: IApplier<TextOperation, CursorState>)
   }
-  stateString(state: SimpleCursorState): string {
+  initial(): CursorState {
+    return {start: 0, end: 0}
+  }
+  stateHash(state: CursorState): string {
     throw new Error('not implemented')
   }
   _adjustPosition(pos: number, ops: TextOperation[]): number {
@@ -445,7 +445,7 @@ export class SimpleCursorApplier {
     }
     return pos
   }
-  apply(state: SimpleCursorState, ops: TextOperation[]): SimpleCursorState {
+  apply(state: CursorState, ops: TextOperation[]): CursorState {
     return {
       start: this._adjustPosition(state.start, ops),
       end: this._adjustPosition(state.end, ops)
@@ -455,21 +455,24 @@ export class SimpleCursorApplier {
 
 //
 
-export type TextState = {cursor: SimpleCursorState, text: string}
+export type DocumentState = {cursor: CursorState, text: string}
 
-export class TextApplier {
-  cursorApplier: SimpleCursorApplier
-  textApplier: SimpleTextApplier
+export class DocumentApplier {
+  cursorApplier: CursorApplier
+  textApplier: TextApplier
 
   constructor() {
-    (this: IApplier<TextOperation, TextState>)
-    this.cursorApplier = new SimpleCursorApplier() // no DI :()
-    this.textApplier = new SimpleTextApplier()
+    (this: IApplier<TextOperation, DocumentState>)
+    this.cursorApplier = new CursorApplier() // no DI :()
+    this.textApplier = new TextApplier()
   }
-  stateString(state: TextState): string {
-    return this.textApplier.stateString(state.text)
+  initial(): DocumentState {
+    return { cursor: this.cursorApplier.initial(), text: this.textApplier.initial() }
   }
-  apply(state: TextState, ops: TextOperation[]): TextState {
+  stateHash(state: DocumentState): string {
+    return this.textApplier.stateHash(state.text)
+  }
+  apply(state: DocumentState, ops: TextOperation[]): DocumentState {
     return {
       cursor: this.cursorApplier.apply(state.cursor, ops),
       text: this.textApplier.apply(state.text, ops)
