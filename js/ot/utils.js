@@ -157,6 +157,11 @@ export function remove<T>(a: Array<T>, i: number): Array<T> {
   return a.slice(0, Math.max(0, i - 1)).concat(a.slice(i))
 }
 
+export function popRandom<T>(a: Array<T>): T {
+  let i = Math.floor(Math.random() * a.length);
+  return a.pop(i)
+}
+
 export function allEqual<T>(as: T[]): boolean {
   let val = as[0]
   for (let a of as) {

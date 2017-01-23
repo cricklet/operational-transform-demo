@@ -2,7 +2,7 @@
 
 import type { ITransformer, IApplier } from './operations.js'
 import { observeArray, observeEach } from './observe.js'
-import { concat, flatten, maybePush, hash, clone, merge, last, genUid, zipPairs, first, pop, push, contains, reverse, findLastIndex, subarray, asyncWait } from './utils.js'
+import { concat, flatten, popRandom, maybePush, hash, clone, merge, last, genUid, zipPairs, first, pop, push, contains, reverse, findLastIndex, subarray, asyncWait } from './utils.js'
 import { find, map, reject, filter } from 'wu'
 
 type ContextualOperation<O> = {
@@ -103,11 +103,14 @@ export class ContextualOperationHelper<O, S> {
     }
   }
 
-  transform2nd (
+  transform (
     a: ContextualOperation<O>, // client op
     b: ContextualOperation<O>, // server op
-    aT: ContextualOperation<O>
-  ): ContextualOperation<O> { // returns bP
+    params: {
+      aT?: ContextualOperation<O>,
+      bT?: ContextualOperation<O>,
+    }
+  ): [ContextualOperation<O>, ContextualOperation<O>] { // returns [aT, bT]
     //   a /\ b
     //    /  \
     // bP \  / aP
@@ -117,23 +120,46 @@ export class ContextualOperationHelper<O, S> {
       throw new Error('wat, parent hashes must match')
     }
 
-    if (aT.parentHash !== b.childHash) {
-      throw new Error('wat, aP isn\'t parented on b')
+    let [aT, bT] = [params.aT, params.bT]
+
+    if (aT && bT) {
+      throw new Error('wat, why are you transforming')
+    }
+
+    let resultHash
+    if (aT) {
+      resultHash = aT.childHash
+    } else if (bT) {
+      resultHash = bT.childHash
+    } else {
+      throw new Error('wat, you need to pass in one half of the transform')
     }
 
     let [_aT, _bP] = this.transformer.transform(a.subops, b.subops)
 
-    // TODO
-    // if (_bP is not equal to bP) {
-    //   throw new Error('algorithm wasn\'t symmetric')
-    // }
+    return [
+      aT || {
+        subops: _aT,
+        operationId: genUid(),
+        parentHash: b.childHash,
+        childHash: resultHash,
+      },
+      bT || {
+        subops: _bP,
+        operationId: genUid(),
+        parentHash: a.childHash,
+        childHash: resultHash,
+      }
+    ]
+  }
 
-    return {
-      subops: _bP,
-      operationId: genUid(),
-      parentHash: a.childHash,
-      childHash: aT.childHash,
-    }
+  transform2nd (
+    a: ContextualOperation<O>, // client op
+    b: ContextualOperation<O>, // server op
+    aT: ContextualOperation<O>
+  ): ContextualOperation<O> { // returns bP
+    let [_aT, _bT] = this.transform(a, b, { aT: aT })
+    return _bT
   }
 
   transform1st (
@@ -141,59 +167,42 @@ export class ContextualOperationHelper<O, S> {
     b: ContextualOperation<O>, // server op
     bT: ContextualOperation<O>
   ): ContextualOperation<O> { // returns aP
+    let [_aT, _bT] = this.transform(a, b, { bT: bT })
+    return _aT
+  }
+
+  transformAndApply (
+    clientOp: ContextualOperation<O>, // client op
+    serverOp: ContextualOperation<O>, // server op
+    params: {
+      clientState?: S,
+      serverState?: S,
+    }
+  ): [ContextualOperation<O>, ContextualOperation<O>, S] { // returns [aP, bP, newState]
     //   a /\ b
     //    /  \
     // bP \  / aP
     //     \/
+
+    let [a, b] = [clientOp, serverOp]
 
     if (a.parentHash !== b.parentHash) {
       throw new Error('wat, parent hashes must match')
     }
 
-    if (bT.parentHash !== a.childHash) {
-      throw new Error('wat, aP isn\'t parented on b')
-    }
-
-    let [_aT, _bT] = this.transformer.transform(a.subops, b.subops)
-
-    // TODO
-    // if (_aP is not equal to aP) {
-    //   throw new Error('algorithm wasn\'t symmetric')
-    // }
-
-    return {
-      subops: _aT,
-      operationId: genUid(),
-      parentHash: b.childHash,
-      childHash: bT.childHash,
-    }
-  }
-
-  transformOnClient (
-    clientOp: ContextualOperation<O>, // client op
-    serverOp: ContextualOperation<O>, // server op
-    clientState: S
-  ): [ContextualOperation<O>, ContextualOperation<O>, S] { // returns [aP, bP, newState]
-    //   a /\ b
-    //    /  \
-    // bP \  / aP
-    //     \/
-
-    if (clientOp.parentHash !== serverOp.parentHash) {
-      throw new Error('wat, parent hashes must match')
-    }
-
-    let clientHash = this.applier.stateString(clientState)
-
-    if (clientOp.childHash !== clientHash) {
-      throw new Error('wat, client op should lead to client state')
-    }
-
-    let [a, b] = [clientOp, serverOp]
     let [aT, bT] = this.transformer.transform(a.subops, b.subops)
 
-    let newState = this.applier.apply(clientState, bT)
-    let newHash = this.applier.stateString(newState)
+
+    let newState, newHash
+    if (params.clientState != null) {
+      newState = this.applier.apply(params.clientState, bT)
+      newHash = this.applier.stateString(newState)
+    } else if (params.serverState != null) {
+      newState = this.applier.apply(params.serverState, aT)
+      newHash = this.applier.stateString(newState)
+    } else {
+      throw new Error('need client or server state to apply transformed op to')
+    }
 
     return [
       {
@@ -212,48 +221,6 @@ export class ContextualOperationHelper<O, S> {
     ]
   }
 
-  transformOnServer (
-    clientOp: ContextualOperation<O>, // client op
-    serverOp: ContextualOperation<O>, // server op
-    serverState: S
-  ): [ContextualOperation<O>, ContextualOperation<O>, S] { // returns [aP, bP, newState]
-    //   a /\ b
-    //    /  \
-    // bP \  / aP
-    //     \/
-
-    if (clientOp.parentHash !== serverOp.parentHash) {
-      throw new Error('wat, parent hashes must match')
-    }
-
-    let serverHash = this.applier.stateString(serverState)
-
-    if (serverOp.childHash !== serverHash) {
-      throw new Error('wat, server op should lead to server hash')
-    }
-
-    let [a, b] = [clientOp, serverOp]
-    let [aT, bT] = this.transformer.transform(a.subops, b.subops)
-
-    let newState = this.applier.apply(serverState, aT)
-    let newHash = this.applier.stateString(newState)
-
-    return [
-      {
-        subops: aT,
-        operationId: genUid(),
-        parentHash: b.childHash,
-        childHash: newHash,
-      },
-      {
-        subops: bT,
-        operationId: genUid(),
-        parentHash: a.childHash,
-        childHash: newHash,
-      },
-      newState
-    ]
-  }
 }
 
 export class ClientOrchestrator<O,S> {
@@ -267,6 +234,10 @@ export class ClientOrchestrator<O,S> {
     this.applier = applier
     this.client = client
     this.helper = new ContextualOperationHelper(transformer, applier)
+  }
+
+  uid(): SiteUid {
+    return this.client.uid
   }
 
   _checkInvariants () {
@@ -335,6 +306,17 @@ export class ClientOrchestrator<O,S> {
   }
 
   handleServerResponse(serverResponse: ServerEditResponse<O>): ?ClientEditRequest<O> {
+    // client history is [a, c] where
+    //   a: the op we've sent the server
+    //   c: the op we've buffered and not yet sent to the server
+
+    // server history is [b, aP] where
+    //   b: an op executed on the server but not the client
+    //   aP: the transformed version of a
+
+    // we generate bPP to apply to the client state
+    // cP is then sent to the server
+
     //         /\
     //      a /  \ b
     //       /    \
@@ -345,13 +327,15 @@ export class ClientOrchestrator<O,S> {
     // bPP \  / cP
     //      \/
 
-    let state = this.client.state
-    let hash = this.client.stateHash
-
     let a = this.client.sentOperation
     let b = serverResponse.intermediateOperation
     let aP = serverResponse.transformedOperation
     let c = this.client.bufferedOperation
+
+    let serverHash = aP.childHash
+
+    let clientState = this.client.state
+    let clientHash = this.client.stateHash
 
     if (a == null) {
       throw new Error('how are we getting an edit response w/o outgoing edit?')
@@ -361,37 +345,33 @@ export class ClientOrchestrator<O,S> {
       throw new Error('woah, we got back a different transformed op')
     }
 
+    // transform & apply!
     let bP = this.helper.transform2nd(a, b, aP)
+    let [cP, bPP, newState] = this.helper.transformAndApply(
+      c, bP, { clientState: clientState })
+    let newHash = this.applier.stateString(newState)
 
-    if (c == null) { // there are no buffered operations!
-      let newState = this.applier.apply(state, bP.subops)
-      let newHash = this.applier.stateString(newState)
-
-      if (newHash != aP.childState || newHash != bP.childState) {
-        throw new Error('we got to the wrong end state...')
-      }
-
-      this.client.state = newState
-      this.client.stateHash = newHash
-
-      // we finished handling the sent operation!!
-      this.client.sentOperation = this.helper.empty(newHash)
-
-    } else { // we have to transform the buffered operations!
-      let [cP, bPP, newState] = this.helper.transformOnClient(c, bP, state)
-      let newHash = this.applier.stateString(newState)
-
-      if (newHash != bPP.childState || newHash != cP.childState) {
-        throw new Error('we got to the wrong end state...')
-      }
-
-      this.client.state = newState
-      this.client.stateHash = newHash
-
-      // we finished handling the sent operation!!
-      this.client.sentOperation = this.helper.empty(newHash)
+    if (newHash !== bPP.childHash || newHash !== cP.childHash) {
+      throw new Error('we got to the wrong end state...')
     }
 
+    // update the new state
+    this.client.state = newState
+    this.client.stateHash = newHash
+
+    // clear out the sent buffer
+    this.client.sentOperation = this.helper.empty(aP.childHash)
+    this.client.bufferedOperation = cP
+
+    //
+
+    this._checkInvariants()
+    if (this.client.bufferedOperation.parentHash !== serverHash) {
+      throw new Error('the buffer should now be parented on the server state')
+    }
+
+    // ack that we've handled the sent buffer
+    // and send the buffer operation if we can
     return this._flushBuffer()
   }
 
@@ -415,14 +395,10 @@ export class ClientOrchestrator<O,S> {
     }
 
     // append operation to buffer (& thus bridge)
-    if (this.client.bufferedOperation == null) {
-      this.client.bufferedOperation = op
-    } else {
-      this.client.bufferedOperation = this.helper.composeFull([
-        this.client.bufferedOperation,
-        op
-      ])
-    }
+    this.client.bufferedOperation = this.helper.composeFull([
+      this.client.bufferedOperation,
+      op
+    ])
 
     return this._flushBuffer()
   }
@@ -441,6 +417,10 @@ export class ServerOrchestrator<O,S> {
     this.helper = new ContextualOperationHelper(transformer, applier)
   }
 
+  uid(): SiteUid {
+    return this.server.uid
+  }
+
   _historySince(startHash: StateHash): Array<ContextualOperation<O>> {
     let endHash = this.applier.stateString(this.server.state)
     if (endHash === startHash) { return [] }
@@ -457,20 +437,130 @@ export class ServerOrchestrator<O,S> {
     return ops
   }
 
-  // handleClientRequest(clientRequest: ClientEditRequest<O>)
-  // : [ServerEditResponse<O>, ServerBroadcast<O>] {
-  //   //   a /\ b
-  //   //    /  \
-  //   // bP \  / aP
-  //   //     \/
-  //
-  //   let clientOp = clientRequest.subops
-  //
-  //   let history: Array<ContextualOperation<O>> = this._historySince(clientOp.parentHash)
-  //   if (history.length === 0) {
-  //   }
-  //   let historyOp: ContextualOperation<O> = this.helper.composeFull(history)
-  //   transformedOp = this._serverTransform(clientOp, historyOp)
-  // }
+  handleClientRequest(clientRequest: ClientEditRequest<O>)
+  : [ServerEditResponse<O>, ServerBroadcast<O>] {
+    //   a /\ b
+    //    /  \
+    // bP \  / aP
+    //     \/
 
+    let clientOp = clientRequest.operation
+
+    let history: Array<ContextualOperation<O>> = this._historySince(clientOp.parentHash)
+    let historyOp: ContextualOperation<O> = this.helper.composeFull(history)
+
+    let [a, b] = [clientOp, historyOp]
+    let [aP, bP, newState] = this.helper.transformAndApply(
+      a, b, { serverState: this.server.state })
+
+    return [
+      {
+        kind: 'ServerEditResponse',
+        intermediateOperation: b,
+        transformedOperation: aP
+      },
+      {
+        kind: 'ServerBroadcast',
+        operation: aP
+      }
+    ]
+  }
+}
+
+type Packet<O,S> = {
+  sourceUid: SiteUid,
+  destinationUid: SiteUid,
+  data: ServerEditResponse<*>
+      | ServerBroadcast<*>
+      | ServerResetResponse<*>
+      | ClientEditRequest<*>
+}
+
+export class NetworkSimulator<O,S> {
+  clients: {[uid: SiteUid]: ClientOrchestrator<O,S>}
+  server: ServerOrchestrator<O,S>
+
+  packets: Packet<O,S>[]
+
+  constructor(server: ServerOrchestrator<O,S>) {
+    this.clients = {}
+    this.server = server
+    this.packets = []
+  }
+
+  addClient(client: ClientOrchestrator<O,S>) {
+    this.clients[client.uid()] = client
+  }
+
+  request(clientUid: SiteUid, clientRequest: ClientEditRequest<*>) {
+    this.packets.push({
+      data: clientRequest,
+      sourceUid: clientUid,
+      destinationUid: this.server.uid()
+    })
+  }
+
+  * _handlePacket (packet: Packet<O,S>): Iterator<Packet<O,S>> {
+    let data = packet.data
+    let originatingUid = packet.sourceUid
+    let handlerUid = packet.destinationUid
+
+    switch (data.kind) {
+      case 'ClientEditRequest': {
+        // handle it on the server
+        let [response, broadcast] = this.server.handleClientRequest(data)
+
+        // broadcast update to other clients
+        for (let clientUid of Object.keys(this.clients)) {
+          yield {
+            sourceUid: handlerUid,
+            destinationUid: clientUid,
+            data: broadcast
+          }
+        }
+
+        // send response to originating client
+        yield {
+          sourceUid: handlerUid,
+          destinationUid: originatingUid,
+          data: response
+        }
+        break
+      }
+      case 'ServerBroadcast': {
+        // handle it on the client
+        let client = this.clients[handlerUid]
+        client.handleServerBroadcast(data)
+        break
+      }
+      case 'ServerEditResponse': {
+        // handle it on the client
+        let client = this.clients[handlerUid]
+        let request = client.handleServerResponse(data)
+        if (request == null) { break }
+
+        // send response to the server
+        yield {
+          sourceUid: handlerUid,
+          destinationUid: originatingUid,
+          data: request
+        }
+        break
+      }
+      default: {
+        throw new Error('unknown packet')
+      }
+    }
+  }
+
+  async asyncRun() {
+    while (true) {
+      await asyncWait(Math.random() * 1000)
+
+      let packet: Packet<O,S> = popRandom(this.packets)
+      for (let newPacket of this._handlePacket(packet)) {
+        this.packets.push(newPacket)
+      }
+    }
+  }
 }
