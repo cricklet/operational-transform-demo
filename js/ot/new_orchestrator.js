@@ -12,26 +12,6 @@ type ContextualOperation<O> = {
   operationId: OperationId // id which stays the same throughout transforms
 }
 
-export type Client<O,S> = {
-  uid: SiteUid,
-
-  state: S,
-  stateHash: StateHash,
-
-  bufferedOperation: ContextualOperation<O>,
-  // the client ops not yet sent to the server.
-
-  sentOperation: ContextualOperation<O>,
-  // the client op that has been sent to the server (but not yet ACKd).
-}
-
-export type Server<O,S> = {
-  uid: SiteUid,
-
-  state: S,
-  log: Array<ContextualOperation<O>>, // history of operations, oldest to newest
-}
-
 type SiteUid = string
 type StateHash = string
 type OperationId = string
@@ -223,25 +203,65 @@ export class ContextualOperator<O, S> {
 
 export class ClientOrchestrator<O,S> {
   client: Client<O,S>
+
+  constructor(client: Client<O,S>) {
+    this.client = client
+  }
+}
+
+export class Client<O,S> {
   operator: ContextualOperator<O,S>
   applier: IApplier<O,S>
 
-  constructor(client: Client<O,S>, operator: ContextualOperator<O,S>, applier: IApplier<O,S>) {
+  uid: SiteUid
+
+  state: S
+  stateHash: StateHash
+
+  bufferedOperation: ContextualOperation<O>
+  // the client ops not yet sent to the server.
+
+  sentOperation: ContextualOperation<O>
+  // the client op that has been sent to the server (but not yet ACKd).
+
+  constructor(operator: ContextualOperator<O,S>, applier: IApplier<O,S>,
+    data?: {
+      uid: SiteUid,
+
+      state: S,
+      stateHash: StateHash,
+
+      bufferedOperation: ContextualOperation<O>,
+      // the client ops not yet sent to the server.
+
+      sentOperation: ContextualOperation<O>,
+      // the client op that has been sent to the server (but not yet ACKd).
+    }
+  ) {
     this.applier = applier
     this.operator = operator
-    this.client = client
-  }
 
-  uid(): SiteUid {
-    return this.client.uid
+    if (data == null) {
+      let state = applier.initial()
+      let hash = applier.stateHash(state)
+      data = {
+        uid: genUid(),
+        state: state,
+        stateHash: applier.stateHash(state),
+        bufferedOperation: operator.empty(hash),
+        sentOperation: operator.empty(hash),
+      }
+    }
+
+    Object.assign(this, data)
   }
 
   _checkInvariants () {
-    let clientState = this.client.state
-    let clientStateHash = this.client.stateHash
+    let clientState = this.state
+    let clientStateHash = this.stateHash
 
-    let prebuffer = this.client.sentOperation
-    let buffer = this.client.bufferedOperation
+    let prebuffer = this.sentOperation
+    let buffer = this.bufferedOperation
 
     if (prebuffer.childHash !== buffer.parentHash) {
       throw new Error('prebuffer should point to buffer')
@@ -255,14 +275,14 @@ export class ClientOrchestrator<O,S> {
   handleServerBroadcast(serverBroadcast: ServerBroadcast<O>): void {
     let serverOp = serverBroadcast.operation
 
-    let clientState = this.client.state
-    let clientStateHash = this.client.stateHash
+    let clientState = this.state
+    let clientStateHash = this.stateHash
 
-    if (this.client.sentOperation.subops.length > 0) {
+    if (this.sentOperation.subops.length > 0) {
       return // we're waiting for a response elsewhere... ignore this update
     }
 
-    if (serverOp.childHash !== clientStateHash) {
+    if (serverOp.parentHash !== clientStateHash) {
       throw new Error('wat') // figure out what to do!
     }
 
@@ -271,30 +291,30 @@ export class ClientOrchestrator<O,S> {
     let newState = this.applier.apply(clientState, serverO)
     let newStateHash = this.applier.stateHash(newState)
 
-    this.client.state = newState
-    this.client.stateHash = newStateHash
+    this.state = newState
+    this.stateHash = newStateHash
   }
 
   _flushBuffer(): ?ClientEditRequest<O> {
     // if there's no buffer, skip
-    if (this.client.bufferedOperation.subops.length === 0) {
+    if (this.bufferedOperation.subops.length === 0) {
       return undefined
     }
 
     // if there is a prebuffer, skip
-    if (this.client.sentOperation.subops.length > 0) {
+    if (this.sentOperation.subops.length > 0) {
       return undefined
     }
 
     // flush the buffer!
     let editRequest: ClientEditRequest<O> = {
       kind: 'ClientEditRequest',
-      operation: this.client.bufferedOperation
+      operation: this.bufferedOperation
     }
 
     // prebuffer is now the buffer
-    this.client.sentOperation = this.client.bufferedOperation
-    this.client.bufferedOperation = this.operator.empty(this.client.stateHash)
+    this.sentOperation = this.bufferedOperation
+    this.bufferedOperation = this.operator.empty(this.stateHash)
 
     this._checkInvariants()
 
@@ -323,15 +343,15 @@ export class ClientOrchestrator<O,S> {
     // bPP \  / cP
     //      \/
 
-    let a = this.client.sentOperation
+    let a = this.sentOperation
     let b = serverResponse.intermediateOperation
     let aP = serverResponse.transformedOperation
-    let c = this.client.bufferedOperation
+    let c = this.bufferedOperation
 
     let serverHash = aP.childHash
 
-    let clientState = this.client.state
-    let clientHash = this.client.stateHash
+    let clientState = this.state
+    let clientHash = this.stateHash
 
     if (a == null) {
       throw new Error('how are we getting an edit response w/o outgoing edit?')
@@ -352,17 +372,17 @@ export class ClientOrchestrator<O,S> {
     }
 
     // update the new state
-    this.client.state = newState
-    this.client.stateHash = newHash
+    this.state = newState
+    this.stateHash = newHash
 
     // ack that we've handled the sent buffer
-    this.client.sentOperation = this.operator.empty(aP.childHash)
-    this.client.bufferedOperation = cP
+    this.sentOperation = this.operator.empty(aP.childHash)
+    this.bufferedOperation = cP
 
     //
 
     this._checkInvariants()
-    if (this.client.bufferedOperation.parentHash !== serverHash) {
+    if (this.bufferedOperation.parentHash !== serverHash) {
       throw new Error('the buffer should now be parented on the server state')
     }
 
@@ -373,14 +393,14 @@ export class ClientOrchestrator<O,S> {
   localEdit(ops: O[])
   : ?ClientEditRequest<O> { // return client op to broadcast
     // apply the operation
-    let clientState = this.client.state
-    let clientStateHash = this.client.stateHash
+    let clientState = this.state
+    let clientStateHash = this.stateHash
 
     let newState = this.applier.apply(clientState, ops)
     let newStateHash = this.applier.stateHash(newState)
 
-    this.client.state = newState
-    this.client.stateHash = newStateHash
+    this.state = newState
+    this.stateHash = newStateHash
 
     // the op we just applied!
     let op: ContextualOperation<O> = {
@@ -391,8 +411,8 @@ export class ClientOrchestrator<O,S> {
     }
 
     // append operation to buffer (& thus bridge)
-    this.client.bufferedOperation = this.operator.composeFull([
-      this.client.bufferedOperation,
+    this.bufferedOperation = this.operator.composeFull([
+      this.bufferedOperation,
       op
     ])
 
@@ -400,28 +420,44 @@ export class ClientOrchestrator<O,S> {
   }
 }
 
-export class ServerOrchestrator<O,S> {
-  server: Server<O,S>
+export class Server<O,S> {
   operator: ContextualOperator<O,S>
   applier: IApplier<O,S>
 
-  constructor(server: Server<O,S>, operator: ContextualOperator<O,S>, applier: IApplier<O,S>) {
+  uid: SiteUid
+
+  state: S
+  log: Array<ContextualOperation<O>> // history of operations, oldest to newest
+
+  constructor(operator: ContextualOperator<O,S>, applier: IApplier<O,S>,
+    data?: {
+      uid: SiteUid,
+
+      state: S,
+      log: Array<ContextualOperation<O>>, // history of operations, oldest to newest
+    }
+  ) {
     this.operator = operator
     this.applier = applier
-    this.server = server
-  }
 
-  uid(): SiteUid {
-    return this.server.uid
+    if (data == null) {
+      data = {
+        uid: genUid(),
+        state: applier.initial(),
+        log: []
+      }
+    }
+
+    Object.assign(this, data)
   }
 
   _historyBetween(startHash: StateHash, endHash: StateHash): Array<ContextualOperation<O>> {
     if (endHash === startHash) { return [] }
 
-    let i = findLastIndex(o => o.parentHash === startHash, this.server.log)
+    let i = findLastIndex(o => o.parentHash === startHash, this.log)
     if (i == null) { throw new Error('wat') }
 
-    let ops = Array.from(subarray(this.server.log, {start: i})())
+    let ops = Array.from(subarray(this.log, {start: i})())
     if (ops.length === 0) { throw new Error('wat') }
 
     if (first(ops).parentHash !== startHash) { throw new Error('wat') }
@@ -431,7 +467,7 @@ export class ServerOrchestrator<O,S> {
   }
 
   _historyOp(startHash: StateHash): ContextualOperation<O> {
-    let endHash = this.applier.stateHash(this.server.state)
+    let endHash = this.applier.stateHash(this.state)
     if (endHash === startHash) {
       return this.operator.empty(endHash)
     } else {
@@ -453,10 +489,10 @@ export class ServerOrchestrator<O,S> {
 
     let [a, b] = [clientOp, historyOp]
     let [aP, bP, newState] = this.operator.transformAndApply(
-      a, b, { serverState: this.server.state })
+      a, b, { serverState: this.state })
 
-    this.server.state = newState
-    this.server.log.push(aP)
+    this.state = newState
+    this.log.push(aP)
 
     return [
       {
@@ -482,26 +518,26 @@ type Packet<O,S> = {
 }
 
 export class NetworkSimulator<O,S> {
-  clients: {[uid: SiteUid]: ClientOrchestrator<O,S>}
-  server: ServerOrchestrator<O,S>
+  clients: {[uid: SiteUid]: Client<O,S>}
+  server: Server<O,S>
 
   packets: Packet<O,S>[]
 
-  constructor(server: ServerOrchestrator<O,S>) {
+  constructor(server: Server<O,S>) {
     this.clients = {}
     this.server = server
     this.packets = []
   }
 
-  addClient(client: ClientOrchestrator<O,S>) {
-    this.clients[client.uid()] = client
+  addClient(client: Client<O,S>) {
+    this.clients[client.uid] = client
   }
 
   request(clientUid: SiteUid, clientRequest: ClientEditRequest<*>) {
     this.packets.push({
       data: clientRequest,
       sourceUid: clientUid,
-      destinationUid: this.server.uid()
+      destinationUid: this.server.uid
     })
   }
 
@@ -515,8 +551,15 @@ export class NetworkSimulator<O,S> {
         // handle it on the server
         let [response, broadcast] = this.server.handleClientRequest(data)
 
+        if (handlerUid !== this.server.uid) {
+          throw new Error('wat, client should only talk to server')
+        }
+
         // broadcast update to other clients
         for (let clientUid of Object.keys(this.clients)) {
+          if (clientUid === originatingUid) {
+            continue
+          }
           yield {
             sourceUid: handlerUid,
             destinationUid: clientUid,
