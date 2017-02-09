@@ -8,7 +8,7 @@ type Packet<D> = {
   source: string
 }
 
-interface IRouter<OutgoingData, IncomingData> {
+export interface IRouter<OutgoingData, IncomingData> {
   // create a packet with this data
   // then, send it to all other connected routers
   send(data: OutgoingData): void,
@@ -17,7 +17,7 @@ interface IRouter<OutgoingData, IncomingData> {
   onReceive: (data: IncomingData) => void,
 }
 
-class Router<OutgoingData, IncomingData> {
+export class SimulatedRouter<OutgoingData, IncomingData> {
   uid: string
 
   outgoingLog: Packet<OutgoingData>[]
@@ -29,7 +29,7 @@ class Router<OutgoingData, IncomingData> {
   delay: number
   drop: number
 
-  otherRouters: Router<IncomingData, OutgoingData>[]
+  otherRouters: SimulatedRouter<IncomingData, OutgoingData>[]
 
   onReceive: (data: IncomingData) => void
 
@@ -80,9 +80,13 @@ class Router<OutgoingData, IncomingData> {
       let incomingPacket: ?Packet<IncomingData> = pop(
         this.incomingQueue, p => p.index === this.nextIncomingIndex)
 
+      console.log(incomingPacket, ':', this.incomingQueue)
+
       if (incomingPacket == null) {
         break
       }
+
+      this.nextIncomingIndex ++
 
       // received callback!
       this.onReceive(incomingPacket.data)
@@ -90,9 +94,11 @@ class Router<OutgoingData, IncomingData> {
 
     // remove old elements
     filterInPlace(this.incomingQueue, p => p.index < this.nextIncomingIndex)
+
+    console.log(' :', this.incomingQueue, '\n')
   }
 
-  sendPacket(other: Router<*,*>, packet: Packet<*>) {
+  sendPacket(other: SimulatedRouter<*,*>, packet: Packet<*>) {
     setTimeout(() => {
       if (Math.random() >= this.drop) {
         // got dropped :(
@@ -105,6 +111,7 @@ class Router<OutgoingData, IncomingData> {
   }
 
   receive(packet: Packet<IncomingData>) {
+    console.log('received', packet)
     this.incomingQueue.push(packet)
     this._flushReceived()
   }
@@ -112,7 +119,7 @@ class Router<OutgoingData, IncomingData> {
   // this router can connect to other routers
   // all previously sent packets will be sent to this other router
   // all future pakcets will also be sent to this other router
-  connect(other: Router<IncomingData, OutgoingData>): void {
+  connect(other: SimulatedRouter<IncomingData, OutgoingData>): void {
     this.otherRouters.push(other)
 
     for (let packet of this.outgoingLog) {
