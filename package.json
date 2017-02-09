@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "scripts": {
     "flow": "flow",
-    "test": "mocha --compilers js:babel-core/register -R spec ./**/*.spec.js",
-    "debug": "mocha debug --compilers js:babel-core/register -R spec ./**/*.spec.js",
-    "debug-watch": "mocha debug --watch --compilers js:babel-core/register -R spec ./**/*.spec.js",
-    "watch": "npm test -- --watch"
+    "test":        "mocha --compilers js:babel-core/register -R spec ./**/*.spec.js",
+    "debug":       "mocha debug --compilers js:babel-core/register -R spec ./**/*.spec.js",
+    "watch":       "npm test -- --watch",
+    "watch-one":   "mocha --compilers js:babel-core/register --watch -R spec"
   },
   "description": "operational transform",
   "author": "Kenrick Rilee",
