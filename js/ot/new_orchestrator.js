@@ -374,14 +374,14 @@ export class Client<O,S> {
     }
   }
 
-  handleAppliedEdit(ops: O[]): ?ClientUpdate<O> {
+  handleEdit(ops: O[]): ?ClientUpdate<O> {
     // apply the operation
     this.state = this.helper.apply(this.state, ops)
 
-    return this.handleEdit(ops)
+    return this.handleAppliedEdit(ops)
   }
 
-  handleEdit(ops: O[])
+  handleAppliedEdit(ops: O[])
   : ?ClientUpdate<O> { // return client op to broadcast
     // the op we just applied!
     let op: BufferOperation<O> = {

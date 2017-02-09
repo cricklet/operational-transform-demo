@@ -81,7 +81,7 @@ describe('filterInPlace', () => {
     let vs = [0,1,2,3,4,5,6]
 
     filterInPlace(vs, v => v < 4)
-    assert.deepEqual(vs, [4,5,6])
+    assert.deepEqual(vs, [0,1,2,3])
   })
 })
 
