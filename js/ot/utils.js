@@ -342,6 +342,15 @@ export function zipPairs <T> (arr: Array<T>): Reiterable<[T ,T]> {
   }
 }
 
+export function filterInPlace <T> (arr: Array<T>, f: (t: T) => boolean): void {
+  for (let i = 0; i < arr.length; i ++) {
+    if (f(arr[i]) == false) {
+      arr.splice(i, 1)
+      i --
+    }
+  }
+}
+
 export function pop <T> (arr: Array<T>, f: (t: T) => boolean): ?T {
   for (let i = 0; i < arr.length; i ++) {
     if (f(arr[i])) {
