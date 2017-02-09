@@ -30,7 +30,8 @@ import {
   findLastIndex,
   pop,
   maybePush,
-  flatten
+  flatten,
+  filterInPlace
 } from './utils'
 
 import type { Comparison, Tree } from './utils.js'
@@ -72,6 +73,15 @@ describe('repeat', () => {
     assert.deepEqual(
       rearray(repeat(10, counter)),
       [0,1,2,3,4,5,6,7,8,9])
+  })
+})
+
+describe('filterInPlace', () => {
+  it ('works', () => {
+    let vs = [0,1,2,3,4,5,6]
+
+    filterInPlace(vs, v => v < 4)
+    assert.deepEqual(vs, [4,5,6])
   })
 })
 
