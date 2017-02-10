@@ -38,6 +38,12 @@ type ServerOperation<O> = {
   nextIndex: number
 }
 
+type AppliedOperation<O> = {
+  ops: ?O[],
+  parentHash: string,
+  childHash: string,
+}
+
 type BufferOperation<O> = {
   ops: ?O[],
   childHash: string,
@@ -50,8 +56,9 @@ type PrebufferOperation<O> = {
   startIndex: number
 }
 
-type StandaloneOperation<O> = {
-  ops: ?O[],
+type OperationsStack<O> = {
+  operations: Array<{ ops: O[] }>,
+  parentHash: string
 }
 
 export class OperationHelper<O,S> {
@@ -77,6 +84,14 @@ export class OperationHelper<O,S> {
         op.parentHash == null || op.childHash == null ||
         op.startIndex == null || op.nextIndex == null) {
       throw new Error('server op contains keys: ' + Object.keys(op).join(', '))
+    }
+    return op
+  }
+
+  castApplied(op: Operation<O>, opts?: Object): AppliedOperation<O> {
+    op = merge(op, opts)
+    if (!('ops' in op) || op.childHash == null || op.parentHash == null) {
+      throw new Error('applied contains keys: ' + Object.keys(op).join(', '))
     }
     return op
   }
@@ -222,7 +237,8 @@ export class OperationHelper<O,S> {
     bufferOp: BufferOperation<O>,
     serverOp: ServerOperation<O>,
     clientState: S
-  ): [PrebufferOperation<O>, BufferOperation<O>, S] { // returns [newPrebuffer, newBuffer, newOp]
+  ): [PrebufferOperation<O>, BufferOperation<O>, AppliedOperation<O>, S] {
+    // returns [newPrebuffer, newBuffer, appliedOp, newState]
 
     if (prebufferOp.parentHash !== serverOp.parentHash ||
         prebufferOp.startIndex !== serverOp.startIndex) {
@@ -254,12 +270,13 @@ export class OperationHelper<O,S> {
     cP.childHash = newHash
     bPP.childHash = newHash
 
-    let [newPrebufferOp, newBufferOp] = [
+    let [newPrebufferOp, newBufferOp, appliedOp] = [
       this.castPrebuffer(aP, { startIndex: serverOp.nextIndex }),
-      this.castBuffer(cP)
+      this.castBuffer(cP),
+      this.castApplied(bPP)
     ]
 
-    return [newPrebufferOp, newBufferOp, newState]
+    return [newPrebufferOp, newBufferOp, appliedOp, newState]
   }
 
 }
@@ -280,7 +297,8 @@ export class Client<O,S> {
   // the client op that has been sent to the server (but not yet ACKd by the server)
   // together, prebuffer + buffer is the 'bridge'
 
-  // TODO : check next index
+  undos: OperationsStack<O>
+  redos: OperationsStack<O>
 
   constructor(operator: IOperator<O>, applier: IApplier<O,S>) {
     this.helper = new OperationHelper(operator, applier)
@@ -360,7 +378,7 @@ export class Client<O,S> {
 
     } else {
       // transform the prebuffer & buffer & op
-      let [newPrebufferOp, newBufferOp, newState]
+      let [newPrebufferOp, newBufferOp, appliedOp, newState]
           = this.helper.transformAndApplyBuffers(this.prebuffer, this.buffer, op, this.state)
 
       // apply the operation
@@ -374,18 +392,18 @@ export class Client<O,S> {
     }
   }
 
-  handleEdit(ops: O[]): ?ClientUpdate<O> {
+  handleEdit(edit: O[], undo?: O[]): ?ClientUpdate<O> {
     // apply the operation
-    this.state = this.helper.apply(this.state, ops)
+    this.state = this.helper.apply(this.state, edit)
 
-    return this.handleAppliedEdit(ops)
+    return this.handleAppliedEdit(edit, undo)
   }
 
-  handleAppliedEdit(ops: O[])
+  handleAppliedEdit(edit: O[], undo?: O[])
   : ?ClientUpdate<O> { // return client op to broadcast
     // the op we just applied!
     let op: BufferOperation<O> = {
-      ops: ops,
+      ops: edit,
       childHash: this.helper.hash(this.state)
     }
 

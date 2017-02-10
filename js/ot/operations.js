@@ -8,7 +8,7 @@ export interface IApplier<O,S> {
 }
 
 export interface IInferrer<O,S> {
-  inferOps(state: S, newState: S): ?O[]
+  infer(state: S, newState: S): [?O[], ?O[]]
 }
 
 export interface IOperator<O> {

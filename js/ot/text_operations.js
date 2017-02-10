@@ -412,20 +412,27 @@ export class TextInferrer {
   constructor() {
     (this: IInferrer<TextOperation, string>)
   }
-  inferOps(oldText: string, newText: string): ?TextOperation[] {  // TODO: untested
+  infer(oldText: string, newText: string)
+  : [?TextOperation[], ?TextOperation[]] { // infer update & undo
     if (oldText.length === newText.length) {
       // we have a no-op
       if (oldText === newText) {
-        return undefined;
+        return [undefined, undefined];
       }
     }
 
     if (newText.length === 0) {
-      return [new Delete(oldText.length)]
+      return [
+        [new Delete(oldText.length)],
+        [new InsertText(oldText)] // undo
+      ]
     }
 
     if (oldText.length === 0) {
-      return [new InsertText(newText)]
+      return [
+        [new InsertText(newText)],
+        [new Delete(newText.length)] // undo
+      ]
     }
 
     // or we have a selection being overwritten.
@@ -439,9 +446,16 @@ export class TextInferrer {
     let endNew = newText.length - postfixLength
 
     return [
-      new Retain(start),
-      new Delete(endOld - start),
-      new InsertText(restring(substring(newText, {start: start, stop: endNew})))
+      [ // update
+        new Retain(start),
+        new Delete(endOld - start),
+        new InsertText(restring(substring(newText, {start: start, stop: endNew})))
+      ],
+      [ // undo
+        new Retain(start),
+        new InsertText(restring(substring(oldText, {start: start, stop: endOld}))),
+        new Delete(endNew - start)
+      ]
     ]
   }
 }

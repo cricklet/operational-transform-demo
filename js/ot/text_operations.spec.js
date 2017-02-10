@@ -10,24 +10,11 @@ import {
   TextApplier,
   LinearOperator,
   TextInferrer,
-  Retain,
-  InsertText,
-  Delete
+  generateInsertion,
+  generateDeletion
 } from './text_operations.js'
 
 import type { TextOperation } from './text_operations.js'
-
-function generateInsertion(pos: number, text: string): TextOperation[] {
-  return [
-    new Retain(pos), new InsertText(text)
-  ]
-}
-
-function generateDeletion(pos: number, n: number): TextOperation[] {
-  return [
-    new Retain(pos), new Delete(n)
-  ]
-}
 
 function opsString <A> (as: A[]): string {
   return "[" + as.join(', ') + "]"

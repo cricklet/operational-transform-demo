@@ -100,9 +100,9 @@ function setupClient(
     let [newText, newCursorStart, newCursorEnd] = getValuesFromDOMTextbox($text)
 
     // handle new text
-    let ops = inferrer.inferOps(client.state.text, newText)
-    if (ops != null) {
-      let update = client.handleEdit(ops)
+    let [editOps, undoOps] = inferrer.infer(client.state.text, newText)
+    if (editOps != null && undoOps != null) {
+      let update = client.handleEdit(editOps, undoOps)
       if (update != null) {
         router.send(update)
       }
@@ -309,9 +309,9 @@ function generateLogger($log) {
   return s => {
     let $entry = $(`<div>${s}</div>`)
     $log.prepend($entry)
-    // setTimeout(() => {
-    //   $entry.remove()
-    // }, 5000)
+    setTimeout(() => {
+      $entry.remove()
+    }, 1000)
   }
 }
 
