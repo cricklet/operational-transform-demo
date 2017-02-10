@@ -7,11 +7,27 @@ import { spy } from 'sinon'
 import { assert } from 'chai'
 
 import {
-  generateInsertion,
-  generateDeletion,
   TextApplier,
-  LinearOperator
+  LinearOperator,
+  TextInferrer,
+  Retain,
+  InsertText,
+  Delete
 } from './text_operations.js'
+
+import type { TextOperation } from './text_operations.js'
+
+function generateInsertion(pos: number, text: string): TextOperation[] {
+  return [
+    new Retain(pos), new InsertText(text)
+  ]
+}
+
+function generateDeletion(pos: number, n: number): TextOperation[] {
+  return [
+    new Retain(pos), new Delete(n)
+  ]
+}
 
 function opsString <A> (as: A[]): string {
   return "[" + as.join(', ') + "]"
@@ -19,6 +35,7 @@ function opsString <A> (as: A[]): string {
 
 let applier = new TextApplier()
 let transformer = new LinearOperator()
+let inferrer = new TextInferrer()
 
 describe('apply()', () => {
   [ { text: '0123', op: generateInsertion(-1, 'a'), throws: true },
@@ -152,4 +169,80 @@ describe('combinatorial', () => {
       })
     })
   })
+})
+
+
+
+describe('inferOperations() & performOperations()', () => {
+  it ('handles no-ops', () => {
+    assert.deepEqual(
+      [undefined, undefined],
+      inferrer.infer(
+        'mary had a little lamb',
+        'mary had a little lamb'))
+  });
+  [
+    { oldText: 'hello!',
+      newText: '' },
+    { oldText: '',
+      newText: 'hello!' },
+    { oldText: '0 2 4',
+      newText: '0 4' },
+    { oldText: '0  3  6',
+      newText: '0 6' },
+    { oldText: '0  3  6',
+      newText: '0  6' },
+    { oldText: '0  3  6',
+      newText: '0   6' },
+    { oldText: '0  3  6',
+      newText: '0    6' },
+    { oldText: '0123456789',
+      newText: '0123789' },
+    { oldText: '0123456789',
+      newText: '0123' },
+    { oldText: '0123456789',
+      newText: '789' },
+    { oldText: '0123456789',
+      newText: '123456abc' },
+    { oldText: '0123456789',
+      newText: 'abc456789' },
+    { oldText: '0123456789',
+      newText: '0123abc6789' },
+    { oldText: '0123456789',
+      newText: '' },
+    { oldText: '',
+      newText: '0123456789' },
+    { oldText: 'mary had a little lamb',
+      newText: 'mary had a banana lamb' },
+    { oldText: 'mary had a little lamb',
+      newText: 'mary had lamb' },
+    { oldText: 'mary had a little lamb',
+      newText: 'marny had a little lamb' },
+    { oldText: 'mary had a little lamb',
+      newText: 'marmb' },
+    { oldText: 'mary had a little lamb',
+      newText: 'mary ' },
+    { oldText: 'mary had a little lamb',
+      newText: ' little lamb' },
+    { oldText: 'mary had a little lamb',
+      newText: 'mary had a litt' },
+    { oldText: 'mary had a little lamb',
+      newText: 'george is silly' },
+    { oldText: 'mary had a little lamb',
+      newText: 'george has a mary has a little lamb' },
+    { oldText: 'mary had a little lamb',
+      newText: 'mary has a little lamb through time' },
+    { oldText: 'mary had a little lamb',
+      newText: 'mary qwerty has asdf a little zxcv lamb' }
+  ].forEach((test) => {
+    it ('handles "' + test.oldText + '" -> "' + test.newText + '"', () => {
+      let [ops, undo] = inferrer.infer(test.oldText, test.newText)
+
+      let appliedText = applier.apply(test.oldText, ops)
+      let undoText = applier.apply(appliedText, undo)
+
+      assert.equal(test.newText, appliedText)
+      assert.equal(test.oldText, undoText)
+    })
+  });
 })
