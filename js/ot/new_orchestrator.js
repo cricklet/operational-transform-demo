@@ -57,7 +57,7 @@ type PrebufferOperation<O> = {
 }
 
 type OperationsStack<O> = {
-  operations: Array<{ ops: O[] }>,
+  opsStack: Array<?O[]>, // oldest first
   parentHash: string
 }
 
@@ -155,6 +155,43 @@ export class OperationHelper<O,S> {
     if (lastOp.childHash != null) { op.childHash = lastOp.childHash }
 
     return op
+  }
+
+  transformOperationsStack(
+    appliedOp: AppliedOperation<O>,
+    stackOps: OperationsStack<O>
+  ): ?OperationsStack<O> {
+    // a: stack op
+    // b: applied op
+
+    // aP: new stack op
+    // bP: new applied op
+
+    //   a /\ b
+    //    /  \
+    // bP \  / aP
+    //     \/
+
+    let parentHash = appliedOp.parentHash
+    let childHash = appliedOp.childHash
+
+    if (stackOps.parentHash !== parentHash) {
+      throw new Error('stack ops must have the same parent as the applied op')
+    }
+
+    let as = []
+
+    // let b = appliedOp
+    // for (let a of stackOps.operations) {
+    //   let [aP, bP] = this.transform(a, b)
+    //
+    //   as.push(aP)
+    //   b = bP
+    // }
+    //
+    // stackOps.parentHash = childHash
+
+    return undefined
   }
 
   transformAndApply (
@@ -318,6 +355,14 @@ export class Client<O,S> {
       ops: undefined,
       id: genUid()
     }
+    this.undos = {
+      opsStack: [],
+      parentHash: hash
+    }
+    this.redos = {
+      opsStack: [],
+      parentHash: hash
+    }
   }
 
   _checkInvariants () {
@@ -392,19 +437,63 @@ export class Client<O,S> {
     }
   }
 
-  handleEdit(edit: O[], undo?: O[]): ?ClientUpdate<O> {
+  handleUndo(): ?ClientUpdate<O> {
+    let currentHash = this.helper.hash(this.state)
+    let undoHash = this.undos.parentHash
+
+    if (undoHash !== currentHash) {
+      throw new Error('undo must refer to current state')
+    }
+
+    while (this.undos.opsStack.length > 0) {
+      // get the most recent undo
+      let undo = this.undos.opsStack.pop()
+
+      if (undo == null) { // this undo is empty
+        continue
+      }
+
+      // apply the operation
+      this.state = this.helper.apply(this.state, undo)
+
+      let newHash = this.helper.hash(this.state)
+
+      // append applied undo to buffer
+      this.buffer = this.helper.compose([
+        this.buffer,
+        { ops: undo, childHash: newHash }
+      ])
+
+      // update undos
+      this.undos.parentHash = newHash
+
+      // update redos
+      this.redos.opsStack.push(undo)
+      this.redos.parentHash = newHash
+
+      return this._flushBuffer()
+    }
+  }
+
+  handleRedo(): ?ClientUpdate<O> {
+    return undefined
+  }
+
+  handleEdit(edit: O[], undo: O[]): ?ClientUpdate<O> {
     // apply the operation
     this.state = this.helper.apply(this.state, edit)
 
     return this.handleAppliedEdit(edit, undo)
   }
 
-  handleAppliedEdit(edit: O[], undo?: O[])
+  handleAppliedEdit(edit: O[], undo: O[])
   : ?ClientUpdate<O> { // return client op to broadcast
+    let currentHash = this.helper.hash(this.state)
+
     // the op we just applied!
     let op: BufferOperation<O> = {
       ops: edit,
-      childHash: this.helper.hash(this.state)
+      childHash: currentHash
     }
 
     // append operation to buffer (& thus bridge)
@@ -412,6 +501,14 @@ export class Client<O,S> {
       this.buffer,
       op
     ])
+
+    // append operation to undo stack
+    this.undos.opsStack.push(undo)
+    this.undos.parentHash = currentHash
+
+    // clear the redo stack
+    this.redos.opsStack = []
+    this.redos.parentHash = currentHash
 
     return this._flushBuffer()
   }
