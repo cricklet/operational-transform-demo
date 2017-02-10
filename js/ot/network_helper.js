@@ -24,7 +24,7 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
   incomingQueue: Packet<IncomingData>[]
 
   nextOutgoingIndex: number
-  nextIncomingIndex: number
+  nextIncomingIndex: {}
 
   chaos: {
     minDelay: number,
@@ -55,7 +55,7 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
     this.incomingQueue = []
 
     this.nextOutgoingIndex = 0
-    this.nextIncomingIndex = 0
+    this.nextIncomingIndex = {}
 
     this.chaos = chaos
   }
@@ -78,21 +78,21 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
 
   _flushReceived() {
     while (true) {
-      let incomingPacket: ?Packet<IncomingData> = pop(
-        this.incomingQueue, p => p.index === this.nextIncomingIndex)
+      let packet: ?Packet<IncomingData> = pop(
+        this.incomingQueue, p => p.index === (this.nextIncomingIndex[p.source] || 0))
 
-      if (incomingPacket == null) {
+      if (packet == null) {
         break
       }
 
-      this.nextIncomingIndex ++
+      this.nextIncomingIndex[packet.source] = (this.nextIncomingIndex[packet.source] || 0) + 1
 
       // received callback!
-      this.onReceive(incomingPacket.data)
+      this.onReceive(packet.data)
     }
 
     // remove old elements
-    filterInPlace(this.incomingQueue, p => p.index >= this.nextIncomingIndex)
+    filterInPlace(this.incomingQueue, p => p.index >= (this.nextIncomingIndex[p.source] || 0))
   }
 
   sendPacket(other: SimulatedRouter<*,*>, packet: Packet<*>) {
