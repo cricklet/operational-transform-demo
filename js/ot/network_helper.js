@@ -51,7 +51,7 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
     this.nextOutgoingIndex = 0
     this.nextIncomingIndex = 0
 
-    if (drop >= 1 || drop <= 0) {
+    if (drop > 1 || drop < 0) {
       throw new Error('drop should be a percent between 0.0 and 1.0')
     }
 
@@ -80,8 +80,6 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
       let incomingPacket: ?Packet<IncomingData> = pop(
         this.incomingQueue, p => p.index === this.nextIncomingIndex)
 
-      console.log(incomingPacket, ':', this.incomingQueue)
-
       if (incomingPacket == null) {
         break
       }
@@ -93,9 +91,7 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
     }
 
     // remove old elements
-    filterInPlace(this.incomingQueue, p => p.index < this.nextIncomingIndex)
-
-    console.log(' :', this.incomingQueue, '\n')
+    filterInPlace(this.incomingQueue, p => p.index >= this.nextIncomingIndex)
   }
 
   sendPacket(other: SimulatedRouter<*,*>, packet: Packet<*>) {
@@ -111,7 +107,6 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
   }
 
   receive(packet: Packet<IncomingData>) {
-    console.log('received', packet)
     this.incomingQueue.push(packet)
     this._flushReceived()
   }

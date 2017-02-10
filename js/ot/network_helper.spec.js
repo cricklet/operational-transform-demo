@@ -25,26 +25,26 @@ describe("SimulatedRouter", () => {
     clock.restore()
   })
 
+  function createRouter() {
+    let vs: number[] = []
+    let r: SimulatedRouter<number, number> = new SimulatedRouter(
+      (v: number) => { vs.push(v) },
+      1000,
+      0.5)
+
+    return [vs, r]
+  }
+
   it("sends", () => {
-    let vs0: number[] = []
-    let vs1: string[] = []
-
-    let r0: SimulatedRouter<string, number> = new SimulatedRouter(
-      (v: number) => { vs0.push(v) },
-      1000,
-      0.5)
-
-    let r1: SimulatedRouter<number, string> = new SimulatedRouter(
-      (v: string) => { vs1.push(v) },
-      1000,
-      0.5)
+    let [vs0, r0] = createRouter()
+    let [vs1, r1] = createRouter()
 
     r0.connect(r1)
     r1.connect(r0)
 
-    r0.send('a')
-    r0.send('b')
-    r0.send('c')
+    r0.send(5)
+    r0.send(4)
+    r0.send(3)
 
     r1.send(0)
     r1.send(1)
@@ -53,6 +53,35 @@ describe("SimulatedRouter", () => {
     clock.tick(100000)
 
     assert.deepEqual(vs0, [0, 1, 2])
-    assert.deepEqual(vs1, ['a', 'b', 'c'])
+    assert.deepEqual(vs1, [5, 4, 3])
+  })
+
+  it("broadcasts & connects", () => {
+    let [vs0, r0] = createRouter()
+    let [vs1, r1] = createRouter()
+
+    let [_, server] = createRouter()
+
+    server.connect(r0)
+    r0.connect(server)
+
+    server.send(0)
+    server.send(1)
+    server.send(2)
+
+    clock.tick(100000)
+
+    server.connect(r1)
+    r1.connect(server)
+
+    clock.tick(100000)
+
+    server.send(4)
+    server.send(5)
+
+    clock.tick(100000)
+
+    assert.deepEqual(vs0, [0, 1, 2, 4, 5])
+    assert.deepEqual(vs1, [0, 1, 2, 4, 5])
   })
 })
