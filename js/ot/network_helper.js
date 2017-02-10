@@ -26,8 +26,11 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
   nextOutgoingIndex: number
   nextIncomingIndex: number
 
-  delay: number
-  drop: number
+  chaos: {
+    minDelay: number,
+    maxDelay: number,
+    dropPercentage: number,
+  }
 
   otherRouters: SimulatedRouter<IncomingData, OutgoingData>[]
 
@@ -35,8 +38,11 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
 
   constructor(
     onReceive: (data: IncomingData) => void,
-    delay: number,
-    drop: number
+    chaos: {
+      minDelay: number,
+      maxDelay: number,
+      dropPercentage: number,
+    }
   ) {
     (this: IRouter<OutgoingData, IncomingData>)
     this.uid = genUid()
@@ -51,12 +57,7 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
     this.nextOutgoingIndex = 0
     this.nextIncomingIndex = 0
 
-    if (drop > 1 || drop < 0) {
-      throw new Error('drop should be a percent between 0.0 and 1.0')
-    }
-
-    this.delay = delay
-    this.drop = drop
+    this.chaos = chaos
   }
 
   send(data: OutgoingData) {
@@ -95,15 +96,16 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
   }
 
   sendPacket(other: SimulatedRouter<*,*>, packet: Packet<*>) {
+    let delay = this.chaos.minDelay + Math.random() * (this.chaos.maxDelay - this.chaos.minDelay)
     setTimeout(() => {
-      if (Math.random() >= this.drop) {
+      if (Math.random() >= this.chaos.dropPercentage) {
         // got dropped :(
         other.receive(packet)
       } else {
         // keep trying!
         this.sendPacket(other, packet)
       }
-    }, Math.random() * this.delay)
+    }, delay)
   }
 
   receive(packet: Packet<IncomingData>) {

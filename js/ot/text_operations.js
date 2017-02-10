@@ -1,6 +1,6 @@
 /* @flow */
 
-import { hash, clone, genUid, rearray, repeat, calculatePostfixLength, removeTail, calculatePrefixLength, substring, restring } from './utils.js'
+import { last, removeInPlace, hash, clone, genUid, rearray, repeat, calculatePostfixLength, removeTail, calculatePrefixLength, substring, restring, all } from './utils.js'
 import { map } from 'wu'
 import { IOperator, IApplier, IInferrer } from './operations.js'
 
@@ -12,7 +12,8 @@ type LinearOpKind = 'Delete'|'Insert'|'Placeholder'|'Retain'
 type ILinearOp = {
   kind(): LinearOpKind,
   length(): number,
-  split(pos: number): [ILinearOp, ILinearOp]
+  split(pos: number): [ILinearOp, ILinearOp],
+  join(next: ILinearOp): ?ILinearOp
 } | Retain // retains can't be custom... they're just fill space
 
 //
@@ -51,6 +52,11 @@ class InsertText {
       new InsertText(this.text.substring(offset))
     ]
   }
+  join (next: ILinearOp): ?ILinearOp {
+    if (next instanceof InsertText) {
+      return new InsertText(this.text + next.text)
+    }
+  }
   length(): number {
     return this.text.length
   }
@@ -77,6 +83,11 @@ class Delete {
       new Delete(offset),
       new Delete(this.num - offset)
     ]
+  }
+  join (next: ILinearOp): ?ILinearOp {
+    if (next instanceof Delete) {
+      return new Delete(this.num + next.num)
+    }
   }
   length(): number {
     return this.num
@@ -105,6 +116,11 @@ class Retain {
       new Retain(this.num - offset)
     ]
   }
+  join (next: ILinearOp): ?ILinearOp {
+    if (next instanceof Retain) {
+      return new Retain(this.num + next.num)
+    }
+  }
   length(): number {
     return this.num
   }
@@ -116,6 +132,22 @@ class Retain {
 export class LinearOperator<O: ILinearOp> {
   constructor() {
     (this: IOperator<O>)
+  }
+  simplify(ops: O[]): O[] {
+    for (let i = 1; i < ops.length; i ++) {
+      let newOp = ops[i - 1].join(ops[i])
+      if (newOp != null) {
+        ops[i - 1] = newOp
+        removeInPlace(ops, i) // remove extra op
+        i --
+      }
+    }
+
+    if (ops.length > 0 && last(ops).kind() === 'Retain') {
+      ops.pop() // remove trailing retain
+    }
+
+    return ops
   }
   _transformConsumeOps(a: ?O, b: ?O)
   : [[?O, ?O], [?O, ?O]] {
@@ -212,7 +244,7 @@ export class LinearOperator<O: ILinearOp> {
       [op1, op2] = [newOp1, newOp2]
     }
 
-    return [ops1P, ops2P]
+    return [this.simplify(ops1P), this.simplify(ops2P)]
   }
   composeNullable (ops1: ?O[], ops2: ?O[])
   : ?O[] {
@@ -317,7 +349,7 @@ export class LinearOperator<O: ILinearOp> {
       [op1, op2] = [newOp1, newOp2]
     }
 
-    return composed
+    return this.simplify(composed)
   }
   composeMany(ops: Iterable<O[]>)
   : O[] {
@@ -327,9 +359,6 @@ export class LinearOperator<O: ILinearOp> {
     }
     return composed
   }
-  // equals(ops1: O[], ops2: O[]): bool {
-  //
-  // }
 }
 
 //

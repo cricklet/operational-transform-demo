@@ -29,8 +29,7 @@ describe("SimulatedRouter", () => {
     let vs: number[] = []
     let r: SimulatedRouter<number, number> = new SimulatedRouter(
       (v: number) => { vs.push(v) },
-      1000,
-      0.5)
+      { minDelay: 1000, maxDelay: 2000, dropPercentage: 0.5 })
 
     return [vs, r]
   }
@@ -83,5 +82,31 @@ describe("SimulatedRouter", () => {
 
     assert.deepEqual(vs0, [0, 1, 2, 4, 5])
     assert.deepEqual(vs1, [0, 1, 2, 4, 5])
+  })
+  it("receives from multiple", () => {
+    let [_0, r0] = createRouter()
+    let [_1, r1] = createRouter()
+
+    let [vs, server] = createRouter()
+
+    server.connect(r0)
+    r0.connect(server)
+
+    r0.send(0)
+
+    clock.tick(100000)
+
+    server.connect(r1)
+    r1.connect(server)
+
+    r1.send(1)
+
+    clock.tick(100000)
+
+    r0.send(2)
+
+    clock.tick(100000)
+
+    assert.deepEqual(vs, [0, 1, 2])
   })
 })

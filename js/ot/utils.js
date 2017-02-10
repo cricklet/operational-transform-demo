@@ -157,9 +157,19 @@ export function remove<T>(a: Array<T>, i: number): Array<T> {
   return a.slice(0, Math.max(0, i - 1)).concat(a.slice(i))
 }
 
+export function removeInPlace<T>(a: Array<T>, i: number) {
+  a.splice(i, 1)
+}
+
+export function removeLastInPlace<T>(a: Array<T>, i: number) {
+  a.pop()
+}
+
 export function popRandom<T>(a: Array<T>): T {
   let i = Math.floor(Math.random() * a.length);
-  return a.pop(i)
+  let result = a[i]
+  remove(a, i)
+  return result
 }
 
 export function allEqual<T>(as: T[]): boolean {
@@ -340,6 +350,14 @@ export function zipPairs <T> (arr: Array<T>): Reiterable<[T ,T]> {
       yield [arr[i], arr[i+1]]
     }
   }
+}
+
+export function all<T>(arr: T[], f: (t: T) => boolean): boolean {
+  for (let a of arr) {
+    if (f(a) === false) return false
+  }
+
+  return true
 }
 
 export function filterInPlace <T> (arr: Array<T>, f: (t: T) => boolean): void {
