@@ -121,7 +121,7 @@ function createServerDOM(title) {
     <h4>${title}</h4>
     <textarea readonly class="text" rows="4" cols="50"></textarea>
     <div>~ <input type="number" class="delay" value="500"> ms latency</div>
-    <div>~ <input type="number" class="drop" value="0"> % dropped</div>
+    <div>~ <input type="number" class="drop" value="0.5"> % dropped</div>
   </div>`)
 
   let $text = $server.find('.text')
@@ -166,13 +166,13 @@ function createClientDOM(title, randomizeChecked) {
 function boundedMerge(b1, b2) {
   let b = merge(b1, b2)
   observeObject(b1,
-      () => b = merge(b, b1),
-      () => b = merge(b, b1),
-      () => b = merge(b, b1))
+      () => Object.assign(b, b1),
+      () => Object.assign(b, b1),
+      () => Object.assign(b, b1))
   observeObject(b2,
-      () => b = merge(b, b2),
-      () => b = merge(b, b2),
-      () => b = merge(b, b2))
+      () => Object.assign(b, b2),
+      () => Object.assign(b, b2),
+      () => Object.assign(b, b2))
   return b
 }
 
@@ -305,16 +305,28 @@ function animateEllipses($el) {
   }) ();
 }
 
+function generateLogger($log) {
+  return s => {
+    let $entry = $(`<div>${s}</div>`)
+    $log.prepend($entry)
+    // setTimeout(() => {
+    //   $entry.remove()
+    // }, 5000)
+  }
+}
+
 $(document).ready(() => {
   // stuff to dependency inject
   let operator = new LinearOperator()
   let applier = new DocumentApplier()
   let inferrer = new TextInferrer()
 
-  let $computers = $('#computers')
+  let $serverContainer = $('#server')
+  let $clientContainer = $('#clients')
 
   let [$server, $serverText, chaos] = createServerDOM("Server")
-  $computers.prepend($server)
+  let serverLogger = generateLogger($('#server-log'))
+  $serverContainer.append($server)
 
   let clients: Client<*,*>[] = []
   let clientRouters = []
@@ -323,7 +335,7 @@ $(document).ready(() => {
   let serverRouter = new SimulatedRouter((update: ClientUpdate<*>) => {
     let broadcast = server.handleUpdate(update)
     serverRouter.send(broadcast)
-  }, chaos)
+  }, chaos, serverLogger)
 
   observeObject(server,
     (_, key) => {},// added
@@ -333,10 +345,12 @@ $(document).ready(() => {
     },
   )
 
+  let $clientPlaceholder = $('#client-placeholder')
+
   let clientId = 1
   function addClient() {
     let [$client, $text, shouldRandomize] = createClientDOM(`Client ${clientId}`, clientId === 1, false)
-    $client.insertBefore($server)
+    $client.insertBefore($clientPlaceholder)
     clientId ++
 
     let client = new Client(operator, applier)

@@ -11,8 +11,25 @@
 				max-width: 740px;
 				margin-right: auto;
 				margin-left: auto;
+
+				display: -webkit-flex;
+				display: flex;
+
+				-webkit-flex-direction: row;
+				flex-direction: row;
 			}
-			#computers {
+
+			#clients-section {
+				-webkit-flex: 2;
+				flex: 2;
+			}
+
+			#server-section {
+				-webkit-flex: 1;
+				flex: 1;
+			}
+
+			.computers {
 		    display: -webkit-flex;
 		    display: flex;
 
@@ -21,24 +38,28 @@
 				-webkit-flex-wrap: wrap;
 				flex-wrap: wrap;
 			}
-			#computers > * + * {
+			.computers > * + * {
 				margin-right: 8px;
 			}
-			#computers > :first-child {
+			.computers > :first-child {
 				margin-right: 8px;
 			}
 			.computer textarea {
 				width: 100%;
 			}
 			.computer {
-  			-webkit-flex: 1;
-        flex: 1;
+				-webkit-flex: 1;
+				flex: 1;
 
 				-webkit-flex-grow: 1;
 				flex-grow: 1;
 
 				min-width: 180px;
 				margin-bottom: 0.4em;
+			}
+			#server-log {
+				height: 200px;
+				overflow: scroll;
 			}
 		</style>
 	</head>
@@ -47,12 +68,16 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 
 		<div class="demo">
-			<div id="computers">
-				<div class="computer"></div>
-				<div class="computer"></div>
-				<div class="computer"></div>
+			<div id="clients-section">
+				<div id="clients" class="computers">
+					<div class="computer" id="client-placeholder"></div>
+				</div>
+				<button id="add-client">Add Client</button>
 			</div>
-			<button id="add-client">Add Client</button>
+			<div id="server-section">
+				<div id="server" class="computers"></div>
+				<div id="server-log" class="log"></div>
+			</div>
 		</div>
 
 		<script type="text/javascript" src="./build/bundle.js" charset="utf-8"></script>

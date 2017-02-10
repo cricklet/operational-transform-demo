@@ -36,13 +36,16 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
 
   onReceive: (data: IncomingData) => void
 
+  logger: (s: string) => void
+
   constructor(
     onReceive: (data: IncomingData) => void,
     chaos: {
       minDelay: number,
       maxDelay: number,
       dropPercentage: number,
-    }
+    },
+    logger?: (s: string) => void
   ) {
     (this: IRouter<OutgoingData, IncomingData>)
     this.uid = genUid()
@@ -58,6 +61,9 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
     this.nextIncomingIndex = {}
 
     this.chaos = chaos
+
+    if (logger != null) { this.logger = logger }
+    else { this.logger = s => {} }
   }
 
   send(data: OutgoingData) {
@@ -99,16 +105,19 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
     let delay = this.chaos.minDelay + Math.random() * (this.chaos.maxDelay - this.chaos.minDelay)
     setTimeout(() => {
       if (Math.random() >= this.chaos.dropPercentage) {
-        // got dropped :(
+        // it worked!
+        this.logger('sent outgoing packet #' + packet.index)
         other.receive(packet)
       } else {
-        // keep trying!
+        // it got dropped :(, retry
+        this.logger('dropped outgoing packet #' + packet.index)
         this.sendPacket(other, packet)
       }
     }, delay)
   }
 
   receive(packet: Packet<IncomingData>) {
+    this.logger('incoming packet #' + packet.index + ' from ' + packet.source)
     this.incomingQueue.push(packet)
     this._flushReceived()
   }
