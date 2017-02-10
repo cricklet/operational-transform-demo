@@ -2,8 +2,7 @@
 
 import type { IOperator, IApplier } from './operations.js'
 import { observeArray, observeEach } from './observe.js'
-import { concat, flatten, maybePush, hash, clone, merge, last, genUid, zipPairs, first, pop, push, contains, reverse, findLastIndex, subarray, asyncWait } from './utils.js'
-import { find, map, reject, filter } from 'wu'
+import { skipNulls, map, reiterable, concat, flatten, maybePush, hash, clone, merge, last, genUid, zipPairs, first, pop, push, contains, reverse, findLastIndex, subarray, asyncWait } from './utils.js'
 
 export type ServerBroadcast<O> = {
   kind: 'ServerBroadcast',
@@ -18,7 +17,7 @@ export type ClientUpdate<O> = {
 type Operation<O> = $Shape<{
   id: string,
 
-  ops: O[],
+  ops: ?O[],
 
   parentHash: string,
   childHash: string,
@@ -30,7 +29,7 @@ type Operation<O> = $Shape<{
 type ServerOperation<O> = {
   id: string,
 
-  ops: O[],
+  ops: ?O[],
 
   parentHash: string,
   childHash: string,
@@ -40,20 +39,19 @@ type ServerOperation<O> = {
 }
 
 type BufferOperation<O> = {
-  ops: O[],
+  ops: ?O[],
   childHash: string,
 }
 
 type PrebufferOperation<O> = {
   id: string,
-  ops: O[],
+  ops: ?O[],
   parentHash: string,
-
   startIndex: number
 }
 
 type StandaloneOperation<O> = {
-  ops: O[],
+  ops: ?O[],
 }
 
 export class OperationHelper<O,S> {
@@ -75,7 +73,7 @@ export class OperationHelper<O,S> {
 
   castServer(op: Operation<O>, opts?: Object): ServerOperation<O> {
     op = merge(op, opts)
-    if (op.id == null || op.ops == null ||
+    if (!('ops' in op) || op.id == null ||
         op.parentHash == null || op.childHash == null ||
         op.startIndex == null || op.nextIndex == null) {
       throw new Error('server op contains keys: ' + Object.keys(op).join(', '))
@@ -85,7 +83,7 @@ export class OperationHelper<O,S> {
 
   castBuffer(op: Operation<O>, opts?: Object): BufferOperation<O> {
     op = merge(op, opts)
-    if (op.ops == null || op.childHash == null) {
+    if (!('ops' in op) || op.childHash == null) {
       throw new Error('buffer op contains keys: ' + Object.keys(op).join(', '))
     }
     return op
@@ -93,8 +91,7 @@ export class OperationHelper<O,S> {
 
   castPrebuffer(op: Operation<O>, opts?: Object): PrebufferOperation<O> {
     op = merge(op, opts)
-    if (op.ops == null ||
-        op.id == null ||
+    if (!('ops' in op) || op.id == null ||
         op.parentHash == null ||
         op.startIndex == null) {
       throw new Error('prebuffer op contains keys: ' + Object.keys(op).join(', '))
@@ -103,7 +100,7 @@ export class OperationHelper<O,S> {
   }
 
   _createOp(
-    ops: O[],
+    ops: ?O[],
     optional: {
       parent?: Operation<O>,
       source?: Operation<O>,
@@ -119,6 +116,7 @@ export class OperationHelper<O,S> {
       if (optional.source.id != null) { op.id = optional.source.id }
     }
     if (optional.resultHash != null) { op.childHash = optional.resultHash }
+
     return op
   }
 
@@ -127,7 +125,9 @@ export class OperationHelper<O,S> {
       throw new Error('wat can\'t compose empty list')
     }
 
-    let composed: O[] = this.operator.composeMany(map(o => o.ops, operations))
+    let composed: O[] = this.operator.composeMany(
+      skipNulls(map(reiterable(operations), o => o.ops))()
+    )
 
     let op: Operation<O> = {
       ops: composed,
@@ -161,14 +161,14 @@ export class OperationHelper<O,S> {
       throw new Error('wat, parent hashes must match')
     }
 
-    let [aT, bT] = this.operator.transform(a.ops, b.ops)
+    let [aT, bT] = this.operator.transformNullable(a.ops, b.ops)
 
     let newState, newHash
     if (params.clientState != null) {
-      newState = this.applier.apply(params.clientState, bT)
+      newState = this.applier.applyNullable(params.clientState, bT)
       newHash = this.applier.stateHash(newState)
     } else if (params.serverState != null) {
-      newState = this.applier.apply(params.serverState, aT)
+      newState = this.applier.applyNullable(params.serverState, aT)
       newHash = this.applier.stateHash(newState)
     } else {
       throw new Error('need client or server state to apply transformed op to')
@@ -206,7 +206,7 @@ export class OperationHelper<O,S> {
     let [aOp,bOp] = [clientOp, serverOp]
     let [a,b] = [aOp.ops, bOp.ops]
 
-    let [aP,bP] = this.operator.transform(a, b)
+    let [aP,bP] = this.operator.transformNullable(a, b)
 
     let aOpP = this._createOp(aP, {parent: bOp, source: aOp})
     let bOpP = this._createOp(bP, {parent: aOp, source: bOp})
@@ -291,13 +291,13 @@ export class Client<O,S> {
     let hash = this.helper.hash(this.state)
 
     this.buffer = {
-      ops: [],
+      ops: undefined,
       childHash: hash
     }
     this.prebuffer = {
       startIndex: 0,
       parentHash: hash,
-      ops: [],
+      ops: undefined,
       id: genUid()
     }
   }
@@ -312,12 +312,12 @@ export class Client<O,S> {
 
   _flushBuffer(): ?ClientUpdate<O> {
     // if there's no buffer, skip
-    if (this.buffer.ops.length === 0) {
+    if (this.buffer.ops == null) {
       return undefined
     }
 
     // if there is a prebuffer, skip
-    if (this.prebuffer.ops.length > 0) {
+    if (this.prebuffer.ops != null) {
       return undefined
     }
 
@@ -331,7 +331,7 @@ export class Client<O,S> {
 
     // buffer is now empty
     this.buffer = {
-      ops: [],
+      ops: undefined,
       childHash: this.buffer.childHash,
     }
 
@@ -350,7 +350,7 @@ export class Client<O,S> {
     if (this.prebuffer != null && op.id === this.prebuffer.id) {
       // clear the prebuffer out
       this.prebuffer = {
-        ops: [],
+        ops: undefined,
         id: genUid(),
         parentHash: op.childHash,
         startIndex: op.nextIndex
@@ -427,7 +427,7 @@ export class Server<O,S> {
   _historyOp(startIndex: number): Operation<O> {
     if (startIndex === this.log.length) {
       return {
-        ops: [],
+        ops: undefined,
         parentHash: this._hash(),
         childHash: this._hash()
       }

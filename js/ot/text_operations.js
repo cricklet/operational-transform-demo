@@ -375,6 +375,12 @@ export class TextApplier {
   stateHash(text: string): string {
     return text
   }
+  applyNullable(text: string, ops: ?TextOperation[]): string {
+    if (ops == null) {
+      return text
+    }
+    return this.apply(text, ops)
+  }
   apply(text: string, ops: TextOperation[]): string {
     let i = 0
     for (let op of ops) {
@@ -451,6 +457,12 @@ export class CursorApplier {
   initial(): CursorState {
     return {start: 0, end: 0}
   }
+  applyNullable(s: CursorState, ops: ?TextOperation[]): CursorState {
+    if (ops == null) {
+      return s
+    }
+    return this.apply(s, ops)
+  }
   stateHash(state: CursorState): string {
     throw new Error('not implemented')
   }
@@ -500,6 +512,12 @@ export class DocumentApplier {
   }
   stateHash(state: DocumentState): string {
     return this.textApplier.stateHash(state.text)
+  }
+  applyNullable(s: DocumentState, ops: ?TextOperation[]): DocumentState {
+    if (ops == null) {
+      return s
+    }
+    return this.apply(s, ops)
   }
   apply(state: DocumentState, ops: TextOperation[]): DocumentState {
     return {

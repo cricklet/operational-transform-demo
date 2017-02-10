@@ -3,7 +3,8 @@
 export interface IApplier<O,S> {
   initial(): S,
   stateHash(s: S): string,
-  apply(state: S, ops: O[]): S
+  apply(state: S, ops: O[]): S,
+  applyNullable(state: S, ops: ?O[]): S
 }
 
 export interface IInferrer<O,S> {

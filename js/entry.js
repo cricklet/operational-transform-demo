@@ -4,12 +4,19 @@ import { Less, Greater, Equal, reverse, push, findIndex, findLastIndex, subarray
 import { count, zip, filter, find, takeWhile, take, map } from 'wu'
 import { observeArray, observeObject } from './ot/observe'
 
-import type {
+import {
   Client,
   Server,
-  ClientRequest,
-  ServerRequest
-} from './ot/orchestrator.js'
+} from './ot/new_orchestrator.js'
+
+import type {
+  ClientUpdate,
+  ServerBroadcast,
+} from './ot/new_orchestrator.js'
+
+import { SimulatedRouter } from './ot/network_helper.js'
+
+import type { IRouter } from './ot/network_helper.js'
 
 import type {
   IApplier,
@@ -22,17 +29,14 @@ import type {
 } from './ot/text_operations.js'
 
 import {
-  generateAsyncPropogator,
-  generateClient,
-  generateServer,
-  Orchestrator
-} from './ot/orchestrator.js'
-
-import {
   LinearOperator,
   DocumentApplier,
   TextInferrer,
 } from './ot/text_operations.js'
+
+import {
+  merge
+} from './ot/utils.js'
 
 type Lock = { ignoreEvents: boolean }
 
@@ -58,11 +62,9 @@ function updateDOMTextbox($text, state: DocumentState): void {
 function setupClient(
   applier: IApplier<*,*>,
   inferrer: IInferrer<*,*>,
-  orchestrator: Orchestrator<*,*>,
   client: Client<*,*>,
-  propogate: (clientRequest: ?ClientRequest<*>) => Promise<void>,
+  router: IRouter<*,*>,
   $text: any,
-  delay: { minDelay: number, maxDelay: number }
 ) {
   let lock = generateLock()
 
@@ -100,8 +102,10 @@ function setupClient(
     // handle new text
     let ops = inferrer.inferOps(client.state.text, newText)
     if (ops != null) {
-      let request = orchestrator.clientLocalOperation(client, ops)
-      setTimeout(() => propogate(request), delay.minDelay + (delay.maxDelay - delay.minDelay) * Math.random())
+      let update = client.handleEdit(ops)
+      if (update != null) {
+        router.send(update)
+      }
     }
 
     // handle new cursor
@@ -116,14 +120,21 @@ function createServerDOM(title) {
   let $server = $(`<div class="computer">
     <h4>${title}</h4>
     <textarea readonly class="text" rows="4" cols="50"></textarea>
-    <div>~ <input type="number" class="delay" value="1000"> ms latency</div>
+    <div>~ <input type="number" class="delay" value="500"> ms latency</div>
+    <div>~ <input type="number" class="drop" value="0"> % dropped</div>
   </div>`)
 
   let $text = $server.find('.text')
   let $delay = $server.find('.delay')
-  let delay = createBoundDelay($delay)
+  let $drop = $server.find('.drop')
 
-  return [$server, $text, delay]
+  let delay = createBoundDelay($delay)
+  let dropped = createBoundDrop($drop)
+
+  let chaos: { dropPercentage: number, maxDelay: number, minDelay: number }
+    = boundedMerge(delay, dropped)
+
+  return [$server, $text, chaos]
 }
 
 
@@ -152,7 +163,32 @@ function createClientDOM(title, randomizeChecked) {
   return [ $client, $text, shouldRandomize ]
 }
 
-function createBoundDelay($delay) {
+function boundedMerge(b1, b2) {
+  let b = merge(b1, b2)
+  observeObject(b1,
+      () => b = merge(b, b1),
+      () => b = merge(b, b1),
+      () => b = merge(b, b1))
+  observeObject(b2,
+      () => b = merge(b, b2),
+      () => b = merge(b, b2),
+      () => b = merge(b, b2))
+  return b
+}
+
+function createBoundDrop($drop): { dropPercentage: number } {
+  let drop: { dropPercentage: number } = createBoundObject(
+    () => { // generate the delay object based on $delay's value
+      return {
+        dropPercentage: parseFloat($drop.val())
+      }
+    },
+    (f) => $drop.change(f), // update the delay object when $delay changes
+  )
+  return drop
+}
+
+function createBoundDelay($delay): { minDelay: number, maxDelay: number } {
   let delay: { minDelay: number, maxDelay: number } = createBoundObject(
     () => { // generate the delay object based on $delay's value
       return {
@@ -271,21 +307,24 @@ function animateEllipses($el) {
 
 $(document).ready(() => {
   // stuff to dependency inject
-  let transformer = new LinearOperator()
+  let operator = new LinearOperator()
   let applier = new DocumentApplier()
   let inferrer = new TextInferrer()
-  let orchestrator = new Orchestrator(transformer, applier)
 
   let $computers = $('#computers')
 
-  // client container
-  let clients: Client<*,*>[] = []
-
-  // server
-  let [$server, $serverText, delay] = createServerDOM("Server")
+  let [$server, $serverText, chaos] = createServerDOM("Server")
   $computers.prepend($server)
 
-  let server = generateServer({cursor: {start: 0, end: 0}, text: ''})
+  let clients: Client<*,*>[] = []
+  let clientRouters = []
+
+  let server = new Server(operator, applier)
+  let serverRouter = new SimulatedRouter((update: ClientUpdate<*>) => {
+    let broadcast = server.handleUpdate(update)
+    serverRouter.send(broadcast)
+  }, chaos)
+
   observeObject(server,
     (_, key) => {},// added
     (_, key) => {},// deleted
@@ -294,19 +333,25 @@ $(document).ready(() => {
     },
   )
 
-  // propogator between server & clients
-  // this is basically the network that broadcasts client & server requests
-  let logger = () => {} // console.log
-  let propogator = generateAsyncPropogator(orchestrator, server, clients, logger, delay)
-
   let clientId = 1
   function addClient() {
     let [$client, $text, shouldRandomize] = createClientDOM(`Client ${clientId}`, clientId === 1, false)
     $client.insertBefore($server)
     clientId ++
 
-    let client = generateClient({cursor: {start: 0, end: 0}, text: ''})
-    setupClient(applier, inferrer, orchestrator, client, propogator, $text, delay)
+    let client = new Client(operator, applier)
+    let clientRouter = new SimulatedRouter((broadcast: ServerBroadcast<*>) => {
+      let update = client.handleBroadcast(broadcast)
+      if (update == null) { return }
+      clientRouter.send(update)
+    }, chaos)
+
+    clientRouter.connect(serverRouter)
+    serverRouter.connect(clientRouter)
+
+    clientRouters.push(clientRouter)
+
+    setupClient(applier, inferrer, client, clientRouter, $text)
     randomlyAdjustText($text, shouldRandomize, 500)
 
     clients.push(client);
@@ -328,4 +373,10 @@ $(document).ready(() => {
 
   let $clientButton = $('#add-client')
   $clientButton.click(() => addClient())
+
+  window.clients = clients
+  window.server = server
+
+  window.serverRouter = serverRouter
+  window.clientRouters = clientRouters
 })

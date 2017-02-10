@@ -31,11 +31,22 @@ import {
   pop,
   maybePush,
   flatten,
-  filterInPlace
+  filterInPlace,
+  skipNulls,
+  filter,
+  reiterable
 } from './utils'
 
 import type { Comparison, Tree } from './utils.js'
 
+describe('skipNulls', () => {
+  it ('works', () => {
+    let vs = skipNulls(reiterable([1,2,null,3,4,undefined,5]))
+    assert.deepEqual(
+      rearray(vs),
+      [1,2,3,4,5])
+  })
+})
 describe('iterators', () => {
   it ('range() works', () => {
     assert.deepEqual(

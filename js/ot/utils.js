@@ -193,6 +193,22 @@ export function characters (
   return map(indices, i => s[i])
 }
 
+export function filter<T>(ts: Reiterable<T>, f: (t: T) => boolean)
+: Reiterable<T> {
+  return function * () {
+    for (let t of ts()) {
+      if (f(t)) {
+        yield t
+      }
+    }
+  }
+}
+
+/* @flow-ignore */
+export function skipNulls<T>(ts: Reiterable<?T>): Reiterable<T> {
+  return filter(ts, t => t != null)
+}
+
 export function defaults<T> (t: ?T, def: T): T {
   if (t === undefined || t === null) {
     return def;
