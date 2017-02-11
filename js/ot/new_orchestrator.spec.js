@@ -155,14 +155,14 @@ describe('undo', () => {
     let client = new Client(operator, applier)
     let server = new Server(operator, applier)
 
-    let [edit0, undo0] = inferrer.infer(client.state, 'hello')
-    if (edit0 == null || undo0 == null) throw new Error('wat')
-    client.handleEdit(edit0, undo0)
+    let edit0 = inferrer.infer(client.state, 'hello')
+    if (edit0 == null) throw new Error('wat')
+    client.handleEdit(edit0)
     assert.equal(client.state, 'hello')
 
-    let [edit1, undo1] = inferrer.infer(client.state, 'hello world')
-    if (edit1 == null || undo1 == null) throw new Error('wat')
-    client.handleEdit(edit1, undo1)
+    let edit1 = inferrer.infer(client.state, 'hello world')
+    if (edit1 == null) throw new Error('wat')
+    client.handleEdit(edit1)
     assert.equal(client.state, 'hello world')
 
     client.handleUndo()

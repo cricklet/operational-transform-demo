@@ -365,9 +365,50 @@ export class LinearOperator<O: ILinearOp> {
 
 export type TextOperation = InsertText | Delete | Retain
 
-export class TextApplier {
+interface IApplierDelegate<O,S> {
+  initial(): S,
+  stateHash(s: S): string,
+  apply(state: S, ops: O[]): [S, O[]]
+}
+
+class DelegatingApplier<O,S> {
+  delegate: IApplierDelegate<O,S>
+  constructor(delegate: IApplierDelegate<O,S>) {
+    (this: IApplier<O,S>)
+    this.delegate = delegate
+  }
+  initial(): S {
+    return this.delegate.initial()
+  }
+  stateHash(s: S): string {
+    return this.delegate.stateHash(s)
+  }
+  apply(state: S, ops: O[]): [S, O[]] {
+    return this.delegate.apply(state, ops)
+  }
+  applyNullable(state: S, ops: ?O[]): [S, ?O[]] {
+    if (ops == null) {
+      return [state, undefined]
+    }
+    let [newState, undo] = this.apply(state, ops)
+    return [newState, undo]
+  }
+  applySimple(state: S, ops: O[]): S {
+    let [newState, undo] = this.apply(state, ops)
+    return newState
+  }
+  applyNullableSimple(state: S, ops: ?O[]): S {
+    if (ops == null) {
+      return state
+    }
+    let [newState, undo] = this.apply(state, ops)
+    return newState
+  }
+}
+
+class TextApplierDelegate {
   constructor() {
-    (this: IApplier<TextOperation, string>)
+    (this: IApplierDelegate<TextOperation, string>)
   }
   initial(): string {
     return ''
@@ -375,28 +416,29 @@ export class TextApplier {
   stateHash(text: string): string {
     return text
   }
-  applyNullable(text: string, ops: ?TextOperation[]): string {
-    if (ops == null) {
-      return text
-    }
-    return this.apply(text, ops)
-  }
-  apply(text: string, ops: TextOperation[]): string {
+  apply(text: string, ops: TextOperation[])
+  : [string, TextOperation[]] { // returns [state, undo]
     let i = 0
+    let undo = []
     for (let op of ops) {
       if (op instanceof InsertText) {
+        undo.push(new Delete(op.text.length))
         text = text.slice(0, i) + op.text + text.slice(i)
         i += op.text.length
       }
 
       if (op instanceof Retain) {
         if (op.num < 0) { throw new Error('wat, failed to retain') }
+
+        undo.push(new Retain(op.num))
         i += op.num
       }
 
       if (op instanceof Delete) {
         if (op.num < 0) { throw new Error('wat, failed to delete') }
         if (i + op.num > text.length) { throw new Error('wat, trying to delete too much') }
+
+        undo.push(new InsertText(text.slice(i, i + op.num)))
         text = text.slice(0, i) + text.slice(i + op.num)
       }
 
@@ -404,7 +446,13 @@ export class TextApplier {
       if (i > text.length) { throw new Error('wat, overshot') }
     }
 
-    return text
+    return [text, undo]
+  }
+}
+
+export class TextApplier extends DelegatingApplier<TextOperation, string> {
+  constructor() {
+    super(new TextApplierDelegate())
   }
 }
 
@@ -413,26 +461,20 @@ export class TextInferrer {
     (this: IInferrer<TextOperation, string>)
   }
   infer(oldText: string, newText: string)
-  : [?TextOperation[], ?TextOperation[]] { // infer update & undo
+  : ?TextOperation[] {
     if (oldText.length === newText.length) {
       // we have a no-op
       if (oldText === newText) {
-        return [undefined, undefined];
+        return undefined;
       }
     }
 
     if (newText.length === 0) {
-      return [
-        [new Delete(oldText.length)],
-        [new InsertText(oldText)] // undo
-      ]
+      return [new Delete(oldText.length)]
     }
 
     if (oldText.length === 0) {
-      return [
-        [new InsertText(newText)],
-        [new Delete(newText.length)] // undo
-      ]
+      return [new InsertText(newText)]
     }
 
     // or we have a selection being overwritten.
@@ -445,17 +487,10 @@ export class TextInferrer {
     let endOld = oldText.length - postfixLength
     let endNew = newText.length - postfixLength
 
-    return [
-      [ // update
-        new Retain(start),
-        new Delete(endOld - start),
-        new InsertText(restring(substring(newText, {start: start, stop: endNew})))
-      ],
-      [ // undo
-        new Retain(start),
-        new InsertText(restring(substring(oldText, {start: start, stop: endOld}))),
-        new Delete(endNew - start)
-      ]
+    return [ // update
+      new Retain(start),
+      new Delete(endOld - start),
+      new InsertText(restring(substring(newText, {start: start, stop: endNew})))
     ]
   }
 }
@@ -464,18 +499,10 @@ export class TextInferrer {
 
 export type CursorState = {start: number, end: number}
 
-export class CursorApplier {
-  constructor() {
-    (this: IApplier<TextOperation, CursorState>)
-  }
+class CursorApplier {
+  constructor() {}
   initial(): CursorState {
     return {start: 0, end: 0}
-  }
-  applyNullable(s: CursorState, ops: ?TextOperation[]): CursorState {
-    if (ops == null) {
-      return s
-    }
-    return this.apply(s, ops)
   }
   stateHash(state: CursorState): string {
     throw new Error('not implemented')
@@ -512,12 +539,12 @@ export class CursorApplier {
 
 export type DocumentState = {cursor: CursorState, text: string}
 
-export class DocumentApplier {
+class DocumentApplierDelegate {
   cursorApplier: CursorApplier
   textApplier: TextApplier
 
   constructor() {
-    (this: IApplier<TextOperation, DocumentState>)
+    (this: IApplierDelegate<TextOperation, DocumentState>)
     this.cursorApplier = new CursorApplier() // no DI :()
     this.textApplier = new TextApplier()
   }
@@ -527,16 +554,18 @@ export class DocumentApplier {
   stateHash(state: DocumentState): string {
     return this.textApplier.stateHash(state.text)
   }
-  applyNullable(s: DocumentState, ops: ?TextOperation[]): DocumentState {
-    if (ops == null) {
-      return s
-    }
-    return this.apply(s, ops)
+  apply(state: DocumentState, ops: TextOperation[]): [DocumentState, TextOperation[]] {
+    let [text, undo] = this.textApplier.apply(state.text, ops)
+    let cursor = this.cursorApplier.apply(state.cursor, ops)
+    return [
+      { cursor: cursor, text: text },
+      undo
+    ]
   }
-  apply(state: DocumentState, ops: TextOperation[]): DocumentState {
-    return {
-      cursor: this.cursorApplier.apply(state.cursor, ops),
-      text: this.textApplier.apply(state.text, ops)
-    }
+}
+
+export class DocumentApplier extends DelegatingApplier<TextOperation, DocumentState> {
+  constructor() {
+    super(new DocumentApplierDelegate())
   }
 }

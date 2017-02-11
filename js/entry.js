@@ -100,9 +100,9 @@ function setupClient(
     let [newText, newCursorStart, newCursorEnd] = getValuesFromDOMTextbox($text)
 
     // handle new text
-    let [editOps, undoOps] = inferrer.infer(client.state.text, newText)
-    if (editOps != null && undoOps != null) {
-      let update = client.handleEdit(editOps, undoOps)
+    let editOps = inferrer.infer(client.state.text, newText)
+    if (editOps != null) {
+      let update = client.handleEdit(editOps)
       if (update != null) {
         router.send(update)
       }

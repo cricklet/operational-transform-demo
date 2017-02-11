@@ -3,12 +3,16 @@
 export interface IApplier<O,S> {
   initial(): S,
   stateHash(s: S): string,
-  apply(state: S, ops: O[]): S,
-  applyNullable(state: S, ops: ?O[]): S
+
+  apply(state: S, ops: O[]): [S, O[]],
+  applyNullable(state: S, ops: ?O[]): [S, ?O[]],
+
+  applySimple(state: S, ops: O[]): S,
+  applyNullableSimple(state: S, ops: ?O[]): S
 }
 
 export interface IInferrer<O,S> {
-  infer(state: S, newState: S): [?O[], ?O[]]
+  infer(state: S, newState: S): ?O[]
 }
 
 export interface IOperator<O> {

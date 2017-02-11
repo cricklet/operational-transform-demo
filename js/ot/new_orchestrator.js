@@ -74,7 +74,7 @@ export class OperationHelper<O,S> {
     return this.applier.stateHash(s)
   }
 
-  apply(s: S, ops: O[]): S {
+  apply(s: S, ops: O[]): [S, O[]] {
     return this.applier.apply(s, ops)
   }
 
@@ -194,14 +194,13 @@ export class OperationHelper<O,S> {
     return undefined
   }
 
-  transformAndApply (
-    clientOp: Operation<O>, // client op
-    serverOp: Operation<O>, // server op
-    params: {
-      clientState?: S,
-      serverState?: S,
-    }
-  ): [Operation<O>, Operation<O>, S] { // returns [aP, bP, newState]
+  transformAndApplyToClient(
+    clientOp: Operation<O>,
+    serverOp: Operation<O>,
+    clientState: S
+  ): [Operation<O>, Operation<O>, Operation<O>, S] {
+    // returns [aP, bP, undo, newState]
+
     //   a /\ b
     //    /  \
     // bP \  / aP
@@ -209,64 +208,50 @@ export class OperationHelper<O,S> {
 
     let [a, b] = [clientOp, serverOp]
 
-    if (a.parentHash != null && b.parentHash != null && a.parentHash !== b.parentHash) {
-      throw new Error('wat, parent hashes must match')
-    }
+    let [aT, bT] = this.transform(a, b)
 
-    let [aT, bT] = this.operator.transformNullable(a.ops, b.ops)
+    let [newState, newUndo] = this.applier.applyNullable(clientState, bT.ops)
+    let newHash = this.applier.stateHash(newState)
 
-    let newState, newHash
-    if (params.clientState != null) {
-      newState = this.applier.applyNullable(params.clientState, bT)
-      newHash = this.applier.stateHash(newState)
-    } else if (params.serverState != null) {
-      newState = this.applier.applyNullable(params.serverState, aT)
-      newHash = this.applier.stateHash(newState)
-    } else {
-      throw new Error('need client or server state to apply transformed op to')
-    }
+    aT.childHash = newHash
+    bT.childHash = newHash
 
     return [
-      this._createOp(aT, {
-        parent: b,
-        source: a,
-        resultHash: newHash
-      }),
-      this._createOp(bT, {
-        parent: a,
-        source: b,
-        resultHash: newHash
-      }),
+      aT,
+      bT,
+      { ops: newUndo },
       newState
     ]
   }
 
-  transform(
+  transformAndApplyToServer(
     clientOp: Operation<O>,
-    serverOp: Operation<O>
-  ): [Operation<O>, Operation<O>] {
+    serverOp: Operation<O>,
+    serverState: S
+  ): [Operation<O>, Operation<O>, Operation<O>, S] {
+    // returns [aP, bP, undo, newState]
+
     //   a /\ b
     //    /  \
     // bP \  / aP
     //     \/
 
-    if (clientOp.parentHash != null && serverOp.parentHash != null &&
-        clientOp.parentHash !== serverOp.parentHash) {
-      throw new Error('wat, to transform, they must have the same parent')
-    }
+    let [a, b] = [clientOp, serverOp]
 
-    let [aOp,bOp] = [clientOp, serverOp]
-    let [a,b] = [aOp.ops, bOp.ops]
+    let [aT, bT] = this.transform(a, b)
 
-    let [aP,bP] = this.operator.transformNullable(a, b)
+    let [newState, newUndo] = this.applier.applyNullable(serverState, aT.ops)
+    let newHash = this.applier.stateHash(newState)
 
-    let aOpP = this._createOp(aP, {parent: bOp, source: aOp})
-    let bOpP = this._createOp(bP, {parent: aOp, source: bOp})
+    aT.childHash = newHash
+    bT.childHash = newHash
 
-    if (aOp.id != null) { aOpP.id = aOp.id }
-    if (bOp.id != null) { bOpP.id = bOp.id }
-
-    return [aOpP, bOpP]
+    return [
+      aT,
+      bT,
+      { ops: newUndo },
+      newState
+    ]
   }
 
   transformAndApplyBuffers(
@@ -301,7 +286,7 @@ export class OperationHelper<O,S> {
     let [a, c, b] = [prebufferOp, bufferOp, serverOp]
 
     let [aP, bP] = this.transform(a, b)
-    let [cP, bPP, newState] = this.transformAndApply(c, bP, {clientState: clientState})
+    let [cP, bPP, undo, newState] = this.transformAndApplyToClient(c, bP, clientState)
 
     let newHash = this.hash(newState)
     cP.childHash = newHash
@@ -315,7 +300,33 @@ export class OperationHelper<O,S> {
 
     return [newPrebufferOp, newBufferOp, appliedOp, newState]
   }
+  transform(
+    clientOp: Operation<O>,
+    serverOp: Operation<O>
+  ): [Operation<O>, Operation<O>] {
+    //   a /\ b
+    //    /  \
+    // bP \  / aP
+    //     \/
 
+    if (clientOp.parentHash != null && serverOp.parentHash != null &&
+        clientOp.parentHash !== serverOp.parentHash) {
+      throw new Error('wat, to transform, they must have the same parent')
+    }
+
+    let [aOp,bOp] = [clientOp, serverOp]
+    let [a,b] = [aOp.ops, bOp.ops]
+
+    let [aP,bP] = this.operator.transformNullable(a, b)
+
+    let aOpP = this._createOp(aP, {parent: bOp, source: aOp})
+    let bOpP = this._createOp(bP, {parent: aOp, source: bOp})
+
+    if (aOp.id != null) { aOpP.id = aOp.id }
+    if (bOp.id != null) { bOpP.id = bOp.id }
+
+    return [aOpP, bOpP]
+  }
 }
 
 export class Client<O,S> {
@@ -454,9 +465,10 @@ export class Client<O,S> {
       }
 
       // apply the operation
-      this.state = this.helper.apply(this.state, undo)
+      let [newState, redo] = this.helper.apply(this.state, undo)
+      let newHash = this.helper.hash(newState)
 
-      let newHash = this.helper.hash(this.state)
+      this.state = newState
 
       // append applied undo to buffer
       this.buffer = this.helper.compose([
@@ -479,9 +491,10 @@ export class Client<O,S> {
     return undefined
   }
 
-  handleEdit(edit: O[], undo: O[]): ?ClientUpdate<O> {
+  handleEdit(edit: O[]): ?ClientUpdate<O> {
     // apply the operation
-    this.state = this.helper.apply(this.state, edit)
+    let [newState, undo] = this.helper.apply(this.state, edit)
+    this.state = newState
 
     return this.handleAppliedEdit(edit, undo)
   }
@@ -575,8 +588,7 @@ export class Server<O,S> {
     let historyOp: Operation<O> = this._historyOp(clientOp.startIndex)
 
     let [a, b] = [clientOp, historyOp]
-    let [aP, bP, newState] = this.helper.transformAndApply(
-      a, b, { serverState: this.state })
+    let [aP, bP, undo, newState] = this.helper.transformAndApplyToServer(a, b, this.state)
 
     aP.startIndex = this._nextIndex()
     aP.nextIndex = aP.startIndex + 1

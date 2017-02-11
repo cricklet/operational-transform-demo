@@ -1,4 +1,4 @@
-/* @flow weak */
+/* @flow */
 
 "use strict"
 
@@ -37,11 +37,12 @@ describe('apply()', () => {
   ].forEach((test) => {
     if (test.throws) {
       it ('raises an error for op: ' + opsString(test.op) + ' on text: ' + test.text, () => {
-        assert.throws(() => applier.apply(test.text, test.op))
+        assert.throws(() => applier.applySimple(test.text, test.op))
       })
     } else {
       it ('"' + test.text + '" + ' + opsString(test.op) + ' turns into "' + test.result + '"', () => {
-        assert.equal(test.result, applier.apply(test.text, test.op))
+        if (test.result == null) { throw new Error('wat') }
+        assert.equal(test.result, applier.applySimple(test.text, test.op))
       })
     }
   })
@@ -64,8 +65,8 @@ describe('transform()', () => {
       let [op1P, op2P] = transformer.transform(op1, op2)
 
       assert.equal(
-        applier.apply(applier.apply("012345678901234567890123456789", op1), op2P),
-        applier.apply(applier.apply("012345678901234567890123456789", op2), op1P))
+        applier.applySimple(applier.applySimple("012345678901234567890123456789", op1), op2P),
+        applier.applySimple(applier.applySimple("012345678901234567890123456789", op2), op1P))
     })
   })
 })
@@ -80,10 +81,10 @@ describe('compose()', () => {
     it (start + ' becomes ' + result + ' via ' + opsString(op1) + ', ' + opsString(op2), () => {
       assert.equal(
         result,
-        applier.apply(start, transformer.compose(op1, op2)))
+        applier.applySimple(start, transformer.compose(op1, op2)))
       assert.equal(
         result,
-        applier.apply(applier.apply(start, op1), op2))
+        applier.applySimple(applier.applySimple(start, op1), op2))
     })
   })
 })
@@ -101,16 +102,16 @@ describe('combinatorial', () => {
       describe('composing two ops', () => {
         let start = '0123456789'
         let result
-        try { result = applier.apply(applier.apply(start, op1), op2) }
+        try { result = applier.applySimple(applier.applySimple(start, op1), op2) }
         catch (e) { result = 'error' }
 
         it (opsString(op1) + ', ' + opsString(op2) + ' turns ' + start + ' into ' + result, () => {
           if (result === 'error') {
-            assert.throws(() => applier.apply(start, transformer.compose(op1, op2)))
+            assert.throws(() => applier.applySimple(start, transformer.compose(op1, op2)))
           } else {
             assert.equal(
               result,
-              applier.apply(start, transformer.compose(op1, op2)))
+              applier.applySimple(start, transformer.compose(op1, op2)))
           }
         })
       })
@@ -120,8 +121,8 @@ describe('combinatorial', () => {
           let [op1P, op2P] = transformer.transform(op1, op2)
 
           assert.equal(
-            applier.apply(applier.apply("0123456789abcdefghijk", op1), op2P),
-            applier.apply(applier.apply("0123456789abcdefghijk", op2), op1P))
+            applier.applySimple(applier.applySimple("0123456789abcdefghijk", op1), op2P),
+            applier.applySimple(applier.applySimple("0123456789abcdefghijk", op2), op1P))
         })
       })
 
@@ -132,24 +133,24 @@ describe('combinatorial', () => {
             let [c1P, c2P] = transformer.transform(c1, c2)
 
             assert.equal(
-              applier.apply(applier.apply("0123456789", c1), c2P),
-              applier.apply(applier.apply("0123456789", c2), c1P))
+              applier.applySimple(applier.applySimple("0123456789", c1), c2P),
+              applier.applySimple(applier.applySimple("0123456789", c2), c1P))
           })
         })
 
         describe('composing three ops', () => {
           let start = '0123456789'
           let result
-          try { result = applier.apply(applier.apply(applier.apply(start, op1), op2), op3) }
+          try { result = applier.applySimple(applier.applySimple(applier.applySimple(start, op1), op2), op3) }
           catch (e) { result = 'error' }
 
           it (opsString(op1) + ', ' + opsString(op2) + ', ' + opsString(op3) + ' turns ' + start + ' into ' + result, () => {
             if (result === 'error') {
-              assert.throws(() => applier.apply(start, transformer.compose(op1, transformer.compose(op2, op3))))
+              assert.throws(() => applier.applySimple(start, transformer.compose(op1, transformer.compose(op2, op3))))
             } else {
               assert.equal(
                 result,
-                applier.apply(start, transformer.compose(op1, transformer.compose(op2, op3))))
+                applier.applySimple(start, transformer.compose(op1, transformer.compose(op2, op3))))
             }
           })
         })
@@ -163,7 +164,7 @@ describe('combinatorial', () => {
 describe('inferOperations() & performOperations()', () => {
   it ('handles no-ops', () => {
     assert.deepEqual(
-      [undefined, undefined],
+      undefined,
       inferrer.infer(
         'mary had a little lamb',
         'mary had a little lamb'))
@@ -223,13 +224,18 @@ describe('inferOperations() & performOperations()', () => {
       newText: 'mary qwerty has asdf a little zxcv lamb' }
   ].forEach((test) => {
     it ('handles "' + test.oldText + '" -> "' + test.newText + '"', () => {
-      let [ops, undo] = inferrer.infer(test.oldText, test.newText)
+      let ops = inferrer.infer(test.oldText, test.newText)
+      if (ops == null) {
+        throw new Error('wat')
+      }
 
-      let appliedText = applier.apply(test.oldText, ops)
-      let undoText = applier.apply(appliedText, undo)
+      let [appliedText, undo] = applier.apply(test.oldText, ops)
+      let [undoText, redo] = applier.apply(appliedText, undo)
+      let [redoText, _] = applier.apply(undoText, redo)
 
       assert.equal(test.newText, appliedText)
       assert.equal(test.oldText, undoText)
+      assert.equal(test.newText, redoText)
     })
   });
 })
