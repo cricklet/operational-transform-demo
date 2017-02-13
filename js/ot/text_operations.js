@@ -64,10 +64,12 @@ class InsertText {
 
 class Delete {
   num: number
+  is: string
 
   constructor(num: number) {
     (this: ILinearOp)
     this.num = num
+    this.is = "Delete"
   }
   toString(): string {
     return `delete #${this.num}`
@@ -129,25 +131,33 @@ class Retain {
 //
 
 
+function simplify<O: ILinearOp>(ops: O[]): O[] {
+  for (let i = 0; i < ops.length; i ++) {
+    if (ops[i].length() === 0) {
+      removeInPlace(ops, i)
+      i --
+    }
+  }
+
+  for (let i = 1; i < ops.length; i ++) {
+    let newOp = ops[i - 1].join(ops[i])
+    if (newOp != null) {
+      ops[i - 1] = newOp
+      removeInPlace(ops, i) // remove extra op
+      i --
+    }
+  }
+
+  if (ops.length > 0 && last(ops).kind() === 'Retain') {
+    ops.pop() // remove trailing retain
+  }
+
+  return ops
+}
+
 export class LinearOperator<O: ILinearOp> {
   constructor() {
     (this: IOperator<O>)
-  }
-  simplify(ops: O[]): O[] {
-    for (let i = 1; i < ops.length; i ++) {
-      let newOp = ops[i - 1].join(ops[i])
-      if (newOp != null) {
-        ops[i - 1] = newOp
-        removeInPlace(ops, i) // remove extra op
-        i --
-      }
-    }
-
-    if (ops.length > 0 && last(ops).kind() === 'Retain') {
-      ops.pop() // remove trailing retain
-    }
-
-    return ops
   }
   _transformConsumeOps(a: ?O, b: ?O)
   : [[?O, ?O], [?O, ?O]] {
@@ -244,7 +254,7 @@ export class LinearOperator<O: ILinearOp> {
       [op1, op2] = [newOp1, newOp2]
     }
 
-    return [this.simplify(ops1P), this.simplify(ops2P)]
+    return [simplify(ops1P), simplify(ops2P)]
   }
   composeNullable (ops1: ?O[], ops2: ?O[])
   : ?O[] {
@@ -349,7 +359,7 @@ export class LinearOperator<O: ILinearOp> {
       [op1, op2] = [newOp1, newOp2]
     }
 
-    return this.simplify(composed)
+    return simplify(composed)
   }
   composeMany(ops: Iterable<O[]>)
   : O[] {
@@ -446,7 +456,7 @@ class TextApplierDelegate {
       if (i > text.length) { throw new Error('wat, overshot') }
     }
 
-    return [text, undo]
+    return [text, simplify(undo)]
   }
 }
 

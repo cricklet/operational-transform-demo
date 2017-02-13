@@ -150,18 +150,14 @@ describe('Client & Server', () => {
   })
 })
 
-describe('undo', () => {
-  it('works for one client', () => {
+describe('undo & redo', () => {
+  it('undo works for one client', () => {
     let client = new OTClient(operator, applier)
 
-    let edit0 = inferrer.infer(client.state, 'hello')
-    if (edit0 == null) throw new Error('wat')
-    client.handleEdit(edit0)
+    client.handleNullableEdit(inferrer.infer(client.state, 'hello'))
     assert.equal(client.state, 'hello')
 
-    let edit1 = inferrer.infer(client.state, 'hello world')
-    if (edit1 == null) throw new Error('wat')
-    client.handleEdit(edit1)
+    client.handleNullableEdit(inferrer.infer(client.state, 'hello world'))
     assert.equal(client.state, 'hello world')
 
     client.handleUndo()
@@ -169,9 +165,99 @@ describe('undo', () => {
 
     client.handleUndo()
     assert.equal(client.state, '')
+
+    client.handleRedo()
+    client.handleRedo()
   })
 
-  it('works for two clients', () => { // tested on dropbox paper!
+  it('undo redo for one client', () => {
+    let client = new OTClient(operator, applier)
+
+    client.handleNullableEdit(inferrer.infer(client.state, 'hello'))
+    assert.equal(client.state, 'hello')
+
+    client.handleNullableEdit(inferrer.infer(client.state, 'hello world'))
+    assert.equal(client.state, 'hello world')
+
+    client.handleUndo()
+    assert.equal(client.state, 'hello')
+
+    client.handleUndo()
+    assert.equal(client.state, '')
+
+    client.handleRedo()
+    assert.equal(client.state, 'hello')
+
+    client.handleRedo()
+    assert.equal(client.state, 'hello world')
+  })
+
+  it('redo is reset on edit', () => {
+    let client = new OTClient(operator, applier)
+
+    client.handleNullableEdit(inferrer.infer(client.state, 'hello'))
+    assert.equal(client.state, 'hello')
+
+    client.handleNullableEdit(inferrer.infer(client.state, 'hello world'))
+    assert.equal(client.state, 'hello world')
+    assert.equal(client.undos.opsStack.length, 2)
+    assert.equal(client.redos.opsStack.length, 0)
+
+    client.handleUndo()
+    client.handleUndo()
+    assert.equal(client.state, '')
+    assert.equal(client.undos.opsStack.length, 0)
+    assert.equal(client.redos.opsStack.length, 2)
+
+    client.handleNullableEdit(inferrer.infer(client.state, 'banana'))
+    assert.equal(client.state, 'banana')
+    assert.equal(client.undos.opsStack.length, 1)
+    assert.equal(client.redos.opsStack.length, 0)
+  })
+
+  it('undo/redo extra times for one client', () => {
+    let client = new OTClient(operator, applier)
+
+    client.handleNullableEdit(inferrer.infer(client.state, 'hello'))
+    assert.equal(client.state, 'hello')
+
+    client.handleNullableEdit(inferrer.infer(client.state, 'hello world'))
+    assert.equal(client.state, 'hello world')
+    assert.equal(client.undos.opsStack.length, 2)
+    assert.equal(client.redos.opsStack.length, 0)
+
+    client.handleUndo()
+    assert.equal(client.state, 'hello')
+    assert.equal(client.undos.opsStack.length, 1)
+    assert.equal(client.redos.opsStack.length, 1)
+
+    client.handleUndo()
+    assert.equal(client.state, '')
+    assert.equal(client.undos.opsStack.length, 0)
+    assert.equal(client.redos.opsStack.length, 2)
+
+    client.handleUndo()
+    assert.equal(client.state, '')
+    assert.equal(client.undos.opsStack.length, 0)
+    assert.equal(client.redos.opsStack.length, 2)
+
+    client.handleRedo()
+    assert.equal(client.state, 'hello')
+    assert.equal(client.undos.opsStack.length, 1)
+    assert.equal(client.redos.opsStack.length, 1)
+
+    client.handleRedo()
+    assert.equal(client.state, 'hello world')
+    assert.equal(client.undos.opsStack.length, 2)
+    assert.equal(client.redos.opsStack.length, 0)
+
+    client.handleRedo()
+    assert.equal(client.state, 'hello world')
+    assert.equal(client.undos.opsStack.length, 2)
+    assert.equal(client.redos.opsStack.length, 0)
+  })
+
+  it('undo works for two clients', () => { // tested on dropbox paper!
     let client0 = new OTClient(operator, applier)
     let client1 = new OTClient(operator, applier)
     let server = new OTServer(operator, applier)
@@ -198,91 +284,50 @@ describe('undo', () => {
     assert.equal(client1.state, 'george')
   })
 
-  ;[
-    {
-      applyStates: [
-        [
-          'hello',
-          'hello world',
-          'hi world',
-          'hi kenrick'
-        ],
-        [
-          'boop',
-          'boop banana '
-        ]
-      ],
-      appliedState: 'boop banana hi kenrick',
-      undoStates: [
-        [
-          'boop banana hi world',
-          'boop banana hello world',
-          'boop banana hello',
-          'boop banana ',
-        ],
-        [
-          'boop',
-          '',
-        ]
-      ],
-    },
-    {
-      applyStates: [
-        [
-          'hello',
-          'hello world',
-          'hi world',
-          'hi kenrick'
-        ]
-      ],
-      appliedState: 'hi kenrick',
-      undoStates: [
-        [
-          'hi world',
-          'hello world',
-          'hello',
-          '',
-        ]
-      ]
-    }
-  ].forEach((test) => {
-    it(test.appliedState + ' works', () => {
-      let clients = test.applyStates.map(() => new OTClient(operator, applier))
-      let server = new OTServer(operator, applier)
+  it('redo works for two clients', () => { // tested on dropbox paper!
+    let client0 = new OTClient(operator, applier)
+    let client1 = new OTClient(operator, applier)
+    let server = new OTServer(operator, applier)
 
-      let propogate = generatePropogator(server, clients)
-      let updates = []
+    let propogate = generatePropogator(server, [client0, client1])
 
-      for (let [client, states] of zip(clients, test.applyStates)) {
-        for (let state of states) {
-          let edit = inferrer.infer(client.state, state)
-          if (edit == null) {throw new Error('wat')}
+    let updates = []
 
-          let update = client.handleEdit(edit)
-          updates.push(update)
+    updates.push(client0.handleNullableEdit(inferrer.infer(client0.state, 'hello')))
+    updates.push(client0.handleNullableEdit(inferrer.infer(client0.state, 'hello world')))
+    updates.push(client0.handleNullableEdit(inferrer.infer(client0.state, 'hi world')))
 
-          assert.equal(client.state, state)
-        }
-      }
+    updates.push(client1.handleNullableEdit(inferrer.infer(client1.state, 'boop ')))
+    updates.push(client1.handleNullableEdit(inferrer.infer(client1.state, 'boop banana ')))
 
-      for (let update of updates) {
-        propogate(update)
-      }
+    assert.equal(client0.state, 'hi world')
+    assert.equal(client1.state, 'boop banana ')
 
-      for (let client of clients) {
-        assert.equal(client.state, test.appliedState)
-      }
+    for (let u of updates) { propogate(u) }
 
-      for (let [client, states] of zip(clients, test.undoStates)) {
-        for (let state of states) {
-          propogate(client.handleUndo())
-          assert.equal(client.state, state)
+    assert.equal(client0.state, 'boop banana hi world')
+    assert.equal(client1.state, 'boop banana hi world')
 
-          for (let other of clients) {
-            assert.equal(other.state, state)
-          }
-        }
-      }
-    })
+    propogate(client1.handleUndo())
+    propogate(client1.handleUndo())
+    assert.equal(client0.state, 'hi world')
+    assert.equal(client1.state, 'hi world')
+
+    propogate(client1.handleRedo())
+    propogate(client1.handleRedo())
+    assert.equal(client0.state, 'boop banana hi world')
+    assert.equal(client1.state, 'boop banana hi world')
+
+    propogate(client0.handleUndo())
+    assert.equal(client0.state, 'boop banana hello world')
+    assert.equal(client1.state, 'boop banana hello world')
+
+    propogate(client0.handleUndo())
+    assert.equal(client0.state, 'boop banana hello')
+    assert.equal(client1.state, 'boop banana hello')
+
+    propogate(client0.handleUndo())
+    assert.equal(client0.state, 'boop banana ')
+    assert.equal(client1.state, 'boop banana ')
   })
 })

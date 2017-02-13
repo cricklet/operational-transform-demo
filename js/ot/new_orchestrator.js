@@ -182,19 +182,23 @@ export class OperationHelper<O,S> {
       throw new Error('stack ops must have the same parent as the applied op')
     }
 
-    let newStack = { opsStack: [], parentHash: childHash }
+    let transformedOps = []
+
+    // iterate through the stack in reverse order
+    // thus, the most recent ops are transformed first
 
     let b: ?O[] = appliedOp.ops
-    for (let a: ?O[] of operationsStack.opsStack) {
+    for (let a: ?O[] of reverse(operationsStack.opsStack)()) {
       let [aP, bP] = this.operator.transformNullable(a, b)
 
-      newStack.opsStack.push(aP)
-
-      a = aP
+      transformedOps.push(aP)
       b = bP
     }
 
-    return newStack
+    // because we iterated in reverse order, we have to reverse again
+    transformedOps.reverse()
+
+    return { opsStack: transformedOps, parentHash: childHash }
   }
 
   transformAndApplyToClient(
@@ -385,6 +389,14 @@ export class OTClient<O,S> {
     if (this.buffer.childHash !== hash) {
       throw new Error('buffer should point to current state')
     }
+
+    if (this.undos.parentHash !== this.redos.parentHash) {
+      throw new Error("wat, undos and redos should start at the same place")
+    }
+
+    if (this.undos.parentHash !== this.buffer.childHash) {
+      throw new Error("wat, undo should start on buffer end state.")
+    }
   }
 
   _flushBuffer(): ?ClientUpdate<O> {
@@ -432,6 +444,8 @@ export class OTClient<O,S> {
         parentHash: op.childHash,
         startIndex: op.nextIndex
       }
+
+      // undo & redo are already after the buffer
 
       return this._flushBuffer()
 
@@ -487,7 +501,7 @@ export class OTClient<O,S> {
       this.undos.parentHash = newHash
 
       // update redos
-      this.redos.opsStack.push(undo)
+      this.redos.opsStack.push(redo)
       this.redos.parentHash = newHash
 
       return this._flushBuffer()
@@ -495,7 +509,42 @@ export class OTClient<O,S> {
   }
 
   handleRedo(): ?ClientUpdate<O> {
-    return undefined
+    let currentHash = this.helper.hash(this.state)
+    let redoHash = this.redos.parentHash
+
+    if (redoHash !== currentHash) {
+      throw new Error('redo must refer to current state')
+    }
+
+    while (this.redos.opsStack.length > 0) {
+      // get the most recent undo
+      let redo = this.redos.opsStack.pop()
+
+      if (redo == null) { // this undo is empty
+        continue
+      }
+
+      // apply the operation
+      let [newState, undo] = this.helper.apply(this.state, redo)
+      let newHash = this.helper.hash(newState)
+
+      this.state = newState
+
+      // append applied redo to buffer
+      this.buffer = this.helper.compose([
+        this.buffer,
+        { ops: redo, childHash: newHash }
+      ])
+
+      // update undos
+      this.undos.opsStack.push(undo)
+      this.undos.parentHash = newHash
+
+      // update redos
+      this.redos.parentHash = newHash
+
+      return this._flushBuffer()
+    }
   }
 
   handleNullableEdit(edit: ?O[]): ?ClientUpdate<O> {
