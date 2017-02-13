@@ -14,8 +14,8 @@ import { map, zip } from 'wu'
 import { shuffle, push, concat } from './utils.js'
 
 import {
-  Client,
-  Server,
+  OTClient,
+  OTServer,
   generatePropogator,
 } from './new_orchestrator.js'
 
@@ -35,17 +35,17 @@ let inferrer = new TextInferrer()
 
 describe('Client & Server', () => {
   it('initialize', () => {
-    let server = new Server(operator, applier)
-    let client = new Client(operator, applier)
+    let server = new OTServer(operator, applier)
+    let client = new OTClient(operator, applier)
   })
   it('one client updates', () => {
-    let client = new Client(operator, applier)
+    let client = new OTClient(operator, applier)
     client.handleEdit(generateInsertion(0, 'hello!'), [])
     assert.equal('hello!', client.state)
   })
   it('one client updates server', () => {
-    let server = new Server(operator, applier)
-    let client = new Client(operator, applier)
+    let server = new OTServer(operator, applier)
+    let client = new OTClient(operator, applier)
 
     let propogate = generatePropogator(server, [client])
 
@@ -56,9 +56,9 @@ describe('Client & Server', () => {
     assert.equal('hello!', server.state)
   })
   it ('two clients are handled', () => {
-    let server = new Server(operator, applier)
-    let client0 = new Client(operator, applier)
-    let client1 = new Client(operator, applier)
+    let server = new OTServer(operator, applier)
+    let client0 = new OTClient(operator, applier)
+    let client1 = new OTClient(operator, applier)
 
     let propogate = generatePropogator(server, [client0, client1])
 
@@ -71,9 +71,9 @@ describe('Client & Server', () => {
     assert.equal('world', server.state)
   })
   it ('two clients conflicts are handled', () => {
-    let server = new Server(operator, applier)
-    let client0 = new Client(operator, applier)
-    let client1 = new Client(operator, applier)
+    let server = new OTServer(operator, applier)
+    let client0 = new OTClient(operator, applier)
+    let client1 = new OTClient(operator, applier)
 
     let propogate = generatePropogator(server, [client0, client1])
 
@@ -88,9 +88,9 @@ describe('Client & Server', () => {
     assert.equal('helloworld', server.state)
   })
   it ('two clients out of order', () => {
-    let server = new Server(operator, applier)
-    let client0 = new Client(operator, applier)
-    let client1 = new Client(operator, applier)
+    let server = new OTServer(operator, applier)
+    let client0 = new OTClient(operator, applier)
+    let client1 = new OTClient(operator, applier)
 
     let propogate = generatePropogator(server, [client0, client1])
 
@@ -107,12 +107,12 @@ describe('Client & Server', () => {
     assert.equal('01234', server.state)
   })
   it ('multiple clients with interleaved requests', () => {
-    let client0 = new Client(operator, applier)
-    let client1 = new Client(operator, applier)
-    let client2 = new Client(operator, applier)
+    let client0 = new OTClient(operator, applier)
+    let client1 = new OTClient(operator, applier)
+    let client2 = new OTClient(operator, applier)
 
     let clients = [client0, client1, client2]
-    let server = new Server(operator, applier)
+    let server = new OTServer(operator, applier)
 
     let propogate = generatePropogator(server, clients)
 
@@ -152,7 +152,7 @@ describe('Client & Server', () => {
 
 describe('undo', () => {
   it('works for one client', () => {
-    let client = new Client(operator, applier)
+    let client = new OTClient(operator, applier)
 
     let edit0 = inferrer.infer(client.state, 'hello')
     if (edit0 == null) throw new Error('wat')
@@ -172,9 +172,9 @@ describe('undo', () => {
   })
 
   it('works for two clients', () => { // tested on dropbox paper!
-    let client0 = new Client(operator, applier)
-    let client1 = new Client(operator, applier)
-    let server = new Server(operator, applier)
+    let client0 = new OTClient(operator, applier)
+    let client1 = new OTClient(operator, applier)
+    let server = new OTServer(operator, applier)
 
     let propogate = generatePropogator(server, [client0, client1])
 
@@ -247,8 +247,8 @@ describe('undo', () => {
     }
   ].forEach((test) => {
     it(test.appliedState + ' works', () => {
-      let clients = test.applyStates.map(() => new Client(operator, applier))
-      let server = new Server(operator, applier)
+      let clients = test.applyStates.map(() => new OTClient(operator, applier))
+      let server = new OTServer(operator, applier)
 
       let propogate = generatePropogator(server, clients)
       let updates = []

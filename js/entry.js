@@ -5,8 +5,8 @@ import { count, zip, filter, find, takeWhile, take, map } from 'wu'
 import { observeArray, observeObject } from './ot/observe'
 
 import {
-  Client,
-  Server,
+  OTClient,
+  OTServer,
 } from './ot/new_orchestrator.js'
 
 import type {
@@ -62,7 +62,7 @@ function updateDOMTextbox($text, state: DocumentState): void {
 function setupClient(
   applier: IApplier<*,*>,
   inferrer: IInferrer<*,*>,
-  client: Client<*,*>,
+  client: OTClient<*,*>,
   router: IRouter<*,*>,
   $text: any,
 ) {
@@ -328,10 +328,10 @@ $(document).ready(() => {
   let serverLogger = generateLogger($('#server-log'))
   $serverContainer.append($server)
 
-  let clients: Client<*,*>[] = []
+  let clients: OTClient<*,*>[] = []
   let clientRouters = []
 
-  let server = new Server(operator, applier)
+  let server = new OTServer(operator, applier)
   let serverRouter = new SimulatedRouter((update: ClientUpdate<*>) => {
     let broadcast = server.handleUpdate(update)
     serverRouter.send(broadcast)
@@ -353,7 +353,7 @@ $(document).ready(() => {
     $client.insertBefore($clientPlaceholder)
     clientId ++
 
-    let client = new Client(operator, applier)
+    let client = new OTClient(operator, applier)
     let clientRouter = new SimulatedRouter((broadcast: ServerBroadcast<*>) => {
       let update = client.handleBroadcast(broadcast)
       if (update == null) { return }

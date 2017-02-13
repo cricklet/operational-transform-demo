@@ -332,7 +332,7 @@ export class OperationHelper<O,S> {
   }
 }
 
-export class Client<O,S> {
+export class OTClient<O,S> {
   helper: OperationHelper<O,S>
 
   uid: string
@@ -542,7 +542,7 @@ export class Client<O,S> {
   }
 }
 
-export class Server<O,S> {
+export class OTServer<O,S> {
   helper: OperationHelper<O,S>
 
   uid: string
@@ -619,8 +619,8 @@ export class Server<O,S> {
 }
 
 export function generatePropogator <O,S> (
-  server: Server<O,S>,
-  clients: Array<Client<O,S>>
+  server: OTServer<O,S>,
+  clients: Array<OTClient<O,S>>
 ): (update: ?ClientUpdate<O>) => void {
   // This setups a fake network between a server & multiple clients.
 
