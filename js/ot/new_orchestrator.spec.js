@@ -153,7 +153,6 @@ describe('Client & Server', () => {
 describe('undo', () => {
   it('works for one client', () => {
     let client = new Client(operator, applier)
-    let server = new Server(operator, applier)
 
     let edit0 = inferrer.infer(client.state, 'hello')
     if (edit0 == null) throw new Error('wat')
@@ -172,22 +171,118 @@ describe('undo', () => {
     assert.equal(client.state, '')
   })
 
+  it('works for two clients', () => { // tested on dropbox paper!
+    let client0 = new Client(operator, applier)
+    let client1 = new Client(operator, applier)
+    let server = new Server(operator, applier)
+
+    let propogate = generatePropogator(server, [client0, client1])
+
+    propogate(client0.handleNullableEdit(inferrer.infer(client0.state, 'hello')))
+    propogate(client1.handleNullableEdit(inferrer.infer(client1.state, 'hellogeorge')))
+    propogate(client0.handleNullableEdit(inferrer.infer(client0.state, 'helloworld')))
+
+    assert.equal(client0.state, 'helloworld')
+    assert.equal(client1.state, 'helloworld')
+
+    propogate(client1.handleUndo())
+    assert.equal(client0.state, 'helloworld')
+    assert.equal(client1.state, 'helloworld')
+
+    propogate(client0.handleUndo())
+    assert.equal(client0.state, 'hellogeorge')
+    assert.equal(client1.state, 'hellogeorge')
+
+    propogate(client0.handleUndo())
+    assert.equal(client0.state, 'george')
+    assert.equal(client1.state, 'george')
+  })
+
   ;[
     {
-      states0: [
-        'hello',
-        'hello world',
-        'hi world',
-        'hi kenrick'
+      applyStates: [
+        [
+          'hello',
+          'hello world',
+          'hi world',
+          'hi kenrick'
+        ],
+        [
+          'boop',
+          'boop banana '
+        ]
       ],
-      states1: [
-        'goodbye'
+      appliedState: 'boop banana hi kenrick',
+      undoStates: [
+        [
+          'boop banana hi world',
+          'boop banana hello world',
+          'boop banana hello',
+          'boop banana ',
+        ],
+        [
+          'boop',
+          '',
+        ]
+      ],
+    },
+    {
+      applyStates: [
+        [
+          'hello',
+          'hello world',
+          'hi world',
+          'hi kenrick'
+        ]
+      ],
+      appliedState: 'hi kenrick',
+      undoStates: [
+        [
+          'hi world',
+          'hello world',
+          'hello',
+          '',
+        ]
       ]
     }
   ].forEach((test) => {
-    describe('undo works', () => {
-      it('works', () => {
-      })
+    it(test.appliedState + ' works', () => {
+      let clients = test.applyStates.map(() => new Client(operator, applier))
+      let server = new Server(operator, applier)
+
+      let propogate = generatePropogator(server, clients)
+      let updates = []
+
+      for (let [client, states] of zip(clients, test.applyStates)) {
+        for (let state of states) {
+          let edit = inferrer.infer(client.state, state)
+          if (edit == null) {throw new Error('wat')}
+
+          let update = client.handleEdit(edit)
+          updates.push(update)
+
+          assert.equal(client.state, state)
+        }
+      }
+
+      for (let update of updates) {
+        propogate(update)
+      }
+
+      for (let client of clients) {
+        assert.equal(client.state, test.appliedState)
+      }
+
+      for (let [client, states] of zip(clients, test.undoStates)) {
+        for (let state of states) {
+          propogate(client.handleUndo())
+          assert.equal(client.state, state)
+
+          for (let other of clients) {
+            assert.equal(other.state, state)
+          }
+        }
+      }
     })
   })
 })

@@ -159,39 +159,42 @@ export class OperationHelper<O,S> {
 
   transformOperationsStack(
     appliedOp: AppliedOperation<O>,
-    stackOps: OperationsStack<O>
-  ): ?OperationsStack<O> {
+    operationsStack: OperationsStack<O>
+  ): OperationsStack<O> {
     // a: stack op
     // b: applied op
 
     // aP: new stack op
     // bP: new applied op
 
-    //   a /\ b
+    // p: b.parentHash
+    // c: b.childHash
+
+    //   a /p b
     //    /  \
-    // bP \  / aP
+    // bP \  c aP
     //     \/
 
     let parentHash = appliedOp.parentHash
     let childHash = appliedOp.childHash
 
-    if (stackOps.parentHash !== parentHash) {
+    if (operationsStack.parentHash !== parentHash) {
       throw new Error('stack ops must have the same parent as the applied op')
     }
 
-    let as = []
+    let newStack = { opsStack: [], parentHash: childHash }
 
-    // let b = appliedOp
-    // for (let a of stackOps.operations) {
-    //   let [aP, bP] = this.transform(a, b)
-    //
-    //   as.push(aP)
-    //   b = bP
-    // }
-    //
-    // stackOps.parentHash = childHash
+    let b: ?O[] = appliedOp.ops
+    for (let a: ?O[] of operationsStack.opsStack) {
+      let [aP, bP] = this.operator.transformNullable(a, b)
 
-    return undefined
+      newStack.opsStack.push(aP)
+
+      a = aP
+      b = bP
+    }
+
+    return newStack
   }
 
   transformAndApplyToClient(
@@ -437,6 +440,10 @@ export class Client<O,S> {
       let [newPrebufferOp, newBufferOp, appliedOp, newState]
           = this.helper.transformAndApplyBuffers(this.prebuffer, this.buffer, op, this.state)
 
+      // update undo
+      this.undos = this.helper.transformOperationsStack(appliedOp, this.undos)
+      this.redos = this.helper.transformOperationsStack(appliedOp, this.redos)
+
       // apply the operation
       this.state = newState
 
@@ -489,6 +496,14 @@ export class Client<O,S> {
 
   handleRedo(): ?ClientUpdate<O> {
     return undefined
+  }
+
+  handleNullableEdit(edit: ?O[]): ?ClientUpdate<O> {
+    if (edit == null) {
+      return undefined
+    }
+
+    return this.handleEdit(edit)
   }
 
   handleEdit(edit: O[]): ?ClientUpdate<O> {
