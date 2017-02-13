@@ -517,10 +517,10 @@ export class OTClient<O,S> {
     }
 
     while (this.redos.opsStack.length > 0) {
-      // get the most recent undo
+      // get the most recent redo
       let redo = this.redos.opsStack.pop()
 
-      if (redo == null) { // this undo is empty
+      if (redo == null) { // this redo is empty
         continue
       }
 
