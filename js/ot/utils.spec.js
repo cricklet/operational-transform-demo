@@ -37,6 +37,8 @@ import {
   reiterable
 } from './utils'
 
+import { Notify, NotifyAfter, NotifyOnce } from './utils.js'
+
 import type { Comparison, Tree } from './utils.js'
 
 describe('skipNulls', () => {
@@ -283,4 +285,108 @@ describe('findLastIndex', () => {
       findLastIndex(i => i <= 4, [0,1,2,3,4,5,6,7]),
       4)
   })
+})
+
+function asyncTest(f) {
+  return (done) => {
+    f().then(done).catch(done)
+  }
+}
+function sleep(time) {
+  return new Promise((resolve, reject) => setTimeout(resolve, 0.01 * time))
+}
+
+
+describe('Notify', () => {
+  it('notify', asyncTest(async () => {
+		let n = new Notify()
+    let successes = 0
+
+		;(async () => {
+			await n.wait()
+      successes += 1
+		})()
+
+  	;(async () => {
+  		await n.wait()
+      successes += 1
+  	})()
+
+		;(async () => {
+			await n.wait()
+      successes += 1
+		})()
+
+    await n.notify()
+    await sleep(0)
+
+    assert.equal(successes, 3)
+	}))
+
+  it('notify', asyncTest(async () => {
+		let n = new NotifyAfter(3)
+
+    let successes = 0
+
+		;(async () => {
+			await n.wait()
+      successes += 1
+		})()
+
+  	;(async () => {
+  		await n.wait()
+      successes += 1
+  	})()
+
+		;(async () => {
+			await n.wait()
+      successes += 1
+		})()
+
+    await n.notify()
+    await sleep(0)
+
+    assert.equal(successes, 0)
+
+    await n.notify()
+    await sleep(0)
+
+    assert.equal(successes, 0)
+
+    await n.notify()
+    await sleep(0)
+
+    assert.equal(successes, 3)
+	}))
+
+  it('notify once', asyncTest(async () => {
+		let n = new NotifyOnce()
+
+    let successes = 0
+
+		;(async () => {
+			await n.wait()
+      successes += 1
+		})()
+
+  	;(async () => {
+  		await n.wait()
+      successes += 1
+  	})()
+
+    await sleep(0)
+    assert.equal(successes, 0)
+
+    await n.notify() // THE ONLY NOTIFY
+    await sleep(0)
+
+    assert.equal(successes, 2)
+
+		;(async () => {
+			await n.wait()
+      successes += 1
+		})()
+
+    await sleep(1)
+	}))
 })

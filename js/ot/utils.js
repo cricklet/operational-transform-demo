@@ -412,3 +412,58 @@ export async function asyncWait(ms: number): Promise<void> {
     }, ms)
   })
 }
+
+
+export class Notify {
+  _unlock: () => void
+  _lock: ?Promise<*>
+
+	constructor() {
+    this._unlock = () => {}
+		this.setup()
+	}
+	setup() {
+		this._lock = new Promise(resolve => { this._unlock = resolve })
+	}
+	async wait() {
+		await this._lock
+	}
+	async notify() {
+		this._unlock()
+		this.setup()
+	}
+}
+
+export class NotifyAfter {
+  _unlock: () => void
+  _lock: ?Promise<*>
+  _num: number
+
+	constructor(num: number) {
+    this._num = num
+    this._unlock = () => {}
+		this._lock = new Promise(resolve => { this._unlock = resolve })
+	}
+	async wait() {
+    if (this._num === 0) {
+      return
+    } else {
+	    await this._lock
+    }
+	}
+	async notify() {
+    this._num -= 1
+    if (this._num < 0) {
+      throw new Error('received too many notifies')
+    }
+    if (this._num === 0) {
+  		this._unlock()
+    }
+	}
+}
+
+export class NotifyOnce extends NotifyAfter {
+	constructor() {
+    super(1)
+	}
+}
