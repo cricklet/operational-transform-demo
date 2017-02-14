@@ -12,7 +12,7 @@ import { assert } from 'chai'
 import { map, zip } from 'wu'
 
 import { shuffle, push, concat } from './utils.js'
-import { SimulatedRouter } from './network_helper.js'
+import { SimulatedRouter } from './router.js'
 
 describe("SimulatedRouter", () => {
   let clock

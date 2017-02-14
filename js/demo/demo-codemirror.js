@@ -9,16 +9,16 @@ import * as CodeMirror from '../libs/codemirror.js'
 import {
   OTClient,
   OTServer,
-} from '../ot/new_orchestrator.js'
+} from '../ot/orchestrator.js'
 
 import type {
   ClientUpdate,
   ServerBroadcast,
-} from '../ot/new_orchestrator.js'
+} from '../ot/orchestrator.js'
 
-import { SimulatedRouter } from '../ot/network_helper.js'
+import { SimulatedRouter } from '../ot/router.js'
 
-import type { IRouter } from '../ot/network_helper.js'
+import type { IRouter } from '../ot/router.js'
 
 import type {
   IApplier,

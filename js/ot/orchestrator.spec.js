@@ -17,7 +17,7 @@ import {
   OTClient,
   OTServer,
   generatePropogator,
-} from './new_orchestrator.js'
+} from './orchestrator.js'
 
 import {
   Operator,
