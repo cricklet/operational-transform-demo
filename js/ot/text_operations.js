@@ -11,13 +11,13 @@ type Insert = string
 type Remove = number // always negative
 type Retain = number // always positive
 
-type O = Insert | Remove | Retain
+type Op = Insert | Remove | Retain
 
-export function generateInsertion(pos: number, text: string): O[] {
+export function generateInsertion(pos: number, text: string): Op[] {
   return [ retainOp(pos), insertOp(text) ]
 }
 
-export function generateDeletion(pos: number, n: number): O[] {
+export function generateDeletion(pos: number, n: number): Op[] {
   return [ retainOp(pos), removeOp(n) ]
 }
 
@@ -44,20 +44,20 @@ function insertOp(text: string): Insert {
   return text
 }
 
-function isRetain(op: O): boolean {
+function isRetain(op: Op): boolean {
   return typeof(op) === 'number' && op >= 0
 }
 
-function isInsert(op: O): boolean {
+function isInsert(op: Op): boolean {
   return typeof(op) === 'string'
 }
 
-function isRemove(op: O): boolean {
+function isRemove(op: Op): boolean {
   return typeof(op) === 'number' && op < 0
 }
 
 function opSwitch<R>(
-  op: O,
+  op: Op,
   f: {
     insert: (i: Insert) => R,
     retain: (i: Retain) => R,
@@ -80,7 +80,7 @@ function opSwitch<R>(
   throw new Error('wat unknown op', op)
 }
 
-function split(op: O, offset: number): [O, O] {
+function split(op: Op, offset: number): [Op, Op] {
   return opSwitch(op, {
     insert: (insert: Insert) => {
       if (offset < 0 || offset > insert.length) {
@@ -113,7 +113,7 @@ function split(op: O, offset: number): [O, O] {
   })
 }
 
-function length(op: O): number {
+function length(op: Op): number {
   let l = opSwitch(op, {
     insert: (insert: Insert) => insert.length,
     remove: (remove: Remove) => - remove,
@@ -125,7 +125,7 @@ function length(op: O): number {
   return l
 }
 
-function joinInsert(insert0: Insert, op1: O): ?O {
+function joinInsert(insert0: Insert, op1: Op): ?Op {
   return opSwitch(op1, {
     insert: (insert1: Insert) => insertOp(insert0 + insert1),
     remove: () => undefined,
@@ -133,7 +133,7 @@ function joinInsert(insert0: Insert, op1: O): ?O {
   })
 }
 
-function joinRetain(retain0: Retain, op1: O): ?O {
+function joinRetain(retain0: Retain, op1: Op): ?Op {
   return opSwitch(op1, {
     insert: () => undefined,
     retain: (retain1: Retain) => retainOp(retain0 + retain1),
@@ -141,7 +141,7 @@ function joinRetain(retain0: Retain, op1: O): ?O {
   })
 }
 
-function joinRemove(remove0: Remove, op1: O): ?O {
+function joinRemove(remove0: Remove, op1: Op): ?Op {
   return opSwitch(op1, {
     insert: () => undefined,
     retain: () => undefined,
@@ -149,7 +149,7 @@ function joinRemove(remove0: Remove, op1: O): ?O {
   })
 }
 
-function join(op0: O, op1: O): ?O {
+function join(op0: Op, op1: Op): ?Op {
   return opSwitch(op0, {
     insert: insert => joinInsert(insert, op1),
     remove: remove => joinRemove(remove, op1),
@@ -159,7 +159,7 @@ function join(op0: O, op1: O): ?O {
 
 //
 
-function simplify(ops: O[]): O[] {
+function simplify(ops: Op[]): Op[] {
   for (let i = 0; i < ops.length; i ++) {
     if (length(ops[i]) === 0) {
       removeInPlace(ops, i)
@@ -185,10 +185,10 @@ function simplify(ops: O[]): O[] {
 
 export class Operator {
   constructor() {
-    (this: IOperator<O>)
+    (this: IOperator<Op>)
   }
-  _transformConsumeOps(a: ?O, b: ?O)
-  : [[?O, ?O], [?O, ?O]] {
+  _transformConsumeOps(a: ?Op, b: ?Op)
+  : [[?Op, ?Op], [?Op, ?Op]] {
     // returns [[aP, bP], [a, b]]
 
     if (a != null && isInsert(a)) {
@@ -241,8 +241,8 @@ export class Operator {
 
     throw new Error('wat')
   }
-  transformNullable(clientOps: ?O[], serverOps: ?O[])
-  : [?O[], ?O[]] {
+  transformNullable(clientOps: ?Op[], serverOps: ?Op[])
+  : [?Op[], ?Op[]] {
     if (clientOps != null && serverOps != null) {
       let [newClientOps, newServerOps] = this.transform(clientOps, serverOps)
       return [newClientOps, newServerOps]
@@ -250,8 +250,8 @@ export class Operator {
       return [clientOps, serverOps]
     }
   }
-  transform(clientOps: O[], serverOps: O[])
-  : [O[], O[]] {
+  transform(clientOps: Op[], serverOps: Op[])
+  : [Op[], Op[]] {
     let ops1 = clientOps
     let ops2 = serverOps
 
@@ -261,8 +261,8 @@ export class Operator {
     let i1 = 0
     let i2 = 0
 
-    let op1: ?O = undefined
-    let op2: ?O = undefined
+    let op1: ?Op = undefined
+    let op2: ?Op = undefined
 
     while (true) {
       if (op1 == null) { op1 = ops1[i1]; i1++ }
@@ -290,8 +290,8 @@ export class Operator {
 
     return [simplify(ops1P), simplify(ops2P)]
   }
-  composeNullable (ops1: ?O[], ops2: ?O[])
-  : ?O[] {
+  composeNullable (ops1: ?Op[], ops2: ?Op[])
+  : ?Op[] {
     if (ops1 != null && ops2 != null) {
       return this.compose(ops1, ops2)
     } else if (ops1 != null) {
@@ -302,8 +302,8 @@ export class Operator {
       return undefined
     }
   }
-  _composeConsumeOps(a: ?O, b: ?O)
-  : [?O, [?O, ?O]] {
+  _composeConsumeOps(a: ?Op, b: ?Op)
+  : [?Op, [?Op, ?Op]] {
     // returns [newOp, [a, b]]
 
     if (a != null && isRemove(a)) {
@@ -356,8 +356,8 @@ export class Operator {
 
     throw new Error('wat')
   }
-  compose(ops1: O[], ops2: O[])
-  : O[] {
+  compose(ops1: Op[], ops2: Op[])
+  : Op[] {
     // compose (ops1, ops2) to composed s.t.
     // apply(apply(text, ops1), ops2) === apply(text, composed)
 
@@ -368,8 +368,8 @@ export class Operator {
     let i1 = 0
     let i2 = 0
 
-    let op1: ?O = undefined
-    let op2: ?O = undefined
+    let op1: ?Op = undefined
+    let op2: ?Op = undefined
 
     while (true) {
       if (op1 == null) { op1 = ops1[i1]; i1++ }
@@ -395,9 +395,9 @@ export class Operator {
 
     return simplify(composed)
   }
-  composeMany(ops: Iterable<O[]>)
-  : O[] {
-    let composed: O[] = []
+  composeMany(ops: Iterable<Op[]>)
+  : Op[] {
+    let composed: Op[] = []
     for (let op of ops) {
       composed = this.compose(composed, op)
     }
@@ -410,13 +410,13 @@ export class Operator {
 interface IApplierDelegate<S> {
   initial(): S,
   stateHash(s: S): string,
-  apply(state: S, ops: O[]): [S, O[]]
+  apply(state: S, ops: Op[]): [S, Op[]]
 }
 
 class DelegatingApplier<S> {
   delegate: IApplierDelegate<S>
   constructor(delegate: IApplierDelegate<S>) {
-    (this: IApplier<O,S>)
+    (this: IApplier<Op,S>)
     this.delegate = delegate
   }
   initial(): S {
@@ -425,21 +425,21 @@ class DelegatingApplier<S> {
   stateHash(s: S): string {
     return this.delegate.stateHash(s)
   }
-  apply(state: S, ops: O[]): [S, O[]] {
+  apply(state: S, ops: Op[]): [S, Op[]] {
     return this.delegate.apply(state, ops)
   }
-  applyNullable(state: S, ops: ?O[]): [S, ?O[]] {
+  applyNullable(state: S, ops: ?Op[]): [S, ?Op[]] {
     if (ops == null) {
       return [state, undefined]
     }
     let [newState, undo] = this.apply(state, ops)
     return [newState, undo]
   }
-  applySimple(state: S, ops: O[]): S {
+  applySimple(state: S, ops: Op[]): S {
     let [newState, undo] = this.apply(state, ops)
     return newState
   }
-  applyNullableSimple(state: S, ops: ?O[]): S {
+  applyNullableSimple(state: S, ops: ?Op[]): S {
     if (ops == null) {
       return state
     }
@@ -458,8 +458,8 @@ class TextApplierDelegate {
   stateHash(text: string): string {
     return text
   }
-  apply(text: string, ops: O[])
-  : [string, O[]] { // returns [state, undo]
+  apply(text: string, ops: Op[])
+  : [string, Op[]] { // returns [state, undo]
     let i = 0
     let undo = []
     for (let op of ops) {
@@ -497,10 +497,10 @@ export class TextApplier extends DelegatingApplier<string> {
 
 export class TextInferrer {
   constructor() {
-    (this: IInferrer<O, string>)
+    (this: IInferrer<Op, string>)
   }
   infer(oldText: string, newText: string)
-  : ?O[] {
+  : ?Op[] {
     if (oldText.length === newText.length) {
       // we have a no-op
       if (oldText === newText) {
@@ -546,7 +546,7 @@ class CursorApplier {
   stateHash(state: CursorState): string {
     throw new Error('not implemented')
   }
-  _adjustPosition(pos: number, ops: O[]): number {
+  _adjustPosition(pos: number, ops: Op[]): number {
     let i = 0
     for (let op of ops) {
       if (i >= pos) { break }
@@ -566,7 +566,7 @@ class CursorApplier {
     }
     return pos
   }
-  apply(state: CursorState, ops: O[]): CursorState {
+  apply(state: CursorState, ops: Op[]): CursorState {
     return {
       start: this._adjustPosition(state.start, ops),
       end: this._adjustPosition(state.end, ops)
@@ -593,7 +593,7 @@ class DocumentApplierDelegate {
   stateHash(state: DocumentState): string {
     return this.textApplier.stateHash(state.text)
   }
-  apply(state: DocumentState, ops: O[]): [DocumentState, O[]] {
+  apply(state: DocumentState, ops: Op[]): [DocumentState, Op[]] {
     let [text, undo] = this.textApplier.apply(state.text, ops)
     let cursor = this.cursorApplier.apply(state.cursor, ops)
     return [
