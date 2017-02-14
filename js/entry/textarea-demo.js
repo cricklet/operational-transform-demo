@@ -1,42 +1,42 @@
 /* @flow */
 
-import { Less, Greater, Equal, reverse, push, findIndex, findLastIndex, subarray, asyncWait, insert, allEqual, remove } from './ot/utils.js'
+import { Less, Greater, Equal, reverse, push, findIndex, findLastIndex, subarray, asyncWait, insert, allEqual, remove } from '../ot/utils.js'
 import { count, zip, filter, find, takeWhile, take, map } from 'wu'
-import { observeArray, observeObject } from './ot/observe'
+import { observeArray, observeObject } from '../ot/observe'
 
 import {
   OTClient,
   OTServer,
-} from './ot/new_orchestrator.js'
+} from '../ot/new_orchestrator.js'
 
 import type {
   ClientUpdate,
   ServerBroadcast,
-} from './ot/new_orchestrator.js'
+} from '../ot/new_orchestrator.js'
 
-import { SimulatedRouter } from './ot/network_helper.js'
+import { SimulatedRouter } from '../ot/network_helper.js'
 
-import type { IRouter } from './ot/network_helper.js'
+import type { IRouter } from '../ot/network_helper.js'
 
 import type {
   IApplier,
   IInferrer,
   IOperator
-} from './ot/operations.js'
+} from '../ot/operations.js'
 
 import type {
   DocumentState
-} from './ot/text_operations.js'
+} from '../ot/text_operations.js'
 
 import {
   LinearOperator,
   DocumentApplier,
   TextInferrer,
-} from './ot/text_operations.js'
+} from '../ot/text_operations.js'
 
 import {
   merge
-} from './ot/utils.js'
+} from '../ot/utils.js'
 
 type Lock = { ignoreEvents: boolean }
 
