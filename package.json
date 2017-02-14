@@ -4,8 +4,10 @@
     "flow": "flow",
     "test": "mocha --compilers js:babel-core/register -R spec ./**/*.spec.js",
     "debug": "mocha debug --compilers js:babel-core/register -R spec ./**/*.spec.js",
-    "watch": "npm test -- --watch",
-    "watch-one": "mocha --compilers js:babel-core/register --watch -R spec"
+    "watch": "mocha --compilers js:babel-core/register --watch -R spec ./**/*.spec.js",
+    "watch-one": "mocha --compilers js:babel-core/register --watch -R spec",
+    "client": "webpack-dev-server --progress --colors",
+    "server": "nodemon ./js/server/server.js --exec babel-node"
   },
   "description": "operational transform",
   "author": "Kenrick Rilee",
@@ -35,6 +37,8 @@
     "observe-js": "^0.5.7",
     "should": "^11.1.1",
     "sinon": "^1.17.5",
+    "sockjs": "^0.3.18",
+    "sockjs-client": "^1.1.2",
     "webpack": "^1.13.1",
     "webpack-dev-server": "^1.16.2",
     "wu": "^2.1.0"

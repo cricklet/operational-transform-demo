@@ -15,20 +15,28 @@ const common = {
 };
 
 const multiDemo = {
-  entry: './js/entry/demo-textarea.js',
+  entry: './js/demo/demo-textarea.js',
   output: {
     filename: 'build/demo-textarea.js'
   }
 };
 
 const codemirrorDemo = {
-  entry: './js/entry/demo-codemirror.js',
+  entry: './js/demo/demo-codemirror.js',
   output: {
     filename: 'build/demo-codemirror.js'
+  }
+};
+
+const clientDemo = {
+  entry: './js/demo/demo-client.js',
+  output: {
+    filename: 'build/demo-client.js'
   }
 };
 
 module.exports = [
   Object.assign({} , common, multiDemo),
   Object.assign({} , common, codemirrorDemo),
+  Object.assign({} , common, clientDemo),
 ];
