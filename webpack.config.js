@@ -15,16 +15,16 @@ const common = {
 };
 
 const multiDemo = {
-  entry: './js/entry/textarea-demo.js',
+  entry: './js/entry/demo-textarea.js',
   output: {
-    filename: 'build/textarea-demo.js'
+    filename: 'build/demo-textarea.js'
   }
 };
 
 const codemirrorDemo = {
-  entry: './js/entry/codemirror-demo.js',
+  entry: './js/entry/demo-codemirror.js',
   output: {
-    filename: 'build/codemirror-demo.js'
+    filename: 'build/demo-codemirror.js'
   }
 };
 
