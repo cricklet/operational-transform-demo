@@ -7,140 +7,168 @@ import { IOperator, IApplier, IInferrer } from './operations.js'
 
 //
 
-type LinearOpKind = 'Delete'|'Insert'|'Placeholder'|'Retain'
+type Insert = string
+type Remove = number // always negative
+type Retain = number // always positive
 
-type ILinearOp = {
-  kind(): LinearOpKind,
-  length(): number,
-  split(pos: number): [ILinearOp, ILinearOp],
-  join(next: ILinearOp): ?ILinearOp
-} | Retain // retains can't be custom... they're just fill space
+type O = Insert | Remove | Retain
 
-//
-
-export function generateInsertion(pos: number, text: string): TextOperation[] {
-  return [
-    new Retain(pos), new InsertText(text)
-  ]
+export function generateInsertion(pos: number, text: string): O[] {
+  return [ retainOp(pos), insertOp(text) ]
 }
 
-export function generateDeletion(pos: number, n: number): TextOperation[] {
-  return [
-    new Retain(pos), new Delete(n)
-  ]
-}
-
-class InsertText {
-  text: string
-
-  constructor(text: string) {
-    (this: ILinearOp)
-    this.text = text
-  }
-  toString(): string {
-    return `insert "${this.text}"`
-  }
-  kind(): LinearOpKind {
-    return 'Insert'
-  }
-  split (offset: number): [ILinearOp, ILinearOp] {
-    if (offset < 0 || offset > this.text.length) {
-      throw new Error()
-    }
-    return [
-      new InsertText(this.text.substring(0, offset)),
-      new InsertText(this.text.substring(offset))
-    ]
-  }
-  join (next: ILinearOp): ?ILinearOp {
-    if (next instanceof InsertText) {
-      return new InsertText(this.text + next.text)
-    }
-  }
-  length(): number {
-    return this.text.length
-  }
-}
-
-class Delete {
-  num: number
-  is: string
-
-  constructor(num: number) {
-    (this: ILinearOp)
-    this.num = num
-    this.is = "Delete"
-  }
-  toString(): string {
-    return `delete #${this.num}`
-  }
-  kind(): LinearOpKind {
-    return 'Delete'
-  }
-  split (offset: number): [ILinearOp, ILinearOp] {
-    if (offset < 0 || offset > this.num) {
-      throw new Error()
-    }
-    return [
-      new Delete(offset),
-      new Delete(this.num - offset)
-    ]
-  }
-  join (next: ILinearOp): ?ILinearOp {
-    if (next instanceof Delete) {
-      return new Delete(this.num + next.num)
-    }
-  }
-  length(): number {
-    return this.num
-  }
-}
-
-class Retain {
-  num: number
-
-  constructor(num: number) {
-    (this: ILinearOp)
-    this.num = num
-  }
-  toString(): string {
-    return `retain #${this.num}`
-  }
-  kind(): LinearOpKind {
-    return 'Retain'
-  }
-  split (offset: number): [ILinearOp, ILinearOp] {
-    if (offset < 0 || offset > this.num) {
-      throw new Error()
-    }
-    return [
-      new Retain(offset),
-      new Retain(this.num - offset)
-    ]
-  }
-  join (next: ILinearOp): ?ILinearOp {
-    if (next instanceof Retain) {
-      return new Retain(this.num + next.num)
-    }
-  }
-  length(): number {
-    return this.num
-  }
+export function generateDeletion(pos: number, n: number): O[] {
+  return [ retainOp(pos), removeOp(n) ]
 }
 
 //
 
 
-function simplify<O: ILinearOp>(ops: O[]): O[] {
+function removeOp(num: number): Remove {
+  return - Math.abs(num)
+}
+
+function retainOp(o: number | string): Retain {
+  if (typeof(o) === 'string') {
+    return o.length
+  } else {
+    let num: number = o
+    if (num < 0) {
+      throw new Error('wat retains should be positive')
+    }
+    return num
+  }
+}
+
+function insertOp(text: string): Insert {
+  return text
+}
+
+function isRetain(op: O): boolean {
+  return typeof(op) === 'number' && op >= 0
+}
+
+function isInsert(op: O): boolean {
+  return typeof(op) === 'string'
+}
+
+function isRemove(op: O): boolean {
+  return typeof(op) === 'number' && op < 0
+}
+
+function opSwitch<R>(
+  op: O,
+  f: {
+    insert: (i: Insert) => R,
+    retain: (i: Retain) => R,
+    remove: (i: Remove) => R,
+  }
+): R {
+  if (typeof(op) === 'string') { // insert
+    let insert: Insert = op
+    return f.insert(insert)
+
+  } else if (typeof(op) === 'number' && op < 0) { // remove
+    let remove: Remove = op
+    return f.remove(remove)
+
+  } else if (typeof(op) === 'number' && op >= 0) { // retain
+    let retain: Retain = op
+    return f.retain(retain)
+  }
+
+  throw new Error('wat unknown op', op)
+}
+
+function split(op: O, offset: number): [O, O] {
+  return opSwitch(op, {
+    insert: (insert: Insert) => {
+      if (offset < 0 || offset > insert.length) {
+        throw new Error()
+      }
+      return [
+        insertOp(insert.substring(0, offset)),
+        insertOp(insert.substring(offset))
+      ]
+    },
+    remove: (remove: Remove) => {
+      let num = length(remove)
+      if (offset < 0 || offset > num) {
+        throw new Error()
+      }
+      return [
+        removeOp(offset),
+        removeOp(num - offset)
+      ]
+    },
+    retain: (retain: Retain) => {
+      if (offset < 0 || offset > retain) {
+        throw new Error()
+      }
+      return [
+        retainOp(offset),
+        retainOp(retain - offset)
+      ]
+    }
+  })
+}
+
+function length(op: O): number {
+  let l = opSwitch(op, {
+    insert: (insert: Insert) => insert.length,
+    remove: (remove: Remove) => - remove,
+    retain: (retain: Retain) => retain
+  })
+  if (l < 0) {
+    throw new Error('wat op has negative length', op)
+  }
+  return l
+}
+
+function joinInsert(insert0: Insert, op1: O): ?O {
+  return opSwitch(op1, {
+    insert: (insert1: Insert) => insertOp(insert0 + insert1),
+    remove: () => undefined,
+    retain: () => undefined
+  })
+}
+
+function joinRetain(retain0: Retain, op1: O): ?O {
+  return opSwitch(op1, {
+    insert: () => undefined,
+    retain: (retain1: Retain) => retainOp(retain0 + retain1),
+    remove: () => undefined
+  })
+}
+
+function joinRemove(remove0: Remove, op1: O): ?O {
+  return opSwitch(op1, {
+    insert: () => undefined,
+    retain: () => undefined,
+    remove: (remove1: Remove) => removeOp(remove0 + remove1)
+  })
+}
+
+function join(op0: O, op1: O): ?O {
+  return opSwitch(op0, {
+    insert: insert => joinInsert(insert, op1),
+    remove: remove => joinRemove(remove, op1),
+    retain: retain => joinRetain(retain, op1)
+  })
+}
+
+//
+
+function simplify(ops: O[]): O[] {
   for (let i = 0; i < ops.length; i ++) {
-    if (ops[i].length() === 0) {
+    if (length(ops[i]) === 0) {
       removeInPlace(ops, i)
       i --
     }
   }
 
   for (let i = 1; i < ops.length; i ++) {
-    let newOp = ops[i - 1].join(ops[i])
+    let newOp = join(ops[i - 1], ops[i])
     if (newOp != null) {
       ops[i - 1] = newOp
       removeInPlace(ops, i) // remove extra op
@@ -148,14 +176,14 @@ function simplify<O: ILinearOp>(ops: O[]): O[] {
     }
   }
 
-  if (ops.length > 0 && last(ops).kind() === 'Retain') {
+  if (ops.length > 0 && isRetain(last(ops))) {
     ops.pop() // remove trailing retain
   }
 
   return ops
 }
 
-export class LinearOperator<O: ILinearOp> {
+export class Operator {
   constructor() {
     (this: IOperator<O>)
   }
@@ -163,39 +191,45 @@ export class LinearOperator<O: ILinearOp> {
   : [[?O, ?O], [?O, ?O]] {
     // returns [[aP, bP], [a, b]]
 
-    if (a != null && a.kind() === 'Insert') {
-      return [[a, new Retain(a.length())], [undefined, b]]
+    if (a != null && isInsert(a)) {
+      return [
+        [a, retainOp(a)],
+        [undefined, b]
+      ]
     }
 
-    if (b != null && b.kind() === 'Insert') {
-      return [[new Retain(b.length()), b], [a, undefined]]
+    if (b != null && isInsert(b)) {
+      return [
+        [retainOp(b), b],
+        [a, undefined]
+      ]
     }
 
     // neither is null
     if (a != null && b != null) {
-      let minLength = Math.min(a.length(), b.length())
+      let minLength = Math.min(length(a), length(b))
 
-      let [aHead, aTail] = a.split(minLength)
-      let [bHead, bTail] = b.split(minLength)
+      let [aHead, aTail] = split(a, minLength)
+      let [bHead, bTail] = split(b, minLength)
 
-      if (aHead.length() === 0) { aHead = undefined }
-      if (aTail.length() === 0) { aTail = undefined }
-      if (bHead.length() === 0) { bHead = undefined }
-      if (bTail.length() === 0) { bTail = undefined }
+      if (length(aHead) === 0) { aHead = undefined }
+      if (length(aTail) === 0) { aTail = undefined }
+      if (length(bHead) === 0) { bHead = undefined }
+      if (length(bTail) === 0) { bTail = undefined }
 
-      if (a.kind() === 'Retain' && b.kind() === 'Retain') {
+      if (isRetain(a) && isRetain(b)) {
         return [[aHead, bHead], [aTail, bTail]]
       }
-      if (a.kind() === 'Delete' && b.kind() === 'Retain') {
+      if (isRemove(a) && isRetain(b)) {
         return [[aHead, undefined], [aTail, bTail]]
       }
-      if (a.kind() === 'Retain' && b.kind() === 'Delete') {
+      if (isRetain(a) && isRemove(b)) {
         return [[undefined, bHead], [aTail, bTail]]
       }
-      if (a.kind() === 'Delete' || b.kind() === 'Delete') {
+      if (isRemove(a) || isRemove(b)) {
         return [[undefined, undefined], [aTail, bTail]] // both do the same thing
       }
-      if (a.kind() === 'Insert' || b.kind() === 'Insert') {
+      if (isInsert(a) || isInsert(b)) {
         throw new Error('wat, should be handled already')
       }
       throw new Error('wat')
@@ -236,12 +270,12 @@ export class LinearOperator<O: ILinearOp> {
 
       if (op1 == null && op2 == null) { break }
 
-      if ((op1 != null && op1.length() <= 0)) {
+      if ((op1 != null && length(op1) <= 0)) {
         op1 = null;
         continue
       }
 
-      if ((op2 != null && op2.length() <= 0)) {
+      if ((op2 != null && length(op2) <= 0)) {
         op2 = null;
         continue
       }
@@ -272,45 +306,45 @@ export class LinearOperator<O: ILinearOp> {
   : [?O, [?O, ?O]] {
     // returns [newOp, [a, b]]
 
-    if (a != null && a.kind() === 'Delete') {
+    if (a != null && isRemove(a)) {
       return [a, [undefined, b]]
     }
 
-    if (b != null && b.kind() === 'Insert') {
+    if (b != null && isInsert(b)) {
       return [b, [a, undefined]]
     }
 
     // neither op is null!
     if (a != null && b != null) {
-      let minLength = Math.min(a.length(), b.length())
+      let minLength = Math.min(length(a), length(b))
 
-      let [aHead, aTail] = a.split(minLength)
-      let [bHead, bTail] = b.split(minLength)
+      let [aHead, aTail] = split(a, minLength)
+      let [bHead, bTail] = split(b, minLength)
 
-      if (aHead.length() === 0) { aHead = undefined }
-      if (aTail.length() === 0) { aTail = undefined }
-      if (bHead.length() === 0) { bHead = undefined }
-      if (bTail.length() === 0) { bTail = undefined }
+      if (length(aHead) === 0) { aHead = undefined }
+      if (length(aTail) === 0) { aTail = undefined }
+      if (length(bHead) === 0) { bHead = undefined }
+      if (length(bTail) === 0) { bTail = undefined }
 
-      if (a.kind() === 'Retain' && b.kind() === 'Retain') {
+      if (isRetain(a) && isRetain(b)) {
         return [aHead, [aTail, bTail]]
       }
-      if (a.kind() === 'Insert' && b.kind() === 'Retain') {
+      if (isInsert(a) && isRetain(b)) {
         return [aHead, [aTail, bTail]]
       }
-      if (a.kind() === 'Retain' && b.kind() === 'Delete') {
+      if (isRetain(a) && isRemove(b)) {
         return [bHead, [aTail, bTail]]
       }
-      if (a.kind() === 'Insert' && b.kind() === 'Delete') {
+      if (isInsert(a) && isRemove(b)) {
         return [undefined, [aTail, bTail]] // delete the inserted portion
       }
-      if (a.kind() === 'Delete' && b.kind() === 'Insert') {
+      if (isRemove(a) && isInsert(b)) {
         throw new Error('wat, should be handled already')
       }
-      if (a.kind() === 'Delete' && b.kind() === 'Delete') {
+      if (isRemove(a) && isRemove(b)) {
         throw new Error('wat, should be handled already')
       }
-      if (a.kind() === 'Insert' && b.kind() === 'Insert') {
+      if (isInsert(a) && isInsert(b)) {
         throw new Error('wat, should be handled already')
       }
       throw new Error('wat')
@@ -343,12 +377,12 @@ export class LinearOperator<O: ILinearOp> {
 
       if (op1 == null && op2 == null) { break }
 
-      if ((op1 != null && op1.length() <= 0)) {
+      if ((op1 != null && length(op1) <= 0)) {
         op1 = null;
         continue
       }
 
-      if ((op2 != null && op2.length() <= 0)) {
+      if ((op2 != null && length(op2) <= 0)) {
         op2 = null;
         continue
       }
@@ -373,17 +407,15 @@ export class LinearOperator<O: ILinearOp> {
 
 //
 
-export type TextOperation = InsertText | Delete | Retain
-
-interface IApplierDelegate<O,S> {
+interface IApplierDelegate<S> {
   initial(): S,
   stateHash(s: S): string,
   apply(state: S, ops: O[]): [S, O[]]
 }
 
-class DelegatingApplier<O,S> {
-  delegate: IApplierDelegate<O,S>
-  constructor(delegate: IApplierDelegate<O,S>) {
+class DelegatingApplier<S> {
+  delegate: IApplierDelegate<S>
+  constructor(delegate: IApplierDelegate<S>) {
     (this: IApplier<O,S>)
     this.delegate = delegate
   }
@@ -418,7 +450,7 @@ class DelegatingApplier<O,S> {
 
 class TextApplierDelegate {
   constructor() {
-    (this: IApplierDelegate<TextOperation, string>)
+    (this: IApplierDelegate<string>)
   }
   initial(): string {
     return ''
@@ -426,31 +458,28 @@ class TextApplierDelegate {
   stateHash(text: string): string {
     return text
   }
-  apply(text: string, ops: TextOperation[])
-  : [string, TextOperation[]] { // returns [state, undo]
+  apply(text: string, ops: O[])
+  : [string, O[]] { // returns [state, undo]
     let i = 0
     let undo = []
     for (let op of ops) {
-      if (op instanceof InsertText) {
-        undo.push(new Delete(op.text.length))
-        text = text.slice(0, i) + op.text + text.slice(i)
-        i += op.text.length
-      }
-
-      if (op instanceof Retain) {
-        if (op.num < 0) { throw new Error('wat, failed to retain') }
-
-        undo.push(new Retain(op.num))
-        i += op.num
-      }
-
-      if (op instanceof Delete) {
-        if (op.num < 0) { throw new Error('wat, failed to delete') }
-        if (i + op.num > text.length) { throw new Error('wat, trying to delete too much') }
-
-        undo.push(new InsertText(text.slice(i, i + op.num)))
-        text = text.slice(0, i) + text.slice(i + op.num)
-      }
+      opSwitch(op, {
+        insert: (insert: Insert) => {
+          undo.push(- insert.length)
+          text = text.slice(0, i) + insert + text.slice(i)
+          i += length(insert)
+        },
+        remove: (remove: Remove) => {
+          let num = length(remove)
+          if (i + num > text.length) { throw new Error('wat, trying to delete too much') }
+          undo.push(text.slice(i, i + num))
+          text = text.slice(0, i) + text.slice(i + num)
+        },
+        retain: (retain: Retain) => {
+          undo.push(retain)
+          i += length(retain)
+        }
+      })
 
       // make sure we didn't accidentally overshoot
       if (i > text.length) { throw new Error('wat, overshot') }
@@ -460,7 +489,7 @@ class TextApplierDelegate {
   }
 }
 
-export class TextApplier extends DelegatingApplier<TextOperation, string> {
+export class TextApplier extends DelegatingApplier<string> {
   constructor() {
     super(new TextApplierDelegate())
   }
@@ -468,10 +497,10 @@ export class TextApplier extends DelegatingApplier<TextOperation, string> {
 
 export class TextInferrer {
   constructor() {
-    (this: IInferrer<TextOperation, string>)
+    (this: IInferrer<O, string>)
   }
   infer(oldText: string, newText: string)
-  : ?TextOperation[] {
+  : ?O[] {
     if (oldText.length === newText.length) {
       // we have a no-op
       if (oldText === newText) {
@@ -480,11 +509,11 @@ export class TextInferrer {
     }
 
     if (newText.length === 0) {
-      return [new Delete(oldText.length)]
+      return [ - oldText.length ]
     }
 
     if (oldText.length === 0) {
-      return [new InsertText(newText)]
+      return [ newText ]
     }
 
     // or we have a selection being overwritten.
@@ -498,9 +527,9 @@ export class TextInferrer {
     let endNew = newText.length - postfixLength
 
     return [ // update
-      new Retain(start),
-      new Delete(endOld - start),
-      new InsertText(restring(substring(newText, {start: start, stop: endNew})))
+      start,
+      - (endOld - start),
+      restring(substring(newText, {start: start, stop: endNew}))
     ]
   }
 }
@@ -517,27 +546,27 @@ class CursorApplier {
   stateHash(state: CursorState): string {
     throw new Error('not implemented')
   }
-  _adjustPosition(pos: number, ops: TextOperation[]): number {
+  _adjustPosition(pos: number, ops: O[]): number {
     let i = 0
     for (let op of ops) {
       if (i >= pos) { break }
 
-      if (op instanceof InsertText) {
-        i += op.length()
-        pos += op.length()
-      }
-
-      if (op instanceof Retain) {
-        i += op.num
-      }
-
-      if (op instanceof Delete) {
-        pos -= op.length()
-      }
+      opSwitch(op, {
+        insert: (insert: Insert) => {
+          i += length(insert)
+          pos += length(insert)
+        },
+        remove: (remove: Remove) => {
+          pos -= length(remove)
+        },
+        retain: (retain: Retain) => {
+          i += length(retain)
+        }
+      })
     }
     return pos
   }
-  apply(state: CursorState, ops: TextOperation[]): CursorState {
+  apply(state: CursorState, ops: O[]): CursorState {
     return {
       start: this._adjustPosition(state.start, ops),
       end: this._adjustPosition(state.end, ops)
@@ -554,7 +583,7 @@ class DocumentApplierDelegate {
   textApplier: TextApplier
 
   constructor() {
-    (this: IApplierDelegate<TextOperation, DocumentState>)
+    (this: IApplierDelegate<DocumentState>)
     this.cursorApplier = new CursorApplier() // no DI :()
     this.textApplier = new TextApplier()
   }
@@ -564,7 +593,7 @@ class DocumentApplierDelegate {
   stateHash(state: DocumentState): string {
     return this.textApplier.stateHash(state.text)
   }
-  apply(state: DocumentState, ops: TextOperation[]): [DocumentState, TextOperation[]] {
+  apply(state: DocumentState, ops: O[]): [DocumentState, O[]] {
     let [text, undo] = this.textApplier.apply(state.text, ops)
     let cursor = this.cursorApplier.apply(state.cursor, ops)
     return [
@@ -574,7 +603,7 @@ class DocumentApplierDelegate {
   }
 }
 
-export class DocumentApplier extends DelegatingApplier<TextOperation, DocumentState> {
+export class DocumentApplier extends DelegatingApplier<DocumentState> {
   constructor() {
     super(new DocumentApplierDelegate())
   }

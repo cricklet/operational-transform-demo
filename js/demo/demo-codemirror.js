@@ -31,7 +31,7 @@ import type {
 } from '../ot/text_operations.js'
 
 import {
-  LinearOperator,
+  Operator,
   DocumentApplier,
   TextInferrer,
 } from '../ot/text_operations.js'

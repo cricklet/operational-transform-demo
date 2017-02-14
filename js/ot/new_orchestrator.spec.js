@@ -20,16 +20,14 @@ import {
 } from './new_orchestrator.js'
 
 import {
-  LinearOperator,
+  Operator,
   TextApplier,
   TextInferrer,
   generateInsertion,
   generateDeletion
 } from './text_operations.js'
 
-import type { TextOperation } from './text_operations.js'
-
-let operator = new LinearOperator()
+let operator = new Operator()
 let applier = new TextApplier()
 let inferrer = new TextInferrer()
 

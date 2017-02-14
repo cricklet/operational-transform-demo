@@ -8,29 +8,24 @@ import { assert } from 'chai'
 
 import {
   TextApplier,
-  LinearOperator,
+  Operator,
   TextInferrer,
   generateInsertion,
   generateDeletion
 } from './text_operations.js'
-
-import type { TextOperation } from './text_operations.js'
 
 function opsString <A> (as: A[]): string {
   return "[" + as.join(', ') + "]"
 }
 
 let applier = new TextApplier()
-let transformer = new LinearOperator()
+let operator = new Operator()
 let inferrer = new TextInferrer()
 
 describe('apply()', () => {
-  [ { text: '0123', op: generateInsertion(-1, 'a'), throws: true },
-    { text: '0123', op: generateInsertion(5, 'a'),  throws: true },
+  [ { text: '0123', op: generateInsertion(5, 'a'),  throws: true },
     { text: '0123', op: generateInsertion(1, 'a'),  result: '0a123' },
     { text: '0123', op: generateInsertion(4, 'a'),  result: '0123a' },
-    { text: '0123', op: generateDeletion(-1, 1),   throws: true },
-    { text: '0123', op: generateDeletion(-1, 0),   throws: true },
     { text: '0123', op: generateDeletion(0, 4),    result: '' },
     { text: '0123', op: generateDeletion(0, 5),    throws: true },
     { text: '0123', op: generateDeletion(3, 1),    result: '012' }
@@ -62,7 +57,7 @@ describe('transform()', () => {
     [generateDeletion(0, 1), generateInsertion(1, 'a')],
   ].forEach(([op1, op2]) => {
     it (opsString(op1) + ', ' + opsString(op2) + ' are propertly transformed', () => {
-      let [op1P, op2P] = transformer.transform(op1, op2)
+      let [op1P, op2P] = operator.transform(op1, op2)
 
       assert.equal(
         applier.applySimple(applier.applySimple("012345678901234567890123456789", op1), op2P),
@@ -81,7 +76,7 @@ describe('compose()', () => {
     it (start + ' becomes ' + result + ' via ' + opsString(op1) + ', ' + opsString(op2), () => {
       assert.equal(
         result,
-        applier.applySimple(start, transformer.compose(op1, op2)))
+        applier.applySimple(start, operator.compose(op1, op2)))
       assert.equal(
         result,
         applier.applySimple(applier.applySimple(start, op1), op2))
@@ -107,18 +102,18 @@ describe('combinatorial', () => {
 
         it (opsString(op1) + ', ' + opsString(op2) + ' turns ' + start + ' into ' + result, () => {
           if (result === 'error') {
-            assert.throws(() => applier.applySimple(start, transformer.compose(op1, op2)))
+            assert.throws(() => applier.applySimple(start, operator.compose(op1, op2)))
           } else {
             assert.equal(
               result,
-              applier.applySimple(start, transformer.compose(op1, op2)))
+              applier.applySimple(start, operator.compose(op1, op2)))
           }
         })
       })
 
       describe('transforming two ops', () => {
         it (opsString(op1) + ', ' + opsString(op2) + ' are propertly transformed', () => {
-          let [op1P, op2P] = transformer.transform(op1, op2)
+          let [op1P, op2P] = operator.transform(op1, op2)
 
           assert.equal(
             applier.applySimple(applier.applySimple("0123456789abcdefghijk", op1), op2P),
@@ -129,8 +124,8 @@ describe('combinatorial', () => {
       ops.forEach(op3 => {
         describe('transforming three ops', () => {
           it (opsString(op1) + ', ' + opsString(op2) + ', ' + opsString(op3) + ' are propertly transformed', () => {
-            let [c1, c2] = [transformer.compose(op1, op2), op3]
-            let [c1P, c2P] = transformer.transform(c1, c2)
+            let [c1, c2] = [operator.compose(op1, op2), op3]
+            let [c1P, c2P] = operator.transform(c1, c2)
 
             assert.equal(
               applier.applySimple(applier.applySimple("0123456789", c1), c2P),
@@ -146,11 +141,11 @@ describe('combinatorial', () => {
 
           it (opsString(op1) + ', ' + opsString(op2) + ', ' + opsString(op3) + ' turns ' + start + ' into ' + result, () => {
             if (result === 'error') {
-              assert.throws(() => applier.applySimple(start, transformer.compose(op1, transformer.compose(op2, op3))))
+              assert.throws(() => applier.applySimple(start, operator.compose(op1, operator.compose(op2, op3))))
             } else {
               assert.equal(
                 result,
-                applier.applySimple(start, transformer.compose(op1, transformer.compose(op2, op3))))
+                applier.applySimple(start, operator.compose(op1, operator.compose(op2, op3))))
             }
           })
         })
