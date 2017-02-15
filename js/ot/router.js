@@ -2,7 +2,7 @@
 import { genUid, pop, filterInPlace, subarray } from './utils.js'
 import { find } from 'wu'
 
-type Packet<D> = {
+export type Packet<D> = {
   index: number,
   data: D,
   source: string
@@ -14,7 +14,7 @@ export interface IRouter<OutgoingData, IncomingData> {
   send(data: OutgoingData): void,
 
   // callback for receiving packets from other routers!
-  onReceive: (data: IncomingData) => void,
+  listen((data: IncomingData) => void): void,
 }
 
 export class SimulatedRouter<OutgoingData, IncomingData> {
@@ -34,12 +34,11 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
 
   otherRouters: SimulatedRouter<IncomingData, OutgoingData>[]
 
-  onReceive: (data: IncomingData) => void
+  listeners: ((data: IncomingData) => void)[]
 
   logger: (s: string) => void
 
   constructor(
-    onReceive: (data: IncomingData) => void,
     chaos: {
       minDelay: number,
       maxDelay: number,
@@ -49,8 +48,6 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
   ) {
     (this: IRouter<OutgoingData, IncomingData>)
     this.uid = genUid()
-
-    this.onReceive = onReceive
 
     this.otherRouters = []
 
@@ -64,6 +61,10 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
 
     if (logger != null) { this.logger = logger }
     else { this.logger = s => {} }
+  }
+
+  listen(l: (data: IncomingData) => void) {
+    this.listeners.push(l)
   }
 
   send(data: OutgoingData) {
@@ -94,7 +95,9 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
       this.nextIncomingIndex[packet.source] = (this.nextIncomingIndex[packet.source] || 0) + 1
 
       // received callback!
-      this.onReceive(packet.data)
+      for (let listener of this.listeners) {
+        listener(packet.data)
+      }
     }
 
     // remove old elements

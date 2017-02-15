@@ -28,9 +28,9 @@ describe("SimulatedRouter", () => {
   function createRouter() {
     let vs: number[] = []
     let r: SimulatedRouter<number, number> = new SimulatedRouter(
-      (v: number) => { vs.push(v) },
       { minDelay: 1000, maxDelay: 2000, dropPercentage: 0.5 },
       s => {})
+    r.listen((v: number) => { vs.push(v) })
 
     return [vs, r]
   }
