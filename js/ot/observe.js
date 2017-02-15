@@ -1,4 +1,7 @@
 
+require('object.observe')
+require('array.observe')
+
 type Observer = ((changes: any) => void)
 
 export function unobserveArray <O> (array: Array<O>, observer: Observer): void {

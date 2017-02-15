@@ -3,7 +3,8 @@
   "scripts": {
     "flow": "flow",
     "test": "mocha --compilers js:babel-core/register -R spec ./**/*.spec.js",
-    "debug": "mocha debug --compilers js:babel-core/register -R spec ./**/*.spec.js",
+    "debug-one": "mocha debug --compilers js:babel-core/register --watch -R spec",
+    "debug": "mocha debug --compilers js:babel-core/register --watch -R spec ./**/*.spec.js",
     "watch": "mocha --compilers js:babel-core/register --watch -R spec ./**/*.spec.js",
     "watch-one": "mocha --compilers js:babel-core/register --watch -R spec",
     "client": "webpack-dev-server --progress --colors",
