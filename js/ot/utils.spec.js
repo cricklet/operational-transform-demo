@@ -387,6 +387,7 @@ describe('Notify', () => {
       successes += 1
 		})()
 
-    await sleep(1)
+    await sleep(0)
+    assert.equal(successes, 3)
 	}))
 })
