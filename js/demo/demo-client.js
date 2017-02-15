@@ -7,20 +7,14 @@ import { count, zip, filter, find, takeWhile, take, map } from 'wu'
 import { observeArray, observeObject } from '../ot/observe'
 
 import type {
-  IApplier,
-  IInferrer,
-  IOperator
+  DocumentState
 } from '../ot/operations.js'
 
-import type {
-  DocumentState
-} from '../ot/text_operations.js'
-
 import {
-  Operator,
+  Transformer,
   DocumentApplier,
-  TextInferrer,
-} from '../ot/text_operations.js'
+  inferOps,
+} from '../ot/operations.js'
 
 import { OTClient, OTServer } from '../ot/orchestrator.js'
 import type { ClientUpdate, ServerBroadcast } from '../ot/orchestrator.js'
@@ -67,8 +61,6 @@ function updateDOMTextbox($text, state: DocumentState): void {
 }
 
 function setupClient(
-  applier: IApplier<*,*>,
-  inferrer: IInferrer<*,*>,
   client: OTClient<*,*>,
   router: IRouter<*,*>,
   $text: any,
@@ -107,7 +99,7 @@ function setupClient(
     let [newText, newCursorStart, newCursorEnd] = getValuesFromDOMTextbox($text)
 
     // handle new text
-    let editOps = inferrer.infer(client.state.text, newText)
+    let editOps = inferOps(client.state.text, newText)
     if (editOps != null) {
       let update = client.handleEdit(editOps)
       if (update != null) {
@@ -124,11 +116,11 @@ function setupClient(
 }
 
 // $(document).ready(() => {
-//   let operator = new Operator()
+//   let transformer = new Transformer()
 //   let applier = new DocumentApplier()
 //   let inferrer = new TextInferrer()
 //
-//   let client = new OTClient(operator, applier)
+//   let client = new OTClient(transformer, applier)
 //   let clientRouter = new SimulatedRouter((broadcast: ServerBroadcast<*>) => {
 //     let update = client.handleBroadcast(broadcast)
 //     if (update == null) { return }

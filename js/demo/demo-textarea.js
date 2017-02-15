@@ -21,18 +21,18 @@ import type { IRouter } from '../ot/router.js'
 import type {
   IApplier,
   IInferrer,
-  IOperator
+  ITransformer
 } from '../ot/operations.js'
 
 import type {
   DocumentState
-} from '../ot/text_operations.js'
+} from '../ot/operations.js'
 
 import {
-  Operator,
+  Transformer,
   DocumentApplier,
-  TextInferrer,
-} from '../ot/text_operations.js'
+  inferOps,
+} from '../ot/operations.js'
 
 type Lock = { ignoreEvents: boolean }
 
@@ -56,8 +56,6 @@ function updateDOMTextbox($text, state: DocumentState): void {
 }
 
 function setupClient(
-  applier: IApplier<*,*>,
-  inferrer: IInferrer<*,*>,
   client: OTClient<*,*>,
   router: IRouter<*,*>,
   $text: any,
@@ -96,7 +94,7 @@ function setupClient(
     let [newText, newCursorStart, newCursorEnd] = getValuesFromDOMTextbox($text)
 
     // handle new text
-    let editOps = inferrer.infer(client.state.text, newText)
+    let editOps = inferOps(client.state.text, newText)
     if (editOps != null) {
       let update = client.handleEdit(editOps)
       if (update != null) {
@@ -313,9 +311,6 @@ function generateLogger($log) {
 
 $(document).ready(() => {
   // stuff to dependency inject
-  let operator = new Operator()
-  let applier = new DocumentApplier()
-  let inferrer = new TextInferrer()
 
   let $serverContainer = $('#server')
   let $clientContainer = $('#clients')
@@ -327,7 +322,7 @@ $(document).ready(() => {
   let clients: OTClient<*,*>[] = []
   let clientRouters = []
 
-  let server = new OTServer(operator, applier)
+  let server = new OTServer(Transformer, DocumentApplier)
   let serverRouter = new SimulatedRouter(chaos, serverLogger)
   serverRouter.listen((update: ClientUpdate<*>) => {
     let broadcast = server.handleUpdate(update)
@@ -350,7 +345,7 @@ $(document).ready(() => {
     $client.insertBefore($clientPlaceholder)
     clientId ++
 
-    let client = new OTClient(operator, applier)
+    let client = new OTClient(Transformer, DocumentApplier)
     let clientRouter = new SimulatedRouter(chaos)
     clientRouter.listen((broadcast: ServerBroadcast<*>) => {
       let update = client.handleBroadcast(broadcast)
@@ -363,7 +358,7 @@ $(document).ready(() => {
 
     clientRouters.push(clientRouter)
 
-    setupClient(applier, inferrer, client, clientRouter, $text)
+    setupClient(client, clientRouter, $text)
     randomlyAdjustText($text, shouldRandomize, 500)
 
     clients.push(client);

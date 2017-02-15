@@ -20,30 +20,26 @@ import {
 } from './orchestrator.js'
 
 import {
-  Operator,
+  Transformer,
   TextApplier,
-  TextInferrer,
+  inferOps,
   generateInsertion,
   generateDeletion
-} from './text_operations.js'
-
-let operator = new Operator()
-let applier = new TextApplier()
-let inferrer = new TextInferrer()
+} from './operations.js'
 
 describe('Client & Server', () => {
   it('initialize', () => {
-    let server = new OTServer(operator, applier)
-    let client = new OTClient(operator, applier)
+    let server = new OTServer(Transformer, TextApplier)
+    let client = new OTClient(Transformer, TextApplier)
   })
   it('one client updates', () => {
-    let client = new OTClient(operator, applier)
+    let client = new OTClient(Transformer, TextApplier)
     client.handleEdit(generateInsertion(0, 'hello!'), [])
     assert.equal('hello!', client.state)
   })
   it('one client updates server', () => {
-    let server = new OTServer(operator, applier)
-    let client = new OTClient(operator, applier)
+    let server = new OTServer(Transformer, TextApplier)
+    let client = new OTClient(Transformer, TextApplier)
 
     let propogate = generatePropogator(server, [client])
 
@@ -54,9 +50,9 @@ describe('Client & Server', () => {
     assert.equal('hello!', server.state)
   })
   it ('two clients are handled', () => {
-    let server = new OTServer(operator, applier)
-    let client0 = new OTClient(operator, applier)
-    let client1 = new OTClient(operator, applier)
+    let server = new OTServer(Transformer, TextApplier)
+    let client0 = new OTClient(Transformer, TextApplier)
+    let client1 = new OTClient(Transformer, TextApplier)
 
     let propogate = generatePropogator(server, [client0, client1])
 
@@ -69,9 +65,9 @@ describe('Client & Server', () => {
     assert.equal('world', server.state)
   })
   it ('two clients conflicts are handled', () => {
-    let server = new OTServer(operator, applier)
-    let client0 = new OTClient(operator, applier)
-    let client1 = new OTClient(operator, applier)
+    let server = new OTServer(Transformer, TextApplier)
+    let client0 = new OTClient(Transformer, TextApplier)
+    let client1 = new OTClient(Transformer, TextApplier)
 
     let propogate = generatePropogator(server, [client0, client1])
 
@@ -86,9 +82,9 @@ describe('Client & Server', () => {
     assert.equal('helloworld', server.state)
   })
   it ('two clients out of order', () => {
-    let server = new OTServer(operator, applier)
-    let client0 = new OTClient(operator, applier)
-    let client1 = new OTClient(operator, applier)
+    let server = new OTServer(Transformer, TextApplier)
+    let client0 = new OTClient(Transformer, TextApplier)
+    let client1 = new OTClient(Transformer, TextApplier)
 
     let propogate = generatePropogator(server, [client0, client1])
 
@@ -105,12 +101,12 @@ describe('Client & Server', () => {
     assert.equal('01234', server.state)
   })
   it ('multiple clients with interleaved requests', () => {
-    let client0 = new OTClient(operator, applier)
-    let client1 = new OTClient(operator, applier)
-    let client2 = new OTClient(operator, applier)
+    let client0 = new OTClient(Transformer, TextApplier)
+    let client1 = new OTClient(Transformer, TextApplier)
+    let client2 = new OTClient(Transformer, TextApplier)
 
     let clients = [client0, client1, client2]
-    let server = new OTServer(operator, applier)
+    let server = new OTServer(Transformer, TextApplier)
 
     let propogate = generatePropogator(server, clients)
 
@@ -150,12 +146,12 @@ describe('Client & Server', () => {
 
 describe('undo & redo', () => {
   it('undo works for one client', () => {
-    let client = new OTClient(operator, applier)
+    let client = new OTClient(Transformer, TextApplier)
 
-    client.handleNullableEdit(inferrer.infer(client.state, 'hello'))
+    client.handleNullableEdit(inferOps(client.state, 'hello'))
     assert.equal(client.state, 'hello')
 
-    client.handleNullableEdit(inferrer.infer(client.state, 'hello world'))
+    client.handleNullableEdit(inferOps(client.state, 'hello world'))
     assert.equal(client.state, 'hello world')
 
     client.handleUndo()
@@ -169,12 +165,12 @@ describe('undo & redo', () => {
   })
 
   it('undo redo for one client', () => {
-    let client = new OTClient(operator, applier)
+    let client = new OTClient(Transformer, TextApplier)
 
-    client.handleNullableEdit(inferrer.infer(client.state, 'hello'))
+    client.handleNullableEdit(inferOps(client.state, 'hello'))
     assert.equal(client.state, 'hello')
 
-    client.handleNullableEdit(inferrer.infer(client.state, 'hello world'))
+    client.handleNullableEdit(inferOps(client.state, 'hello world'))
     assert.equal(client.state, 'hello world')
 
     client.handleUndo()
@@ -191,12 +187,12 @@ describe('undo & redo', () => {
   })
 
   it('redo is reset on edit', () => {
-    let client = new OTClient(operator, applier)
+    let client = new OTClient(Transformer, TextApplier)
 
-    client.handleNullableEdit(inferrer.infer(client.state, 'hello'))
+    client.handleNullableEdit(inferOps(client.state, 'hello'))
     assert.equal(client.state, 'hello')
 
-    client.handleNullableEdit(inferrer.infer(client.state, 'hello world'))
+    client.handleNullableEdit(inferOps(client.state, 'hello world'))
     assert.equal(client.state, 'hello world')
     assert.equal(client.undos.opsStack.length, 2)
     assert.equal(client.redos.opsStack.length, 0)
@@ -207,19 +203,19 @@ describe('undo & redo', () => {
     assert.equal(client.undos.opsStack.length, 0)
     assert.equal(client.redos.opsStack.length, 2)
 
-    client.handleNullableEdit(inferrer.infer(client.state, 'banana'))
+    client.handleNullableEdit(inferOps(client.state, 'banana'))
     assert.equal(client.state, 'banana')
     assert.equal(client.undos.opsStack.length, 1)
     assert.equal(client.redos.opsStack.length, 0)
   })
 
   it('undo/redo extra times for one client', () => {
-    let client = new OTClient(operator, applier)
+    let client = new OTClient(Transformer, TextApplier)
 
-    client.handleNullableEdit(inferrer.infer(client.state, 'hello'))
+    client.handleNullableEdit(inferOps(client.state, 'hello'))
     assert.equal(client.state, 'hello')
 
-    client.handleNullableEdit(inferrer.infer(client.state, 'hello world'))
+    client.handleNullableEdit(inferOps(client.state, 'hello world'))
     assert.equal(client.state, 'hello world')
     assert.equal(client.undos.opsStack.length, 2)
     assert.equal(client.redos.opsStack.length, 0)
@@ -256,15 +252,15 @@ describe('undo & redo', () => {
   })
 
   it('undo works for two clients', () => { // tested on dropbox paper!
-    let client0 = new OTClient(operator, applier)
-    let client1 = new OTClient(operator, applier)
-    let server = new OTServer(operator, applier)
+    let client0 = new OTClient(Transformer, TextApplier)
+    let client1 = new OTClient(Transformer, TextApplier)
+    let server = new OTServer(Transformer, TextApplier)
 
     let propogate = generatePropogator(server, [client0, client1])
 
-    propogate(client0.handleNullableEdit(inferrer.infer(client0.state, 'hello')))
-    propogate(client1.handleNullableEdit(inferrer.infer(client1.state, 'hellogeorge')))
-    propogate(client0.handleNullableEdit(inferrer.infer(client0.state, 'helloworld')))
+    propogate(client0.handleNullableEdit(inferOps(client0.state, 'hello')))
+    propogate(client1.handleNullableEdit(inferOps(client1.state, 'hellogeorge')))
+    propogate(client0.handleNullableEdit(inferOps(client0.state, 'helloworld')))
 
     assert.equal(client0.state, 'helloworld')
     assert.equal(client1.state, 'helloworld')
@@ -283,20 +279,20 @@ describe('undo & redo', () => {
   })
 
   it('redo works for two clients', () => { // tested on dropbox paper!
-    let client0 = new OTClient(operator, applier)
-    let client1 = new OTClient(operator, applier)
-    let server = new OTServer(operator, applier)
+    let client0 = new OTClient(Transformer, TextApplier)
+    let client1 = new OTClient(Transformer, TextApplier)
+    let server = new OTServer(Transformer, TextApplier)
 
     let propogate = generatePropogator(server, [client0, client1])
 
     let updates = []
 
-    updates.push(client0.handleNullableEdit(inferrer.infer(client0.state, 'hello')))
-    updates.push(client0.handleNullableEdit(inferrer.infer(client0.state, 'hello world')))
-    updates.push(client0.handleNullableEdit(inferrer.infer(client0.state, 'hi world')))
+    updates.push(client0.handleNullableEdit(inferOps(client0.state, 'hello')))
+    updates.push(client0.handleNullableEdit(inferOps(client0.state, 'hello world')))
+    updates.push(client0.handleNullableEdit(inferOps(client0.state, 'hi world')))
 
-    updates.push(client1.handleNullableEdit(inferrer.infer(client1.state, 'boop ')))
-    updates.push(client1.handleNullableEdit(inferrer.infer(client1.state, 'boop banana ')))
+    updates.push(client1.handleNullableEdit(inferOps(client1.state, 'boop ')))
+    updates.push(client1.handleNullableEdit(inferOps(client1.state, 'boop banana ')))
 
     assert.equal(client0.state, 'hi world')
     assert.equal(client1.state, 'boop banana ')

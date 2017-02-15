@@ -23,18 +23,18 @@ import type { IRouter } from '../ot/router.js'
 import type {
   IApplier,
   IInferrer,
-  IOperator
+  ITransformer
 } from '../ot/operations.js'
 
 import type {
   DocumentState
-} from '../ot/text_operations.js'
+} from '../ot/operations.js'
 
 import {
-  Operator,
+  Transformer,
   DocumentApplier,
-  TextInferrer,
-} from '../ot/text_operations.js'
+  inferOps,
+} from '../ot/operations.js'
 
 import {
   merge

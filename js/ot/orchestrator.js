@@ -1,6 +1,6 @@
 /* @flow */
 
-import type { IOperator, IApplier } from './operations.js'
+import type { ITransformer, IApplier } from './operations.js'
 import { observeArray, observeEach } from './observe.js'
 import { skipNulls, map, reiterable, concat, flatten, maybePush, hash, clone, merge, last, genUid, zipPairs, first, pop, push, contains, reverse, findLastIndex, subarray, asyncWait } from './utils.js'
 
@@ -124,11 +124,11 @@ export function castClientUpdate<O>(obj: Object): ClientUpdate<O> {
 }
 
 class OperationHelper<O,S> {
-  operator: IOperator<O>
   applier: IApplier<O,S>
+  transformer: ITransformer<O>
 
-  constructor(operator: IOperator<O>, applier: IApplier<O,S>) {
-    this.operator = operator
+  constructor(transformer: ITransformer<O>, applier: IApplier<O,S>) {
+    this.transformer = transformer
     this.applier = applier
   }
 
@@ -166,7 +166,7 @@ class OperationHelper<O,S> {
       throw new Error('wat can\'t compose empty list')
     }
 
-    let composed: O[] = this.operator.composeMany(
+    let composed: O[] = this.transformer.composeMany(
       skipNulls(map(reiterable(operations), o => o.ops))()
     )
 
@@ -215,7 +215,7 @@ class OperationHelper<O,S> {
 
     let b: ?O[] = appliedOp.ops
     for (let a: ?O[] of reverse(operationsStack.opsStack)()) {
-      let [aP, bP] = this.operator.transformNullable(a, b)
+      let [aP, bP] = this.transformer.transformNullable(a, b)
 
       transformedOps.push(aP)
       b = bP
@@ -225,6 +225,18 @@ class OperationHelper<O,S> {
     transformedOps.reverse()
 
     return { opsStack: transformedOps, parentHash: childHash }
+  }
+
+  applyNullable(
+    state: S,
+    o: ?O[]
+  ): [S, ?O[]] {
+    if (o == null) {
+      return [state, undefined]
+    } else {
+      let [newState, undo] = this.applier.apply(state, o)
+      return [newState, undo]
+    }
   }
 
   transformAndApplyToClient(
@@ -243,7 +255,7 @@ class OperationHelper<O,S> {
 
     let [aT, bT] = this.transform(a, b)
 
-    let [newState, newUndo] = this.applier.applyNullable(clientState, bT.ops)
+    let [newState, newUndo] = this.applyNullable(clientState, bT.ops)
     let newHash = this.applier.stateHash(newState)
 
     aT.childHash = newHash
@@ -273,7 +285,7 @@ class OperationHelper<O,S> {
 
     let [aT, bT] = this.transform(a, b)
 
-    let [newState, newUndo] = this.applier.applyNullable(serverState, aT.ops)
+    let [newState, newUndo] = this.applyNullable(serverState, aT.ops)
     let newHash = this.applier.stateHash(newState)
 
     aT.childHash = newHash
@@ -350,7 +362,7 @@ class OperationHelper<O,S> {
     let [aOp,bOp] = [clientOp, serverOp]
     let [a,b] = [aOp.ops, bOp.ops]
 
-    let [aP,bP] = this.operator.transformNullable(a, b)
+    let [aP,bP] = this.transformer.transformNullable(a, b)
 
     let aOpP = this._createOp(aP, {parent: bOp, source: aOp})
     let bOpP = this._createOp(bP, {parent: aOp, source: bOp})
@@ -381,8 +393,8 @@ export class OTClient<O,S> {
 
   helper: OperationHelper<O,S>
 
-  constructor(operator: IOperator<O>, applier: IApplier<O,S>) {
-    this.helper = new OperationHelper(operator, applier)
+  constructor(transformer: ITransformer<O>, applier: IApplier<O,S>) {
+    this.helper = new OperationHelper(transformer, applier)
 
     this.uid = genUid()
     this.state = applier.initial()
@@ -644,11 +656,11 @@ export class OTServer<O,S> {
   helper: OperationHelper<O,S>
 
   constructor(
-    operator: IOperator<O>,
+    transformer: ITransformer<O>,
     applier: IApplier<O,S>,
     doc?: OTServerDocument<O,S>
   ) {
-    this.helper = new OperationHelper(operator, applier)
+    this.helper = new OperationHelper(transformer, applier)
 
     this.uid = genUid()
 

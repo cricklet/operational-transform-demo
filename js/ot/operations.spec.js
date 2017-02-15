@@ -6,21 +6,27 @@ import { expect } from 'chai'
 import { spy } from 'sinon'
 import { assert } from 'chai'
 
+import type { Op } from './operations.js'
 import {
   TextApplier,
-  Operator,
-  TextInferrer,
+  Transformer,
+  inferOps,
   generateInsertion,
   generateDeletion
-} from './text_operations.js'
+} from './operations.js'
 
 function opsString <A> (as: A[]): string {
   return "[" + as.join(', ') + "]"
 }
 
-let applier = new TextApplier()
-let operator = new Operator()
-let inferrer = new TextInferrer()
+function apply(text: string, ops: Op[]): string {
+  if (ops == null) {
+    return text
+  } else {
+    let [newText, undo] = TextApplier.apply(text, ops)
+    return newText
+  }
+}
 
 describe('apply()', () => {
   [ { text: '0123', op: generateInsertion(5, 'a'),  throws: true },
@@ -32,12 +38,12 @@ describe('apply()', () => {
   ].forEach((test) => {
     if (test.throws) {
       it ('raises an error for op: ' + opsString(test.op) + ' on text: ' + test.text, () => {
-        assert.throws(() => applier.applySimple(test.text, test.op))
+        assert.throws(() => apply(test.text, test.op))
       })
     } else {
       it ('"' + test.text + '" + ' + opsString(test.op) + ' turns into "' + test.result + '"', () => {
         if (test.result == null) { throw new Error('wat') }
-        assert.equal(test.result, applier.applySimple(test.text, test.op))
+        assert.equal(test.result, apply(test.text, test.op))
       })
     }
   })
@@ -57,11 +63,11 @@ describe('transform()', () => {
     [generateDeletion(0, 1), generateInsertion(1, 'a')],
   ].forEach(([op1, op2]) => {
     it (opsString(op1) + ', ' + opsString(op2) + ' are propertly transformed', () => {
-      let [op1P, op2P] = operator.transform(op1, op2)
+      let [op1P, op2P] = Transformer.transform(op1, op2)
 
       assert.equal(
-        applier.applySimple(applier.applySimple("012345678901234567890123456789", op1), op2P),
-        applier.applySimple(applier.applySimple("012345678901234567890123456789", op2), op1P))
+        apply(apply("012345678901234567890123456789", op1), op2P),
+        apply(apply("012345678901234567890123456789", op2), op1P))
     })
   })
 })
@@ -76,10 +82,10 @@ describe('compose()', () => {
     it (start + ' becomes ' + result + ' via ' + opsString(op1) + ', ' + opsString(op2), () => {
       assert.equal(
         result,
-        applier.applySimple(start, operator.compose(op1, op2)))
+        apply(start, Transformer.compose(op1, op2)))
       assert.equal(
         result,
-        applier.applySimple(applier.applySimple(start, op1), op2))
+        apply(apply(start, op1), op2))
     })
   })
 })
@@ -97,55 +103,55 @@ describe('combinatorial', () => {
       describe('composing two ops', () => {
         let start = '0123456789'
         let result
-        try { result = applier.applySimple(applier.applySimple(start, op1), op2) }
+        try { result = apply(apply(start, op1), op2) }
         catch (e) { result = 'error' }
 
         it (opsString(op1) + ', ' + opsString(op2) + ' turns ' + start + ' into ' + result, () => {
           if (result === 'error') {
-            assert.throws(() => applier.applySimple(start, operator.compose(op1, op2)))
+            assert.throws(() => apply(start, Transformer.compose(op1, op2)))
           } else {
             assert.equal(
               result,
-              applier.applySimple(start, operator.compose(op1, op2)))
+              apply(start, Transformer.compose(op1, op2)))
           }
         })
       })
 
       describe('transforming two ops', () => {
         it (opsString(op1) + ', ' + opsString(op2) + ' are propertly transformed', () => {
-          let [op1P, op2P] = operator.transform(op1, op2)
+          let [op1P, op2P] = Transformer.transform(op1, op2)
 
           assert.equal(
-            applier.applySimple(applier.applySimple("0123456789abcdefghijk", op1), op2P),
-            applier.applySimple(applier.applySimple("0123456789abcdefghijk", op2), op1P))
+            apply(apply("0123456789abcdefghijk", op1), op2P),
+            apply(apply("0123456789abcdefghijk", op2), op1P))
         })
       })
 
       ops.forEach(op3 => {
         describe('transforming three ops', () => {
           it (opsString(op1) + ', ' + opsString(op2) + ', ' + opsString(op3) + ' are propertly transformed', () => {
-            let [c1, c2] = [operator.compose(op1, op2), op3]
-            let [c1P, c2P] = operator.transform(c1, c2)
+            let [c1, c2] = [Transformer.compose(op1, op2), op3]
+            let [c1P, c2P] = Transformer.transform(c1, c2)
 
             assert.equal(
-              applier.applySimple(applier.applySimple("0123456789", c1), c2P),
-              applier.applySimple(applier.applySimple("0123456789", c2), c1P))
+              apply(apply("0123456789", c1), c2P),
+              apply(apply("0123456789", c2), c1P))
           })
         })
 
         describe('composing three ops', () => {
           let start = '0123456789'
           let result
-          try { result = applier.applySimple(applier.applySimple(applier.applySimple(start, op1), op2), op3) }
+          try { result = apply(apply(apply(start, op1), op2), op3) }
           catch (e) { result = 'error' }
 
           it (opsString(op1) + ', ' + opsString(op2) + ', ' + opsString(op3) + ' turns ' + start + ' into ' + result, () => {
             if (result === 'error') {
-              assert.throws(() => applier.applySimple(start, operator.compose(op1, operator.compose(op2, op3))))
+              assert.throws(() => apply(start, Transformer.compose(op1, Transformer.compose(op2, op3))))
             } else {
               assert.equal(
                 result,
-                applier.applySimple(start, operator.compose(op1, operator.compose(op2, op3))))
+                apply(start, Transformer.compose(op1, Transformer.compose(op2, op3))))
             }
           })
         })
@@ -160,7 +166,7 @@ describe('inferOperations() & performOperations()', () => {
   it ('handles no-ops', () => {
     assert.deepEqual(
       undefined,
-      inferrer.infer(
+      inferOps(
         'mary had a little lamb',
         'mary had a little lamb'))
   });
@@ -219,14 +225,14 @@ describe('inferOperations() & performOperations()', () => {
       newText: 'mary qwerty has asdf a little zxcv lamb' }
   ].forEach((test) => {
     it ('handles "' + test.oldText + '" -> "' + test.newText + '"', () => {
-      let ops = inferrer.infer(test.oldText, test.newText)
+      let ops = inferOps(test.oldText, test.newText)
       if (ops == null) {
         throw new Error('wat')
       }
 
-      let [appliedText, undo] = applier.apply(test.oldText, ops)
-      let [undoText, redo] = applier.apply(appliedText, undo)
-      let [redoText, _] = applier.apply(undoText, redo)
+      let [appliedText, undo] = TextApplier.apply(test.oldText, ops)
+      let [undoText, redo] = TextApplier.apply(appliedText, undo)
+      let [redoText, _] = TextApplier.apply(undoText, redo)
 
       assert.equal(test.newText, appliedText)
       assert.equal(test.oldText, undoText)
