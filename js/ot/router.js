@@ -16,7 +16,7 @@ export interface IRouter<Outgoing, Incoming> {
   send(data: Outgoing): void,
 
   // callback for receiving packets from other routers!
-  listen((data: Incoming) => void): void,
+  listen(l: (data: Incoming) => void): void,
 }
 
 export class SimulatedRouter<Outgoing, Incoming> {
@@ -58,6 +58,8 @@ export class SimulatedRouter<Outgoing, Incoming> {
 
     this.nextOutgoingIndex = 0
     this.nextIncomingIndex = {}
+
+    this.listeners = []
 
     this.chaos = chaos
 
