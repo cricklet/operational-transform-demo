@@ -495,15 +495,14 @@ export let inferOps = function(oldText: string, newText: string)
 
 export type CursorState = {start: number, end: number}
 
-class CursorApplier {
-  constructor() {}
-  initial(): CursorState {
+export let CursorApplier = {
+  initial: function(): CursorState {
     return {start: 0, end: 0}
-  }
-  stateHash(state: CursorState): string {
+  },
+  stateHash: function(state: CursorState): string {
     throw new Error('not implemented')
-  }
-  _adjustPosition(pos: number, ops: Op[]): number {
+  },
+  _adjustPosition: function(pos: number, ops: Op[]): number {
     let i = 0
     for (let op of ops) {
       if (i >= pos) { break }
@@ -522,8 +521,8 @@ class CursorApplier {
       })
     }
     return pos
-  }
-  apply(state: CursorState, ops: Op[]): CursorState {
+  },
+  apply: function(state: CursorState, ops: Op[]): CursorState {
     return {
       start: this._adjustPosition(state.start, ops),
       end: this._adjustPosition(state.end, ops)
@@ -536,14 +535,14 @@ class CursorApplier {
 export type DocumentState = {cursor: CursorState, text: string}
 export let DocumentApplier = {
   initial: function(): DocumentState {
-    return { cursor: this.cursorApplier.initial(), text: TextApplier.initial() }
+    return { cursor: CursorApplier.initial(), text: TextApplier.initial() }
   },
   stateHash: function(state: DocumentState): string {
     return TextApplier.stateHash(state.text)
   },
   apply: function(state: DocumentState, ops: Op[]): [DocumentState, Op[]] {
     let [text, undo] = TextApplier.apply(state.text, ops)
-    let cursor = this.cursorApplier.apply(state.cursor, ops)
+    let cursor = CursorApplier.apply(state.cursor, ops)
     return [
       { cursor: cursor, text: text },
       undo
