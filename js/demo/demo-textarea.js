@@ -100,7 +100,7 @@ function setupClient(
     if (editOps != null) {
       let update = client.handleEdit(editOps)
       if (update != null) {
-        router.broadcast(update)
+        router.send(update)
       }
     }
 
@@ -329,10 +329,10 @@ $(document).ready(() => {
 
   let server = new OTServer(operator, applier)
   let serverRouter = new SimulatedRouter(chaos, serverLogger)
-  serverRouter.onReceive = (update: ClientUpdate<*>) => {
+  serverRouter.listen((update: ClientUpdate<*>) => {
     let broadcast = server.handleUpdate(update)
-    serverRouter.broadcast(broadcast)
-  }
+    serverRouter.send(broadcast)
+  })
 
   observeObject(server,
     (_, key) => {},// added
@@ -352,11 +352,11 @@ $(document).ready(() => {
 
     let client = new OTClient(operator, applier)
     let clientRouter = new SimulatedRouter(chaos)
-    clientRouter.onReceive = (broadcast: ServerBroadcast<*>) => {
+    clientRouter.listen((broadcast: ServerBroadcast<*>) => {
       let update = client.handleBroadcast(broadcast)
       if (update == null) { return }
-      clientRouter.broadcast(update)
-    }
+      clientRouter.send(update)
+    })
 
     clientRouter.connect(serverRouter)
     serverRouter.connect(clientRouter)
