@@ -5,14 +5,12 @@ import { observeArray, observeEach } from './observe.js'
 import { skipNulls, map, reiterable, concat, flatten, maybePush, hash, clone, merge, last, genUid, zipPairs, first, pop, push, contains, reverse, findLastIndex, subarray, asyncWait } from './utils.js'
 
 export type ServerBroadcast<O> = {
-  kind: 'ServerBroadcast',
-  operation: ServerOperation<O>
-}
+  kind: 'ServerBroadcast'
+} & ServerOperation<O>
 
 export type ClientUpdate<O> = {
   kind: 'ClientUpdate',
-  operation: PrebufferOperation<O>
-}
+} & PrebufferOperation<O>
 
 type Operation<O> = $Shape<{
   id: string,
@@ -46,7 +44,7 @@ type AppliedOperation<O> = {
 
 type BufferOperation<O> = {
   ops: ?O[],
-  childHash: string,
+  childHash: string
 }
 
 type PrebufferOperation<O> = {
@@ -59,6 +57,70 @@ type PrebufferOperation<O> = {
 type OperationsStack<O> = {
   opsStack: Array<?O[]>, // oldest first
   parentHash: string
+}
+
+export class OutOfOrderServerBroadcast extends Error {
+  expectedIndex: number
+  actualIndex: number
+  constructor(indices: { expected: number, actual: number }) {
+    super(`Expected ${indices.expected}, received ${indices.actual}.`)
+    this.expectedIndex = indices.expected
+    this.actualIndex = indices.actual
+  }
+}
+
+function castServerOp<O>(op: Operation<O>, opts?: Object): ServerOperation<O> {
+  op = merge(op, opts)
+  if (!('ops' in op) || op.id == null ||
+      op.parentHash == null || op.childHash == null ||
+      op.startIndex == null || op.nextIndex == null) {
+    throw new Error('server op contains keys: ' + Object.keys(op).join(', '))
+  }
+  return op
+}
+
+function castAppliedOp<O>(op: Operation<O>, opts?: Object): AppliedOperation<O> {
+  op = merge(op, opts)
+  if (!('ops' in op) || op.childHash == null || op.parentHash == null) {
+    throw new Error('applied contains keys: ' + Object.keys(op).join(', '))
+  }
+  return op
+}
+
+function castBufferOp<O>(op: Operation<O>, opts?: Object): BufferOperation<O> {
+  op = merge(op, opts)
+  if (!('ops' in op) || op.childHash == null) {
+    throw new Error('buffer op contains keys: ' + Object.keys(op).join(', '))
+  }
+  return op
+}
+
+function castPrebufferOp<O>(op: Operation<O>, opts?: Object): PrebufferOperation<O> {
+  op = merge(op, opts)
+  if (!('ops' in op) || op.id == null ||
+      op.parentHash == null ||
+      op.startIndex == null) {
+    throw new Error('prebuffer op contains keys: ' + Object.keys(op).join(', '))
+  }
+  return op
+}
+
+export function castServerBroadcast<O>(obj: Object): ServerBroadcast<O> {
+  if (obj.kind !== 'ServerBroadcast') {
+    throw new Error('not a server broadcast...')
+  }
+  let op = castServerOp(obj)
+  /* @flow-ignore */
+  return op
+}
+
+export function castClientUpdate<O>(obj: Object): ClientUpdate<O> {
+  if (obj.kind !== 'ClientUpdate') {
+    throw new Error('not a client update...')
+  }
+  let op = castPrebufferOp(obj)
+  /* @flow-ignore */
+  return op
 }
 
 export class OperationHelper<O,S> {
@@ -76,42 +138,6 @@ export class OperationHelper<O,S> {
 
   apply(s: S, ops: O[]): [S, O[]] {
     return this.applier.apply(s, ops)
-  }
-
-  castServer(op: Operation<O>, opts?: Object): ServerOperation<O> {
-    op = merge(op, opts)
-    if (!('ops' in op) || op.id == null ||
-        op.parentHash == null || op.childHash == null ||
-        op.startIndex == null || op.nextIndex == null) {
-      throw new Error('server op contains keys: ' + Object.keys(op).join(', '))
-    }
-    return op
-  }
-
-  castApplied(op: Operation<O>, opts?: Object): AppliedOperation<O> {
-    op = merge(op, opts)
-    if (!('ops' in op) || op.childHash == null || op.parentHash == null) {
-      throw new Error('applied contains keys: ' + Object.keys(op).join(', '))
-    }
-    return op
-  }
-
-  castBuffer(op: Operation<O>, opts?: Object): BufferOperation<O> {
-    op = merge(op, opts)
-    if (!('ops' in op) || op.childHash == null) {
-      throw new Error('buffer op contains keys: ' + Object.keys(op).join(', '))
-    }
-    return op
-  }
-
-  castPrebuffer(op: Operation<O>, opts?: Object): PrebufferOperation<O> {
-    op = merge(op, opts)
-    if (!('ops' in op) || op.id == null ||
-        op.parentHash == null ||
-        op.startIndex == null) {
-      throw new Error('prebuffer op contains keys: ' + Object.keys(op).join(', '))
-    }
-    return op
   }
 
   _createOp(
@@ -300,9 +326,9 @@ export class OperationHelper<O,S> {
     bPP.childHash = newHash
 
     let [newPrebufferOp, newBufferOp, appliedOp] = [
-      this.castPrebuffer(aP, { startIndex: serverOp.nextIndex }),
-      this.castBuffer(cP),
-      this.castApplied(bPP)
+      castPrebufferOp(aP, { startIndex: serverOp.nextIndex }),
+      castBufferOp(cP),
+      castAppliedOp(bPP)
     ]
 
     return [newPrebufferOp, newBufferOp, appliedOp, newState]
@@ -399,6 +425,15 @@ export class OTClient<O,S> {
     }
   }
 
+  _nextIndex(): number {
+    // because neither the prebuffer nor buffer exist on the
+    // server yet, they don't increment the index at all!
+
+    // thus, the next index we expect from the server is
+    // exactly the index we think the prebuffer exists at.
+    return this.prebuffer.startIndex
+  }
+
   _flushBuffer(): ?ClientUpdate<O> {
     // if there's no buffer, skip
     if (this.buffer.ops == null) {
@@ -426,15 +461,21 @@ export class OTClient<O,S> {
 
     this._checkInvariants()
 
-    return {
+    return merge({
       kind: 'ClientUpdate',
-      operation: this.prebuffer
-    }
+    }, this.prebuffer)
   }
 
   handleBroadcast(serverBroadcast: ServerBroadcast<O>)
   : ?ClientUpdate<O> {
-    let op: ServerOperation<O> = serverBroadcast.operation
+    let op: ServerOperation<O> = serverBroadcast
+
+    if (op.startIndex !== this._nextIndex()) {
+      throw new OutOfOrderServerBroadcast({
+        expected: this._nextIndex(),
+        actual: op.startIndex
+      })
+    }
 
     if (this.prebuffer != null && op.id === this.prebuffer.id) {
       // clear the prebuffer out
@@ -597,7 +638,6 @@ export class OTServer<O,S> {
   uid: string
 
   state: S
-  hash: string
   log: Array<ServerOperation<O>>
 
   constructor(operator: IOperator<O>, applier: IApplier<O,S>) {
@@ -647,7 +687,7 @@ export class OTServer<O,S> {
     // bP \  / aP
     //     \/
 
-    let clientOp: PrebufferOperation<O> = update.operation
+    let clientOp: PrebufferOperation<O> = update
 
     let historyOp: Operation<O> = this._historyOp(clientOp.startIndex)
 
@@ -660,10 +700,9 @@ export class OTServer<O,S> {
     this.state = newState
     this.log.push(aP)
 
-    return {
-      kind: 'ServerBroadcast',
-      operation: this.helper.castServer(aP)
-    }
+    return merge({
+      kind: 'ServerBroadcast'
+    }, castServerOp(aP))
   }
 }
 
