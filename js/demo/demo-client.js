@@ -111,7 +111,7 @@ function setupClient(
     if (editOps != null) {
       let update = client.handleEdit(editOps)
       if (update != null) {
-        router.send(update)
+        router.broadcast(update)
       }
     }
 
@@ -132,7 +132,7 @@ function setupClient(
 //   let clientRouter = new SimulatedRouter((broadcast: ServerBroadcast<*>) => {
 //     let update = client.handleBroadcast(broadcast)
 //     if (update == null) { return }
-//     clientRouter.send(update)
+//     clientRouter.broadcast(update)
 //   }, chaos)
 //
 //   let $text = $("#editor")

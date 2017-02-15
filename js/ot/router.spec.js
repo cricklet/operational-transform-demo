@@ -30,7 +30,7 @@ describe("SimulatedRouter", () => {
     let r: SimulatedRouter<number, number> = new SimulatedRouter(
       { minDelay: 1000, maxDelay: 2000, dropPercentage: 0.5 },
       s => {})
-    r.listen((v: number) => { vs.push(v) })
+    r.onReceive = (v: number) => { vs.push(v) }
 
     return [vs, r]
   }
@@ -42,13 +42,13 @@ describe("SimulatedRouter", () => {
     r0.connect(r1)
     r1.connect(r0)
 
-    r0.send(5)
-    r0.send(4)
-    r0.send(3)
+    r0.broadcast(5)
+    r0.broadcast(4)
+    r0.broadcast(3)
 
-    r1.send(0)
-    r1.send(1)
-    r1.send(2)
+    r1.broadcast(0)
+    r1.broadcast(1)
+    r1.broadcast(2)
 
     clock.tick(100000)
 
@@ -65,9 +65,9 @@ describe("SimulatedRouter", () => {
     server.connect(r0)
     r0.connect(server)
 
-    server.send(0)
-    server.send(1)
-    server.send(2)
+    server.broadcast(0)
+    server.broadcast(1)
+    server.broadcast(2)
 
     clock.tick(100000)
 
@@ -76,8 +76,8 @@ describe("SimulatedRouter", () => {
 
     clock.tick(100000)
 
-    server.send(4)
-    server.send(5)
+    server.broadcast(4)
+    server.broadcast(5)
 
     clock.tick(100000)
 
@@ -93,18 +93,18 @@ describe("SimulatedRouter", () => {
     server.connect(r0)
     r0.connect(server)
 
-    r0.send(0)
+    r0.broadcast(0)
 
     clock.tick(100000)
 
     server.connect(r1)
     r1.connect(server)
 
-    r1.send(1)
+    r1.broadcast(1)
 
     clock.tick(100000)
 
-    r0.send(2)
+    r0.broadcast(2)
 
     clock.tick(100000)
 

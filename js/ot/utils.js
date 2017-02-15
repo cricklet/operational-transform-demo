@@ -18,8 +18,17 @@ export function reiterable <T> (it: Iterable<T>): Reiterable<T> {
   return () => it
 }
 
+
 export function iterable <T> (it: Reiterable<T>): Iterable<T> {
   return it()
+}
+
+export function objValues <T> (obj: { [key: string]: T }): Reiterable<T> {
+  return function * () {
+    for (let key in obj) {
+      yield obj[key]
+    }
+  }
 }
 
 export function genUid(): string {
