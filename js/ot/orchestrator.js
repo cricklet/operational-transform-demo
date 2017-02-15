@@ -123,7 +123,7 @@ export function castClientUpdate<O>(obj: Object): ClientUpdate<O> {
   return op
 }
 
-export class OperationHelper<O,S> {
+class OperationHelper<O,S> {
   operator: IOperator<O>
   applier: IApplier<O,S>
 
@@ -363,8 +363,6 @@ export class OperationHelper<O,S> {
 }
 
 export class OTClient<O,S> {
-  helper: OperationHelper<O,S>
-
   uid: string
 
   state: S
@@ -380,6 +378,8 @@ export class OTClient<O,S> {
 
   undos: OperationsStack<O>
   redos: OperationsStack<O>
+
+  helper: OperationHelper<O,S>
 
   constructor(operator: IOperator<O>, applier: IApplier<O,S>) {
     this.helper = new OperationHelper(operator, applier)
@@ -632,52 +632,70 @@ export class OTClient<O,S> {
   }
 }
 
+export type OTServerDocument<O,S> = {
+  state: S,
+  log: Array<ServerOperation<O>>
+}
+
 export class OTServer<O,S> {
+  uid: string
+  doc: OTServerDocument<O,S>
+
   helper: OperationHelper<O,S>
 
-  uid: string
-
-  state: S
-  log: Array<ServerOperation<O>>
-
-  constructor(operator: IOperator<O>, applier: IApplier<O,S>) {
+  constructor(
+    operator: IOperator<O>,
+    applier: IApplier<O,S>,
+    doc?: OTServerDocument<O,S>
+  ) {
     this.helper = new OperationHelper(operator, applier)
 
     this.uid = genUid()
-    this.state = applier.initial()
 
-    this.log = []
+    if (doc != null) {
+      this.doc = doc
+    } else {
+      this.doc = {
+        state: applier.initial(),
+        log: []
+      }
+    }
+  }
+
+  /* @flow-ignore */
+  get state(): S {
+    return this.doc.state
   }
 
   _historySince(startIndex: number): Array<ServerOperation<O>> {
-    let ops = Array.from(subarray(this.log, {start: startIndex})())
+    let ops = Array.from(subarray(this.doc.log, {start: startIndex})())
     if (ops.length === 0) { throw new Error('wat') }
 
     return ops
   }
 
   _historyOp(startIndex: number): Operation<O> {
-    if (startIndex === this.log.length) {
+    if (startIndex === this.doc.log.length) {
       return {
         ops: undefined,
         parentHash: this._hash(),
         childHash: this._hash()
       }
-    } else if (startIndex < this.log.length) {
-      let ops: Operation<O>[] = Array.from(subarray(this.log, {start: startIndex})())
+    } else if (startIndex < this.doc.log.length) {
+      let ops: Operation<O>[] = Array.from(subarray(this.doc.log, {start: startIndex})())
       if (ops.length === 0) { throw new Error('wat') }
       return this.helper.compose(ops)
     } else {
-      throw new Error('wat ' + startIndex + ': ' + this.log.join(', '))
+      throw new Error('wat ' + startIndex + ': ' + this.doc.log.join(', '))
     }
   }
 
   _hash(): string {
-    return this.helper.hash(this.state)
+    return this.helper.hash(this.doc.state)
   }
 
   _nextIndex(): number {
-    return this.log.length
+    return this.doc.log.length
   }
 
   handleUpdate(update: ClientUpdate<O>)
@@ -692,13 +710,13 @@ export class OTServer<O,S> {
     let historyOp: Operation<O> = this._historyOp(clientOp.startIndex)
 
     let [a, b] = [clientOp, historyOp]
-    let [aP, bP, undo, newState] = this.helper.transformAndApplyToServer(a, b, this.state)
+    let [aP, bP, undo, newState] = this.helper.transformAndApplyToServer(a, b, this.doc.state)
 
     aP.startIndex = this._nextIndex()
     aP.nextIndex = aP.startIndex + 1
 
-    this.state = newState
-    this.log.push(aP)
+    this.doc.state = newState
+    this.doc.log.push(aP)
 
     return merge({
       kind: 'ServerBroadcast'
