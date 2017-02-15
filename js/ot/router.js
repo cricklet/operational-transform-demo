@@ -8,20 +8,22 @@ export type Packet<D> = {
   source: string
 }
 
-export interface IRouter<OutgoingData, IncomingData> {
+
+
+export interface IRouter<Outgoing, Incoming> {
   // create a packet with this data
   // then, send it to all other connected routers
-  send(data: OutgoingData): void,
+  send(data: Outgoing): void,
 
   // callback for receiving packets from other routers!
-  listen((data: IncomingData) => void): void,
+  listen((data: Incoming) => void): void,
 }
 
-export class SimulatedRouter<OutgoingData, IncomingData> {
+export class SimulatedRouter<Outgoing, Incoming> {
   uid: string
 
-  outgoingLog: Packet<OutgoingData>[]
-  incomingQueue: Packet<IncomingData>[]
+  outgoingLog: Packet<Outgoing>[]
+  incomingQueue: Packet<Incoming>[]
 
   nextOutgoingIndex: number
   nextIncomingIndex: {}
@@ -32,9 +34,9 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
     dropPercentage: number,
   }
 
-  otherRouters: SimulatedRouter<IncomingData, OutgoingData>[]
+  otherRouters: SimulatedRouter<Incoming, Outgoing>[]
 
-  listeners: ((data: IncomingData) => void)[]
+  listeners: ((data: Incoming) => void)[]
 
   logger: (s: string) => void
 
@@ -46,7 +48,7 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
     },
     logger?: (s: string) => void
   ) {
-    (this: IRouter<OutgoingData, IncomingData>)
+    (this: IRouter<Outgoing, Incoming>)
     this.uid = genUid()
 
     this.otherRouters = []
@@ -63,11 +65,11 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
     else { this.logger = s => {} }
   }
 
-  listen(l: (data: IncomingData) => void) {
+  listen(l: (data: Incoming) => void) {
     this.listeners.push(l)
   }
 
-  send(data: OutgoingData) {
+  send(data: Outgoing) {
     let packet = {
       index: this.nextOutgoingIndex,
       data: data,
@@ -85,7 +87,7 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
 
   _flushReceived() {
     while (true) {
-      let packet: ?Packet<IncomingData> = pop(
+      let packet: ?Packet<Incoming> = pop(
         this.incomingQueue, p => p.index === (this.nextIncomingIndex[p.source] || 0))
 
       if (packet == null) {
@@ -119,7 +121,7 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
     }, delay)
   }
 
-  receive(packet: Packet<IncomingData>) {
+  receive(packet: Packet<Incoming>) {
     this.logger('incoming packet #' + packet.index + ' from ' + packet.source)
     this.incomingQueue.push(packet)
     this._flushReceived()
@@ -128,7 +130,7 @@ export class SimulatedRouter<OutgoingData, IncomingData> {
   // this router can connect to other routers
   // all previously sent packets will be sent to this other router
   // all future pakcets will also be sent to this other router
-  connect(other: SimulatedRouter<IncomingData, OutgoingData>): void {
+  connect(other: SimulatedRouter<Incoming, Outgoing>): void {
     this.otherRouters.push(other)
 
     for (let packet of this.outgoingLog) {
