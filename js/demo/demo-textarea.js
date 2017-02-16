@@ -12,7 +12,7 @@ import {
 
 import type {
   ClientUpdate,
-  ServerBroadcast,
+  ServerUpdate,
 } from '../ot/orchestrator.js'
 
 import { SimulatedRouter } from '../ot/router.js'
@@ -91,7 +91,7 @@ function setupClient(
     // handle new text
     let editOps = inferOps(client.state.text, newText)
     if (editOps != null) {
-      let update = client.handleEdit(editOps)
+      let update = client.performEdit(editOps)
       if (update != null) {
         router.send(update)
       }
@@ -321,8 +321,8 @@ $(document).ready(() => {
   let server = new OTServer(DocumentOTHelper)
   let serverRouter = new SimulatedRouter(chaos, serverLogger)
   serverRouter.listen((update: ClientUpdate<*>) => {
-    let broadcast = server.handleUpdate(update)
-    serverRouter.send(broadcast)
+    let serverUpdate = server.handleUpdate(update)
+    serverRouter.send(serverUpdate)
   })
 
   observeObject(server,
@@ -343,8 +343,8 @@ $(document).ready(() => {
 
     let client = new OTClient(DocumentOTHelper)
     let clientRouter = new SimulatedRouter(chaos)
-    clientRouter.listen((broadcast: ServerBroadcast<*>) => {
-      let update = client.handleBroadcast(broadcast)
+    clientRouter.listen((serverUpdate: ServerUpdate<*>) => {
+      let update = client.handleUpdate(serverUpdate)
       if (update == null) { return }
       clientRouter.send(update)
     })

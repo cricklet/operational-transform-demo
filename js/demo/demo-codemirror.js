@@ -13,7 +13,7 @@ import {
 
 import type {
   ClientUpdate,
-  ServerBroadcast,
+  ServerUpdate,
 } from '../ot/orchestrator.js'
 
 import { SimulatedRouter } from '../ot/router.js'

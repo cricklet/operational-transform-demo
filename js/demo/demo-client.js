@@ -17,7 +17,7 @@ import {
 } from '../ot/operations.js'
 
 import { OTClient, OTServer } from '../ot/orchestrator.js'
-import type { ClientUpdate, ServerBroadcast } from '../ot/orchestrator.js'
+import type { ClientUpdate, ServerUpdate } from '../ot/orchestrator.js'
 
 import { SimulatedRouter } from '../ot/router.js'
 import type { IRouter } from '../ot/router.js'
@@ -101,7 +101,7 @@ function setupClient(
     // handle new text
     let editOps = inferOps(client.state.text, newText)
     if (editOps != null) {
-      let update = client.handleEdit(editOps)
+      let update = client.performEdit(editOps)
       if (update != null) {
         router.send(update)
       }
@@ -121,10 +121,10 @@ function setupClient(
 //   let inferrer = new TextInferrer()
 //
 //   let client = new OTClient(transformer, applier)
-//   let clientRouter = new SimulatedRouter((broadcast: ServerBroadcast<*>) => {
-//     let update = client.handleBroadcast(broadcast)
-//     if (update == null) { return }
-//     clientRouter.send(update)
+//   let clientRouter = new SimulatedRouter((serverUpdate: ServerUpdate<*>) => {
+//     let clientUpdate = client.handleUpdate(serverUpdate)
+//     if (clientUpdate == null) { return }
+//     clientRouter.send(clientUpdate)
 //   }, chaos)
 //
 //   let $text = $("#editor")

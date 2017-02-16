@@ -3,8 +3,8 @@
 import { observeArray, observeEach } from './observe.js'
 import { skipNulls, map, reiterable, concat, flatten, maybePush, hash, clone, merge, last, genUid, zipPairs, first, pop, push, contains, reverse, findLastIndex, subarray, asyncWait } from './utils.js'
 
-export type ServerBroadcast<O> = {
-  kind: 'ServerBroadcast'
+export type ServerUpdate<O> = {
+  kind: 'ServerUpdate'
 } & ServerOperation<O>
 
 export type ClientUpdate<O> = {
@@ -58,7 +58,7 @@ type OperationsStack<O> = {
   parentHash: string
 }
 
-export class OutOfOrderServerBroadcast extends Error {
+export class OutOfOrderServerUpdate extends Error {
   expectedIndex: number
   actualIndex: number
   constructor(indices: { expected: number, actual: number }) {
@@ -104,8 +104,8 @@ function castPrebufferOp<O>(op: Operation<O>, opts?: Object): PrebufferOperation
   return op
 }
 
-export function castServerBroadcast<O>(obj: Object): ServerBroadcast<O> {
-  if (obj.kind !== 'ServerBroadcast') {
+export function castServerUpdate<O>(obj: Object): ServerUpdate<O> {
+  if (obj.kind !== 'ServerUpdate') {
     throw new Error('not a server broadcast...')
   }
   let op = castServerOp(obj)
@@ -495,12 +495,12 @@ export class OTClient<O,S> {
     }, this.prebuffer)
   }
 
-  handleBroadcast(serverBroadcast: ServerBroadcast<O>)
+  handleUpdate(serverUpdate: ServerUpdate<O>)
   : ?ClientUpdate<O> {
-    let op: ServerOperation<O> = serverBroadcast
+    let op: ServerOperation<O> = serverUpdate
 
     if (op.startIndex !== this._nextIndex()) {
-      throw new OutOfOrderServerBroadcast({
+      throw new OutOfOrderServerUpdate({
         expected: this._nextIndex(),
         actual: op.startIndex
       })
@@ -539,7 +539,7 @@ export class OTClient<O,S> {
     }
   }
 
-  handleUndo(): ?ClientUpdate<O> {
+  performUndo(): ?ClientUpdate<O> {
     let currentHash = this.helper.hash(this.state)
     let undoHash = this.undos.parentHash
 
@@ -578,7 +578,7 @@ export class OTClient<O,S> {
     }
   }
 
-  handleRedo(): ?ClientUpdate<O> {
+  performRedo(): ?ClientUpdate<O> {
     let currentHash = this.helper.hash(this.state)
     let redoHash = this.redos.parentHash
 
@@ -617,15 +617,15 @@ export class OTClient<O,S> {
     }
   }
 
-  handleNullableEdit(edit: ?O[]): ?ClientUpdate<O> {
+  performNullableEdit(edit: ?O[]): ?ClientUpdate<O> {
     if (edit == null) {
       return undefined
     }
 
-    return this.handleEdit(edit)
+    return this.performEdit(edit)
   }
 
-  handleEdit(edit: O[]): ?ClientUpdate<O> {
+  performEdit(edit: O[]): ?ClientUpdate<O> {
     // apply the operation
     let [newState, undo] = this.helper.apply(this.state, edit)
     this.state = newState
@@ -727,7 +727,7 @@ export class OTServer<O,S> {
   }
 
   handleUpdate(update: ClientUpdate<O>)
-  : ServerBroadcast<O> { // return server op to broadcast
+  : ServerUpdate<O> { // return server op to broadcast
     //   a /\ b
     //    /  \
     // bP \  / aP
@@ -747,37 +747,7 @@ export class OTServer<O,S> {
     this.doc.log.push(aP)
 
     return merge({
-      kind: 'ServerBroadcast'
+      kind: 'ServerUpdate'
     }, castServerOp(aP))
-  }
-}
-
-export function generatePropogator <O,S> (
-  server: OTServer<O,S>,
-  clients: Array<OTClient<O,S>>
-): (update: ?ClientUpdate<O>) => void {
-  // This setups a fake network between a server & multiple clients.
-
-  let toServer = []
-  let toClients = []
-
-  function propogateBroadcast (broadcast: ServerBroadcast<O>) {
-    let updates = clients.map(
-      client => client.handleBroadcast(broadcast))
-
-    for (let update of updates) {
-      if (update) {
-        propogateUpdate(update)
-      }
-    }
-  }
-
-  function propogateUpdate (update: ClientUpdate<O>) {
-    let broadcast = server.handleUpdate(update)
-    propogateBroadcast(broadcast)
-  }
-
-  return (update) => {
-    if (update) propogateUpdate(update)
   }
 }
