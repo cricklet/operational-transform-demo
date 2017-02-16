@@ -31,7 +31,7 @@ import {
 } from './js/ot/operations.js'
 
 
-import { allEqual, asyncSleep, remove, insert, genUid, pop, filterInPlace, subarray, NotifyOnce } from './js/ot/utils.js'
+import { allEqual, asyncSleep, remove, insert, genUid, pop, filterInPlace, subarray, NotifyOnce } from './js/helpers/utils.js'
 import { find } from 'wu'
 
 let PORT = 9643

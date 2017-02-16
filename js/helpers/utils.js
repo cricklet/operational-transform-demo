@@ -14,9 +14,7 @@ export type Comparitor<T> = (a: T, b: T) => Comparison
 //         Less    if a  <  b
 //         Equal   if a === b
 
-type SafeIterable<T> = Reiterable<T> | Iterable<T>
-
-export class Reiterable<T> extends IterableBase {
+export class SafeIterable<T> extends IterableBase {
   ts: () => Iterable<T>
   constructor(ts: () => Iterable<T>) {
     super()
@@ -42,26 +40,26 @@ export function merge<A, B, C: A & B>(a: A, b: B): C {
 }
 
 export function specificRange(start: number, stop: number, step: number): SafeIterable<number> {
-  return new Reiterable(function * () {
+  return new SafeIterable(function * () {
     for (let i = start; i < stop; i += step) {
       yield i;
     }
   })
 }
 
-export function map<T1, T2>(t1s: SafeIterable<T1>, f: (t1: T1) => T2): SafeIterable<T2> {
-  return new Reiterable(function * () {
+export function map<T1, T2>(t1s: Iterable<T1>, f: (t1: T1) => T2): SafeIterable<T2> {
+  return new SafeIterable(function * () {
     for (let t1 of t1s) {
       yield f(t1)
     }
   })
 }
 
-export function array<T>(is: SafeIterable<T>): Array<T> {
+export function array<T>(is: Iterable<T>): Array<T> {
   return Array.from(is)
 }
 
-export function string<T>(is: SafeIterable<T>): string {
+export function string<T>(is: Iterable<T>): string {
   return Array.from(is).join('')
 }
 
@@ -74,7 +72,7 @@ export function reverseRange(stop: number): SafeIterable<number> {
 }
 
 export function reverseSpecificRange(start: number, stop: number, step: number): SafeIterable<number> {
-  return new Reiterable(function * () {
+  return new SafeIterable(function * () {
     let actualStop = start + (Math.ceil((stop - start) / step) - 1) * step // this is tested ;)
     for (let i = actualStop; i >= start; i -= step) {
       yield i;
@@ -94,7 +92,7 @@ export function * counter(): Generator<number, void, void> {
   }
 }
 
-export function length<T>(s: SafeIterable<T>): number {
+export function length<T>(s: Iterable<T>): number {
   let length = 0
   for (let c of s) {
     length += 1
@@ -102,7 +100,7 @@ export function length<T>(s: SafeIterable<T>): number {
   return length
 }
 
-export function calculatePrefixLength(text0: SafeIterable<string>, text1: SafeIterable<string>) {
+export function calculatePrefixLength(text0: Iterable<string>, text1: Iterable<string>) {
   for (let [[c0, c1], i] of zip(zipLongest(text0, text1), counter())) {
     if (c0 != c1) {
       return i
@@ -120,7 +118,7 @@ export function repeat<T>(num: number, f: (i: number) => T): SafeIterable<T> {
 }
 
 export function maxOfIterable<T>(
-  ts: SafeIterable<T>,
+  ts: Iterable<T>,
   comparitor: Comparitor<T>
 ): T {
   let maxT = undefined
@@ -198,9 +196,9 @@ export function characters (
   return map(indices, i => s[i])
 }
 
-export function filter<T>(ts: SafeIterable<T>, f: (t: T) => boolean)
+export function filter<T>(ts: Iterable<T>, f: (t: T) => boolean)
 : SafeIterable<T> {
-  return new Reiterable(function * () {
+  return new SafeIterable(function * () {
     for (let t of ts) {
       if (f(t)) {
         yield t
@@ -209,7 +207,8 @@ export function filter<T>(ts: SafeIterable<T>, f: (t: T) => boolean)
   })
 }
 
-export function skipNulls<T>(ts: SafeIterable<?T>): SafeIterable<T> {
+/* @flow-ignore */
+export function skipNulls<T>(ts: Iterable<?T>): SafeIterable<T> {
   return filter(ts, t => t != null)
 }
 
@@ -344,23 +343,23 @@ export function flatten <A> (tree: Tree<A>): Array<A> {
 }
 
 export function zipPairs <T> (arr: Array<T>): SafeIterable<[T ,T]> {
-  return new Reiterable(function * () {
+  return new SafeIterable(function * () {
     for (let i = 0; i < arr.length - 1; i ++) {
       yield [arr[i], arr[i+1]]
     }
   })
 }
 
-export function zipLongest <T1,T2> (t1s: SafeIterable<T1>, t2s: SafeIterable<T2>): SafeIterable<[T1 ,T2]> {
-  return new Reiterable(function * () {
+export function zipLongest <T1,T2> (t1s: Iterable<T1>, t2s: Iterable<T2>): SafeIterable<[T1 ,T2]> {
+  return new SafeIterable(function * () {
     for (let [t1: T1, t2: T2] of Wu.zipLongest(t1s, t2s)) {
       yield [t1, t2]
     }
   })
 }
 
-export function zip <T1,T2> (t1s: SafeIterable<T1>, t2s: SafeIterable<T2>): SafeIterable<[T1 ,T2]> {
-  return new Reiterable(function * () {
+export function zip <T1,T2> (t1s: Iterable<T1>, t2s: Iterable<T2>): SafeIterable<[T1 ,T2]> {
+  return new SafeIterable(function * () {
     for (let [t1: T1, t2: T2] of Wu.zip(t1s, t2s)) {
       yield [t1, t2]
     }

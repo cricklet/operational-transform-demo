@@ -41,16 +41,16 @@ import { Notify, NotifyAfter, NotifyOnce } from '../helpers/utils.js'
 
 import type { Comparison, Tree } from '../helpers/utils.js'
 
-describe('reiterable', () => {
+describe('safe iterable', () => {
   it('wors', () => {
-    let reit = new U.Reiterable(function * () {
+    let safeIterable = new U.SafeIterable(function * () {
       yield 1
       yield 2
       yield 3
     })
-    assert.deepEqual(Array.from(reit), [1,2,3])
-    assert.deepEqual(Array.from(reit), [1,2,3])
-    assert.deepEqual(Array.from(reit), [1,2,3])
+    assert.deepEqual(Array.from(safeIterable), [1,2,3])
+    assert.deepEqual(Array.from(safeIterable), [1,2,3])
+    assert.deepEqual(Array.from(safeIterable), [1,2,3])
   })
 })
 describe('skipNulls', () => {
