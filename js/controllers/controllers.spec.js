@@ -11,25 +11,25 @@ import { spy } from 'sinon'
 import { assert } from 'chai'
 
 import { TextApplier } from '../operations/applier.js'
-import * as Inferrer from '../operations/inferrer.js'
+import { inferOperation } from '../operations/inferrer.js'
 import { generateInsertion, generateDeletion } from '../operations/components.js'
 
 import { ClientController } from './client_controller.js'
 import { ServerController, OTDocuments } from './server_controller.js'
 
-import type { ClientUpdate, ServerUpdate } from './types.js'
+import type { ClientUpdatePacket, ServerUpdatePacket } from './types.js'
 import { OTHelper } from './ot_helper.js'
 
 function generatePropogator (
   server: ServerController,
   clients: Array<ClientController<*>>
-): (update: ?ClientUpdate) => void {
+): (update: ?ClientUpdatePacket) => void {
   // This setups a fake network between a server & multiple clients.
 
   let toServer = []
   let toClients = []
 
-  function propogateBroadcast (serverUpdate: ServerUpdate) {
+  function propogateBroadcast (serverUpdate: ServerUpdatePacket) {
     let clientUpdates = clients.map(
       client => client.handleUpdate(serverUpdate))
 
@@ -40,7 +40,7 @@ function generatePropogator (
     }
   }
 
-  function propogateUpdate (clientUpdate: ClientUpdate) {
+  function propogateUpdate (clientUpdate: ClientUpdatePacket) {
     let serverUpdate = server.handleUpdate(clientUpdate)
     propogateBroadcast(serverUpdate)
   }
@@ -174,10 +174,10 @@ describe('undo & redo', () => {
   it('undo works for one client', () => {
     let client = new ClientController(DOC_ID, TextOTHelper)
 
-    client.performNullableEdit(Inferrer.inferOperation(client.state, 'hello'))
+    client.performNullableEdit(inferOperation(client.state, 'hello'))
     assert.equal(client.state, 'hello')
 
-    client.performNullableEdit(Inferrer.inferOperation(client.state, 'hello world'))
+    client.performNullableEdit(inferOperation(client.state, 'hello world'))
     assert.equal(client.state, 'hello world')
 
     client.performUndo()
@@ -193,10 +193,10 @@ describe('undo & redo', () => {
   it('undo redo for one client', () => {
     let client = new ClientController(DOC_ID, TextOTHelper)
 
-    client.performNullableEdit(Inferrer.inferOperation(client.state, 'hello'))
+    client.performNullableEdit(inferOperation(client.state, 'hello'))
     assert.equal(client.state, 'hello')
 
-    client.performNullableEdit(Inferrer.inferOperation(client.state, 'hello world'))
+    client.performNullableEdit(inferOperation(client.state, 'hello world'))
     assert.equal(client.state, 'hello world')
 
     client.performUndo()
@@ -215,66 +215,66 @@ describe('undo & redo', () => {
   it('redo is reset on edit', () => {
     let client = new ClientController(DOC_ID, TextOTHelper)
 
-    client.performNullableEdit(Inferrer.inferOperation(client.state, 'hello'))
+    client.performNullableEdit(inferOperation(client.state, 'hello'))
     assert.equal(client.state, 'hello')
 
-    client.performNullableEdit(Inferrer.inferOperation(client.state, 'hello world'))
+    client.performNullableEdit(inferOperation(client.state, 'hello world'))
     assert.equal(client.state, 'hello world')
-    assert.equal(client.undos.opsStack.length, 2)
-    assert.equal(client.redos.opsStack.length, 0)
+    assert.equal(client.undos.operationsStack.length, 2)
+    assert.equal(client.redos.operationsStack.length, 0)
 
     client.performUndo()
     client.performUndo()
     assert.equal(client.state, '')
-    assert.equal(client.undos.opsStack.length, 0)
-    assert.equal(client.redos.opsStack.length, 2)
+    assert.equal(client.undos.operationsStack.length, 0)
+    assert.equal(client.redos.operationsStack.length, 2)
 
-    client.performNullableEdit(Inferrer.inferOperation(client.state, 'banana'))
+    client.performNullableEdit(inferOperation(client.state, 'banana'))
     assert.equal(client.state, 'banana')
-    assert.equal(client.undos.opsStack.length, 1)
-    assert.equal(client.redos.opsStack.length, 0)
+    assert.equal(client.undos.operationsStack.length, 1)
+    assert.equal(client.redos.operationsStack.length, 0)
   })
 
   it('undo/redo extra times for one client', () => {
     let client = new ClientController(DOC_ID, TextOTHelper)
 
-    client.performNullableEdit(Inferrer.inferOperation(client.state, 'hello'))
+    client.performNullableEdit(inferOperation(client.state, 'hello'))
     assert.equal(client.state, 'hello')
 
-    client.performNullableEdit(Inferrer.inferOperation(client.state, 'hello world'))
+    client.performNullableEdit(inferOperation(client.state, 'hello world'))
     assert.equal(client.state, 'hello world')
-    assert.equal(client.undos.opsStack.length, 2)
-    assert.equal(client.redos.opsStack.length, 0)
+    assert.equal(client.undos.operationsStack.length, 2)
+    assert.equal(client.redos.operationsStack.length, 0)
 
     client.performUndo()
     assert.equal(client.state, 'hello')
-    assert.equal(client.undos.opsStack.length, 1)
-    assert.equal(client.redos.opsStack.length, 1)
-
-    client.performUndo()
-    assert.equal(client.state, '')
-    assert.equal(client.undos.opsStack.length, 0)
-    assert.equal(client.redos.opsStack.length, 2)
+    assert.equal(client.undos.operationsStack.length, 1)
+    assert.equal(client.redos.operationsStack.length, 1)
 
     client.performUndo()
     assert.equal(client.state, '')
-    assert.equal(client.undos.opsStack.length, 0)
-    assert.equal(client.redos.opsStack.length, 2)
+    assert.equal(client.undos.operationsStack.length, 0)
+    assert.equal(client.redos.operationsStack.length, 2)
+
+    client.performUndo()
+    assert.equal(client.state, '')
+    assert.equal(client.undos.operationsStack.length, 0)
+    assert.equal(client.redos.operationsStack.length, 2)
 
     client.performRedo()
     assert.equal(client.state, 'hello')
-    assert.equal(client.undos.opsStack.length, 1)
-    assert.equal(client.redos.opsStack.length, 1)
+    assert.equal(client.undos.operationsStack.length, 1)
+    assert.equal(client.redos.operationsStack.length, 1)
 
     client.performRedo()
     assert.equal(client.state, 'hello world')
-    assert.equal(client.undos.opsStack.length, 2)
-    assert.equal(client.redos.opsStack.length, 0)
+    assert.equal(client.undos.operationsStack.length, 2)
+    assert.equal(client.redos.operationsStack.length, 0)
 
     client.performRedo()
     assert.equal(client.state, 'hello world')
-    assert.equal(client.undos.opsStack.length, 2)
-    assert.equal(client.redos.opsStack.length, 0)
+    assert.equal(client.undos.operationsStack.length, 2)
+    assert.equal(client.redos.operationsStack.length, 0)
   })
 
   it('undo works for two clients', () => { // tested on dropbox paper!
@@ -284,9 +284,9 @@ describe('undo & redo', () => {
 
     let propogate = generatePropogator(server, [client0, client1])
 
-    propogate(client0.performNullableEdit(Inferrer.inferOperation(client0.state, 'hello')))
-    propogate(client1.performNullableEdit(Inferrer.inferOperation(client1.state, 'hellogeorge')))
-    propogate(client0.performNullableEdit(Inferrer.inferOperation(client0.state, 'helloworld')))
+    propogate(client0.performNullableEdit(inferOperation(client0.state, 'hello')))
+    propogate(client1.performNullableEdit(inferOperation(client1.state, 'hellogeorge')))
+    propogate(client0.performNullableEdit(inferOperation(client0.state, 'helloworld')))
 
     assert.equal(client0.state, 'helloworld')
     assert.equal(client1.state, 'helloworld')
@@ -313,12 +313,12 @@ describe('undo & redo', () => {
 
     let updates = []
 
-    updates.push(client0.performNullableEdit(Inferrer.inferOperation(client0.state, 'hello')))
-    updates.push(client0.performNullableEdit(Inferrer.inferOperation(client0.state, 'hello world')))
-    updates.push(client0.performNullableEdit(Inferrer.inferOperation(client0.state, 'hi world')))
+    updates.push(client0.performNullableEdit(inferOperation(client0.state, 'hello')))
+    updates.push(client0.performNullableEdit(inferOperation(client0.state, 'hello world')))
+    updates.push(client0.performNullableEdit(inferOperation(client0.state, 'hi world')))
 
-    updates.push(client1.performNullableEdit(Inferrer.inferOperation(client1.state, 'boop ')))
-    updates.push(client1.performNullableEdit(Inferrer.inferOperation(client1.state, 'boop banana ')))
+    updates.push(client1.performNullableEdit(inferOperation(client1.state, 'boop ')))
+    updates.push(client1.performNullableEdit(inferOperation(client1.state, 'boop banana ')))
 
     assert.equal(client0.state, 'hi world')
     assert.equal(client1.state, 'boop banana ')

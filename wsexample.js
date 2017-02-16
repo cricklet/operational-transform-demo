@@ -6,7 +6,7 @@ import * as process from 'process'
 import SocketServer from 'socket.io'
 import SocketClient from 'socket.io-client'
 
-import type { ClientUpdate, ServerUpdate } from './js/controllers/types.js'
+import type { ClientUpdatePacket, ServerUpdatePacket } from './js/controllers/types.js'
 import { ClientController } from './js/controllers/client_controller.js'
 import { ServerController } from './js/controllers/server_controller.js'
 import { OTHelper } from './js/controllers/ot_helper.js'
@@ -29,23 +29,23 @@ let docId = '1234'
 let server = SocketServer();
 let serverController = new ServerController(TextOTHelper)
 
-function serverHandler(docId: string, clientUpdate: ClientUpdate): ?ServerUpdate {
+function serverHandler(docId: string, clientUpdate: ClientUpdatePacket): ?ServerUpdatePacket {
   return serverController.handleUpdate(clientUpdate)
 }
 
-function serializeServerUpdate(serverUpdate: ServerUpdate): string {
+function serializeServerUpdate(serverUpdate: ServerUpdatePacket): string {
   return JSON.stringify(serverUpdate)
 }
 
-function deserializeServerUpdate(json: string): ServerUpdate {
+function deserializeServerUpdate(json: string): ServerUpdatePacket {
   return JSON.parse(json)
 }
 
-function serializeClientUpdate(clientUpdate: ClientUpdate): string {
+function serializeClientUpdate(clientUpdate: ClientUpdatePacket): string {
   return JSON.stringify(clientUpdate)
 }
 
-function deserializeClientUpdate(json: string): [string, ClientUpdate] {
+function deserializeClientUpdate(json: string): [string, ClientUpdatePacket] {
   let packet = JSON.parse(json)
   return [ packet.docId, packet ]
 }

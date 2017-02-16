@@ -4,24 +4,24 @@ import * as U from '../helpers/utils.js'
 
 import type { OpComponent } from '../operations/components.js'
 
-export type ServerUpdate = {
-  kind: 'ServerUpdate',
+export type ServerUpdatePacket = {
+  kind: 'ServerUpdatePacket',
   sourceUid: string,
   docId: string,
-  operation: ServerOperation
+  edit: ServerEdit
 }
 
-export type ClientUpdate = {
-  kind: 'ClientUpdate',
+export type ClientUpdatePacket = {
+  kind: 'ClientUpdatePacket',
   sourceUid: string,
   docId: string,
-  operation: PrebufferOperation
+  edit: PrebufferEdit
 }
 
-export type Operation = $Shape<{
+export type Edit = $Shape<{
   id: string,
 
-  ops: ?OpComponent[],
+  operation: ?OpComponent[],
 
   parentHash: string,
   childHash: string,
@@ -30,10 +30,10 @@ export type Operation = $Shape<{
   nextIndex: number,
 }>
 
-export type ServerOperation = {
+export type ServerEdit = {
   id: string,
 
-  ops: ?OpComponent[],
+  operation: ?OpComponent[],
 
   parentHash: string,
   childHash: string,
@@ -42,32 +42,32 @@ export type ServerOperation = {
   nextIndex: number
 }
 
-export type AppliedOperation = {
-  ops: ?OpComponent[],
+export type AppliedEdit = {
+  operation: ?OpComponent[],
   parentHash: string,
   childHash: string,
 }
 
-export type BufferOperation = {
-  ops: ?OpComponent[],
+export type BufferEdit = {
+  operation: ?OpComponent[],
   childHash: string
 }
 
-export type PrebufferOperation = {
+export type PrebufferEdit = {
   id: string,
-  ops: ?OpComponent[],
+  operation: ?OpComponent[],
   parentHash: string,
   startIndex: number
 }
 
-export type OperationsStack = {
-  opsStack: Array<?OpComponent[]>, // oldest first
+export type EditsStack = {
+  operationsStack: Array<?OpComponent[]>, // oldest first
   parentHash: string
 }
 
-export function castServerOp(op: Operation, opts?: Object): ServerOperation {
+export function castServerEdit(op: Edit, opts?: Object): ServerEdit {
   op = U.merge(op, opts)
-  if (!('ops' in op) || op.id == null ||
+  if (!('operation' in op) || op.id == null ||
       op.parentHash == null || op.childHash == null ||
       op.startIndex == null || op.nextIndex == null) {
     throw new Error('server op contains keys: ' + Object.keys(op).join(', '))
@@ -75,25 +75,25 @@ export function castServerOp(op: Operation, opts?: Object): ServerOperation {
   return op
 }
 
-export function castAppliedOp(op: Operation, opts?: Object): AppliedOperation {
+export function castAppliedEdit(op: Edit, opts?: Object): AppliedEdit {
   op = U.merge(op, opts)
-  if (!('ops' in op) || op.childHash == null || op.parentHash == null) {
+  if (!('operation' in op) || op.childHash == null || op.parentHash == null) {
     throw new Error('applied contains keys: ' + Object.keys(op).join(', '))
   }
   return op
 }
 
-export function castBufferOp(op: Operation, opts?: Object): BufferOperation {
+export function castBufferEdit(op: Edit, opts?: Object): BufferEdit {
   op = U.merge(op, opts)
-  if (!('ops' in op) || op.childHash == null) {
+  if (!('operation' in op) || op.childHash == null) {
     throw new Error('buffer op contains keys: ' + Object.keys(op).join(', '))
   }
   return op
 }
 
-export function castPrebufferOp(op: Operation, opts?: Object): PrebufferOperation {
+export function castPrebufferEdit(op: Edit, opts?: Object): PrebufferEdit {
   op = U.merge(op, opts)
-  if (!('ops' in op) || op.id == null ||
+  if (!('operation' in op) || op.id == null ||
       op.parentHash == null ||
       op.startIndex == null) {
     throw new Error('prebuffer op contains keys: ' + Object.keys(op).join(', '))

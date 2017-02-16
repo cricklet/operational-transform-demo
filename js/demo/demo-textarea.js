@@ -10,7 +10,7 @@ import { TextApplier, DocumentApplier } from '../operations/applier.js'
 import * as Inferrer from '../operations/inferrer.js'
 import * as Transformer from '../operations/transformer.js'
 
-import type { ClientUpdate, ServerUpdate } from '../controllers/types.js'
+import type { ClientUpdatePacket, ServerUpdatePacket } from '../controllers/types.js'
 import { ClientController } from '../controllers/client_controller.js'
 import { ServerController } from '../controllers/server_controller.js'
 import { OTHelper } from '../controllers/ot_helper.js'
@@ -310,9 +310,9 @@ $(document).ready(() => {
   let clientConnections = []
 
   let server = new ServerController(TextOTHelper)
-  let serverConnection: SimulatedConnection<ServerUpdate, ClientUpdate> = new SimulatedConnection(chaos, serverLogger)
-  serverConnection.listen((clientUpdate: ClientUpdate) => {
-    let serverUpdate: ServerUpdate = server.handleUpdate(clientUpdate)
+  let serverConnection: SimulatedConnection<ServerUpdatePacket, ClientUpdatePacket> = new SimulatedConnection(chaos, serverLogger)
+  serverConnection.listen((clientUpdate: ClientUpdatePacket) => {
+    let serverUpdate: ServerUpdatePacket = server.handleUpdate(clientUpdate)
     serverConnection.send(serverUpdate)
   })
 
@@ -333,8 +333,8 @@ $(document).ready(() => {
     clientId ++
 
     let client = new ClientController(DOC_ID, DocumentOTHelper)
-    let clientConnection: SimulatedConnection<ClientUpdate, ServerUpdate> = new SimulatedConnection(chaos)
-    clientConnection.listen((serverUpdate: ServerUpdate) => {
+    let clientConnection: SimulatedConnection<ClientUpdatePacket, ServerUpdatePacket> = new SimulatedConnection(chaos)
+    clientConnection.listen((serverUpdate: ServerUpdatePacket) => {
       let update = client.handleUpdate(serverUpdate)
       if (update == null) { return }
       clientConnection.send(update)

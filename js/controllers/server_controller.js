@@ -3,11 +3,11 @@
 import * as U from '../helpers/utils.js'
 
 import type {
-  Operation,
-  PrebufferOperation,
-  ClientUpdate,
-  ServerUpdate,
-  ServerOperation
+  Edit,
+  PrebufferEdit,
+  ClientUpdatePacket,
+  ServerUpdatePacket,
+  ServerEdit
 } from './types.js'
 
 import {
@@ -15,13 +15,13 @@ import {
 } from './ot_helper.js'
 
 import {
-  castServerOp
+  castServerEdit
 } from './types.js'
 
 export type OTDocument = {
   docId: string,
   state: string,
-  log: Array<ServerOperation>
+  log: Array<ServerEdit>
 }
 
 export class OTDocuments {
@@ -47,11 +47,11 @@ export class OTDocuments {
 
 export class ServerController {
   // This class maintains the state of the server, computes what updates
-  // should be sent to the client (i.e. ServerUpdate), and applies
-  // remote updates (i.e. ClientUpdate) to the server state.
+  // should be sent to the client (i.e. ServerUpdatePacket), and applies
+  // remote updates (i.e. ClientUpdatePacket) to the server state.
 
   // class ServerClient {
-  //   handleUpdate(clientUpdate: ClientUpdate): ?ServerUpdate
+  //   handleUpdate(clientUpdate: ClientUpdatePacket): ?ServerUpdatePacket
   // }
 
   // USAGE: (w/ an imaginary 'connection' object)
@@ -81,15 +81,15 @@ export class ServerController {
     }
   }
 
-  _historyOp(doc: OTDocument, startIndex: number): Operation {
+  _historyEdit(doc: OTDocument, startIndex: number): Edit {
     if (startIndex === doc.log.length) {
       return {
-        ops: undefined,
+        operation: undefined,
         parentHash: this._hash(doc),
         childHash: this._hash(doc)
       }
     } else if (startIndex < doc.log.length) {
-      let ops: Operation[] = U.array(U.subarray(doc.log, {start: startIndex}))
+      let ops: Edit[] = U.array(U.subarray(doc.log, {start: startIndex}))
       if (ops.length === 0) { throw new Error('wat') }
       return this.helper.compose(ops)
     } else {
@@ -109,12 +109,12 @@ export class ServerController {
     return this.store.getDocument(docId).state
   }
 
-  handleUpdate(clientUpdate: ClientUpdate)
-  : ServerUpdate {
+  handleUpdate(clientUpdate: ClientUpdatePacket)
+  : ServerUpdatePacket {
     // update the server state & return the update to broadcast to the clients
 
     // a = clientUpdate
-    // b = historyOp
+    // b = historyEdit
 
     // aP = serverUpdate to broadcast to the clients
 
@@ -123,15 +123,15 @@ export class ServerController {
     // bP \  / aP
     //     \/
 
-    let clientOp: PrebufferOperation = clientUpdate.operation
+    let clientEdit: PrebufferEdit = clientUpdate.edit
     let docId: string = clientUpdate.docId
     let sourceUid: string = clientUpdate.sourceUid
 
     let doc: OTDocument = this.store.getDocument(docId)
 
-    let historyOp: Operation = this._historyOp(doc, clientOp.startIndex)
+    let historyEdit: Edit = this._historyEdit(doc, clientEdit.startIndex)
 
-    let [a, b] = [clientOp, historyOp]
+    let [a, b] = [clientEdit, historyEdit]
     let [aP, bP, undo, newState] = this.helper.transformAndApplyToServer(a, b, doc.state)
 
     aP.startIndex = this._nextIndex(doc)
@@ -141,10 +141,10 @@ export class ServerController {
     doc.log.push(aP)
 
     return {
-      kind: 'ServerUpdate',
+      kind: 'ServerUpdatePacket',
       sourceUid: sourceUid,
       docId: docId,
-      operation: castServerOp(aP)
+      edit: castServerEdit(aP)
     }
   }
 }

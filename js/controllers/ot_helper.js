@@ -6,24 +6,24 @@ import * as Transformer from '../operations/transformer.js'
 import * as U from '../helpers/utils.js'
 
 import type {
-  Operation,
-  PrebufferOperation,
-  BufferOperation,
-  ServerOperation,
-  AppliedOperation,
-  OperationsStack
+  Edit,
+  PrebufferEdit,
+  BufferEdit,
+  ServerEdit,
+  AppliedEdit,
+  EditsStack
 } from './types.js'
 
 import {
-  castPrebufferOp,
-  castBufferOp,
-  castAppliedOp
+  castPrebufferEdit,
+  castBufferEdit,
+  castAppliedEdit
 } from './types.js'
 
 export interface IApplier<S> {
   initial(): S,
   stateHash(s: S): string,
-  apply(state: S, ops: OpComponent[]): [S, OpComponent[]],
+  apply(state: S, operation: OpComponent[]): [S, OpComponent[]],
 }
 
 export class OTHelper<S> {
@@ -48,56 +48,56 @@ export class OTHelper<S> {
     return this.applier.stateHash(s)
   }
 
-  apply(s: S, ops: OpComponent[]): [S, OpComponent[]] {
-    return this.applier.apply(s, ops)
+  apply(s: S, operation: OpComponent[]): [S, OpComponent[]] {
+    return this.applier.apply(s, operation)
   }
 
-  _createOp(
-    ops: ?OpComponent[],
+  _createEdit(
+    operation: ?OpComponent[],
     optional: {
-      parent?: Operation,
-      source?: Operation,
+      parent?: Edit,
+      source?: Edit,
       resultHash?: string
     }
-  ): Operation {
-    let op: Operation = {ops: ops}
+  ): Edit {
+    let edit: Edit = {operation: operation}
 
     if (optional.parent != null) {
-      if (optional.parent.childHash != null) { op.parentHash = optional.parent.childHash }
+      if (optional.parent.childHash != null) { edit.parentHash = optional.parent.childHash }
     }
     if (optional.source != null) {
-      if (optional.source.id != null) { op.id = optional.source.id }
+      if (optional.source.id != null) { edit.id = optional.source.id }
     }
-    if (optional.resultHash != null) { op.childHash = optional.resultHash }
+    if (optional.resultHash != null) { edit.childHash = optional.resultHash }
 
-    return op
+    return edit
   }
 
-  compose(operations: Operation[]): Operation {
-    if (operations.length === 0) {
+  compose(edits: Edit[]): Edit {
+    if (edits.length === 0) {
       throw new Error('wat can\'t compose empty list')
     }
 
     let composed: OpComponent[] = Transformer.composeMany(
-      U.skipNulls(U.map(operations, o => o.ops)))
+      U.skipNulls(U.map(edits, o => o.operation)))
 
-    let op: Operation = {
-      ops: composed,
+    let edit: Edit = {
+      operation: composed,
     }
 
-    let firstOp = U.first(operations)
-    if (firstOp.parentHash != null) { op.parentHash = firstOp.parentHash }
+    let firstEdit = U.first(edits)
+    if (firstEdit.parentHash != null) { edit.parentHash = firstEdit.parentHash }
 
-    let lastOp = U.last(operations)
-    if (lastOp.childHash != null) { op.childHash = lastOp.childHash }
+    let lastEdit = U.last(edits)
+    if (lastEdit.childHash != null) { edit.childHash = lastEdit.childHash }
 
-    return op
+    return edit
   }
 
-  transformOperationsStack(
-    appliedOp: AppliedOperation,
-    operationsStack: OperationsStack
-  ): OperationsStack {
+  transformEditsStack(
+    appliedEdit: AppliedEdit,
+    editsStack: EditsStack
+  ): EditsStack {
     // a: stack op
     // b: applied op
 
@@ -112,10 +112,10 @@ export class OTHelper<S> {
     // bP \  c aP
     //     \/
 
-    let parentHash = appliedOp.parentHash
-    let childHash = appliedOp.childHash
+    let parentHash = appliedEdit.parentHash
+    let childHash = appliedEdit.childHash
 
-    if (operationsStack.parentHash !== parentHash) {
+    if (editsStack.parentHash !== parentHash) {
       throw new Error('stack ops must have the same parent as the applied op')
     }
 
@@ -124,8 +124,8 @@ export class OTHelper<S> {
     // iterate through the stack in reverse order
     // thus, the most recent ops are transformed first
 
-    let b: ?OpComponent[] = appliedOp.ops
-    for (let a: ?OpComponent[] of U.reverse(operationsStack.opsStack)) {
+    let b: ?OpComponent[] = appliedEdit.operation
+    for (let a: ?OpComponent[] of U.reverse(editsStack.operationsStack)) {
       let [aP, bP] = Transformer.transformNullable(a, b)
 
       transformedOps.push(aP)
@@ -135,7 +135,7 @@ export class OTHelper<S> {
     // because we iterated in reverse order, we have to reverse again
     transformedOps.reverse()
 
-    return { opsStack: transformedOps, parentHash: childHash }
+    return { operationsStack: transformedOps, parentHash: childHash }
   }
 
   applyNullable(
@@ -151,10 +151,10 @@ export class OTHelper<S> {
   }
 
   transformAndApplyToClient(
-    clientOp: Operation,
-    serverOp: Operation,
+    clientEdit: Edit,
+    serverEdit: Edit,
     clientState: S
-  ): [Operation, Operation, Operation, S] {
+  ): [Edit, Edit, Edit, S] {
     // returns [aP, bP, undo, newState]
 
     //   a /\ b
@@ -162,11 +162,11 @@ export class OTHelper<S> {
     // bP \  / aP
     //     \/
 
-    let [a, b] = [clientOp, serverOp]
+    let [a, b] = [clientEdit, serverEdit]
 
     let [aT, bT] = this.transform(a, b)
 
-    let [newState, newUndo] = this.applyNullable(clientState, bT.ops)
+    let [newState, newUndo] = this.applyNullable(clientState, bT.operation)
     let newHash = this.applier.stateHash(newState)
 
     aT.childHash = newHash
@@ -175,16 +175,16 @@ export class OTHelper<S> {
     return [
       aT,
       bT,
-      { ops: newUndo },
+      { operation: newUndo },
       newState
     ]
   }
 
   transformAndApplyToServer(
-    clientOp: Operation,
-    serverOp: Operation,
+    clientEdit: Edit,
+    serverEdit: Edit,
     serverState: S
-  ): [Operation, Operation, Operation, S] {
+  ): [Edit, Edit, Edit, S] {
     // returns [aP, bP, undo, newState]
 
     //   a /\ b
@@ -192,11 +192,11 @@ export class OTHelper<S> {
     // bP \  / aP
     //     \/
 
-    let [a, b] = [clientOp, serverOp]
+    let [a, b] = [clientEdit, serverEdit]
 
     let [aT, bT] = this.transform(a, b)
 
-    let [newState, newUndo] = this.applyNullable(serverState, aT.ops)
+    let [newState, newUndo] = this.applyNullable(serverState, aT.operation)
     let newHash = this.applier.stateHash(newState)
 
     aT.childHash = newHash
@@ -205,21 +205,21 @@ export class OTHelper<S> {
     return [
       aT,
       bT,
-      { ops: newUndo },
+      { operation: newUndo },
       newState
     ]
   }
 
   transformAndApplyBuffers(
-    prebufferOp: PrebufferOperation,
-    bufferOp: BufferOperation,
-    serverOp: ServerOperation,
+    prebufferEdit: PrebufferEdit,
+    bufferEdit: BufferEdit,
+    serverEdit: ServerEdit,
     clientState: S
-  ): [PrebufferOperation, BufferOperation, AppliedOperation, S] {
-    // returns [newPrebuffer, newBuffer, appliedOp, newState]
+  ): [PrebufferEdit, BufferEdit, AppliedEdit, S] {
+    // returns [newPrebuffer, newBuffer, appliedEdit, newState]
 
-    if (prebufferOp.parentHash !== serverOp.parentHash ||
-        prebufferOp.startIndex !== serverOp.startIndex) {
+    if (prebufferEdit.parentHash !== serverEdit.parentHash ||
+        prebufferEdit.startIndex !== serverEdit.startIndex) {
       throw new Error('wat, to transform prebuffer there must be the same parent')
     }
 
@@ -239,7 +239,7 @@ export class OTHelper<S> {
     // bPP \  / cP
     //      \/
 
-    let [a, c, b] = [prebufferOp, bufferOp, serverOp]
+    let [a, c, b] = [prebufferEdit, bufferEdit, serverEdit]
 
     let [aP, bP] = this.transform(a, b)
     let [cP, bPP, undo, newState] = this.transformAndApplyToClient(c, bP, clientState)
@@ -248,39 +248,39 @@ export class OTHelper<S> {
     cP.childHash = newHash
     bPP.childHash = newHash
 
-    let [newPrebufferOp, newBufferOp, appliedOp] = [
-      castPrebufferOp(aP, { startIndex: serverOp.nextIndex }),
-      castBufferOp(cP),
-      castAppliedOp(bPP)
+    let [newPrebufferEdit, newBufferEdit, appliedEdit] = [
+      castPrebufferEdit(aP, { startIndex: serverEdit.nextIndex }),
+      castBufferEdit(cP),
+      castAppliedEdit(bPP)
     ]
 
-    return [newPrebufferOp, newBufferOp, appliedOp, newState]
+    return [newPrebufferEdit, newBufferEdit, appliedEdit, newState]
   }
   transform(
-    clientOp: Operation,
-    serverOp: Operation
-  ): [Operation, Operation] {
+    clientEdit: Edit,
+    serverEdit: Edit
+  ): [Edit, Edit] {
     //   a /\ b
     //    /  \
     // bP \  / aP
     //     \/
 
-    if (clientOp.parentHash != null && serverOp.parentHash != null &&
-        clientOp.parentHash !== serverOp.parentHash) {
+    if (clientEdit.parentHash != null && serverEdit.parentHash != null &&
+        clientEdit.parentHash !== serverEdit.parentHash) {
       throw new Error('wat, to transform, they must have the same parent')
     }
 
-    let [aOp,bOp] = [clientOp, serverOp]
-    let [a,b] = [aOp.ops, bOp.ops]
+    let [aEdit,bEdit] = [clientEdit, serverEdit]
+    let [a,b] = [aEdit.operation, bEdit.operation]
 
     let [aP,bP] = Transformer.transformNullable(a, b)
 
-    let aOpP = this._createOp(aP, {parent: bOp, source: aOp})
-    let bOpP = this._createOp(bP, {parent: aOp, source: bOp})
+    let aEditP = this._createEdit(aP, {parent: bEdit, source: aEdit})
+    let bEditP = this._createEdit(bP, {parent: aEdit, source: bEdit})
 
-    if (aOp.id != null) { aOpP.id = aOp.id }
-    if (bOp.id != null) { bOpP.id = bOp.id }
+    if (aEdit.id != null) { aEditP.id = aEdit.id }
+    if (bEdit.id != null) { bEditP.id = bEdit.id }
 
-    return [aOpP, bOpP]
+    return [aEditP, bEditP]
   }
 }

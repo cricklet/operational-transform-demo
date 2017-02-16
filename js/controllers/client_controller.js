@@ -3,16 +3,16 @@
 import * as U from '../helpers/utils.js'
 
 import type {
-  BufferOperation,
-  PrebufferOperation,
-  OperationsStack,
-  ClientUpdate,
-  ServerUpdate,
-  ServerOperation
+  BufferEdit,
+  PrebufferEdit,
+  EditsStack,
+  ClientUpdatePacket,
+  ServerUpdatePacket,
+  ServerEdit
 } from './types.js'
 
 import {
-  castPrebufferOp
+  castPrebufferEdit
 } from './types.js'
 
 import {
@@ -33,12 +33,12 @@ export class OutOfOrderUpdate extends Error {
 
 export class ClientController<S> {
   // This class maintains the state of the client, computes what updates
-  // should be sent to the server (i.e. ClientUpdate), and applies
-  // remote updates (i.e. ServerUpdate) to the local state.
+  // should be sent to the server (i.e. ClientUpdatePacket), and applies
+  // remote updates (i.e. ServerUpdatePacket) to the local state.
 
   // ClientController {
-  //   performEdit(operations: OpComponent[]): ?ClientUpdate
-  //   handleUpdate(serverUpdate: ServerUpdate): ?ServerUpdate
+  //   performEdit(operations: OpComponent[]): ?ClientUpdatePacket
+  //   handleUpdate(serverUpdate: ServerUpdatePacket): ?ServerUpdatePacket
   // }
 
   // USAGE:
@@ -59,17 +59,14 @@ export class ClientController<S> {
 
   state: S
 
-  buffer: BufferOperation
+  buffer: BufferEdit
   // the client ops not yet sent to the server.
-  // sometimes we know the full state of this buffer (hence ParentedOperation)
-  // if the buffer has been transformed, we don't know the full state (hence $Shape)
 
-  prebuffer: PrebufferOperation
+  prebuffer: PrebufferEdit
   // the client op that has been sent to the server (but not yet ACKd by the server)
-  // together, prebuffer + buffer is the 'bridge'
 
-  undos: OperationsStack
-  redos: OperationsStack
+  undos: EditsStack
+  redos: EditsStack
 
   helper: OTHelper<S>
 
@@ -83,21 +80,21 @@ export class ClientController<S> {
     let hash = this.helper.hash(this.state)
 
     this.buffer = {
-      ops: undefined,
+      operation: undefined,
       childHash: hash
     }
     this.prebuffer = {
       startIndex: 0,
       parentHash: hash,
-      ops: undefined,
+      operation: undefined,
       id: U.genUid()
     }
     this.undos = {
-      opsStack: [],
+      operationsStack: [],
       parentHash: hash
     }
     this.redos = {
-      opsStack: [],
+      operationsStack: [],
       parentHash: hash
     }
   }
@@ -127,20 +124,20 @@ export class ClientController<S> {
     return this.prebuffer.startIndex
   }
 
-  _flushBuffer(): ?ClientUpdate {
+  _flushBuffer(): ?ClientUpdatePacket {
     // if there's no buffer, skip
-    if (this.buffer.ops == null) {
+    if (this.buffer.operation == null) {
       return undefined
     }
 
     // if there is a prebuffer, skip
-    if (this.prebuffer.ops != null) {
+    if (this.prebuffer.operation != null) {
       return undefined
     }
 
     // prebuffer is now the buffer
     this.prebuffer = {
-      ops: this.buffer.ops,
+      operation: this.buffer.operation,
       id: U.genUid(),
       parentHash: this.prebuffer.parentHash,
       startIndex: this.prebuffer.startIndex
@@ -148,23 +145,23 @@ export class ClientController<S> {
 
     // buffer is now empty
     this.buffer = {
-      ops: undefined,
+      operation: undefined,
       childHash: this.buffer.childHash,
     }
 
     this._checkInvariants()
 
     return {
-      kind: 'ClientUpdate',
-      operation: castPrebufferOp(this.prebuffer),
+      kind: 'ClientUpdatePacket',
+      edit: castPrebufferEdit(this.prebuffer),
       sourceUid: this.uid,
       docId: this.docId,
     }
   }
 
-  handleUpdate(serverUpdate: ServerUpdate)
-  : ?ClientUpdate {
-    let op: ServerOperation = serverUpdate.operation
+  handleUpdate(serverUpdate: ServerUpdatePacket)
+  : ?ClientUpdatePacket {
+    let op: ServerEdit = serverUpdate.edit
     let docId: string = serverUpdate.docId
 
     if (docId !== this.docId) {
@@ -185,7 +182,7 @@ export class ClientController<S> {
 
       // clear the prebuffer out
       this.prebuffer = {
-        ops: undefined,
+        operation: undefined,
         id: U.genUid(),
         parentHash: op.childHash,
         startIndex: op.nextIndex
@@ -196,25 +193,25 @@ export class ClientController<S> {
 
     } else {
       // transform the prebuffer & buffer & op
-      let [newPrebufferOp, newBufferOp, appliedOp, newState]
+      let [newPrebufferEdit, newBufferEdit, appliedEdit, newState]
           = this.helper.transformAndApplyBuffers(this.prebuffer, this.buffer, op, this.state)
 
       // update undo
-      this.undos = this.helper.transformOperationsStack(appliedOp, this.undos)
-      this.redos = this.helper.transformOperationsStack(appliedOp, this.redos)
+      this.undos = this.helper.transformEditsStack(appliedEdit, this.undos)
+      this.redos = this.helper.transformEditsStack(appliedEdit, this.redos)
 
       // apply the operation
       this.state = newState
 
       // update prebuffer & buffer
-      this.prebuffer = newPrebufferOp
-      this.buffer = newBufferOp
+      this.prebuffer = newPrebufferEdit
+      this.buffer = newBufferEdit
 
       return undefined
     }
   }
 
-  performUndo(): ?ClientUpdate {
+  performUndo(): ?ClientUpdatePacket {
     let currentHash = this.helper.hash(this.state)
     let undoHash = this.undos.parentHash
 
@@ -222,9 +219,9 @@ export class ClientController<S> {
       throw new Error('undo must refer to current state')
     }
 
-    while (this.undos.opsStack.length > 0) {
+    while (this.undos.operationsStack.length > 0) {
       // get the most recent undo
-      let undo = this.undos.opsStack.pop()
+      let undo = this.undos.operationsStack.pop()
 
       if (undo == null) { // this undo is empty
         continue
@@ -239,21 +236,21 @@ export class ClientController<S> {
       // append applied undo to buffer
       this.buffer = this.helper.compose([
         this.buffer,
-        { ops: undo, childHash: newHash }
+        { operation: undo, childHash: newHash }
       ])
 
       // update undos
       this.undos.parentHash = newHash
 
       // update redos
-      this.redos.opsStack.push(redo)
+      this.redos.operationsStack.push(redo)
       this.redos.parentHash = newHash
 
       return this._flushBuffer()
     }
   }
 
-  performRedo(): ?ClientUpdate {
+  performRedo(): ?ClientUpdatePacket {
     let currentHash = this.helper.hash(this.state)
     let redoHash = this.redos.parentHash
 
@@ -261,9 +258,9 @@ export class ClientController<S> {
       throw new Error('redo must refer to current state')
     }
 
-    while (this.redos.opsStack.length > 0) {
+    while (this.redos.operationsStack.length > 0) {
       // get the most recent redo
-      let redo = this.redos.opsStack.pop()
+      let redo = this.redos.operationsStack.pop()
 
       if (redo == null) { // this redo is empty
         continue
@@ -278,11 +275,11 @@ export class ClientController<S> {
       // append applied redo to buffer
       this.buffer = this.helper.compose([
         this.buffer,
-        { ops: redo, childHash: newHash }
+        { operation: redo, childHash: newHash }
       ])
 
       // update undos
-      this.undos.opsStack.push(undo)
+      this.undos.operationsStack.push(undo)
       this.undos.parentHash = newHash
 
       // update redos
@@ -292,7 +289,7 @@ export class ClientController<S> {
     }
   }
 
-  performNullableEdit(edit: ?OpComponent[]): ?ClientUpdate {
+  performNullableEdit(edit: ?OpComponent[]): ?ClientUpdatePacket {
     if (edit == null) {
       return undefined
     }
@@ -300,7 +297,7 @@ export class ClientController<S> {
     return this.performEdit(edit)
   }
 
-  performEdit(edit: OpComponent[]): ?ClientUpdate {
+  performEdit(edit: OpComponent[]): ?ClientUpdatePacket {
     // apply the operation
     let [newState, undo] = this.helper.apply(this.state, edit)
     this.state = newState
@@ -309,12 +306,12 @@ export class ClientController<S> {
   }
 
   handleAppliedEdit(edit: OpComponent[], undo: OpComponent[])
-  : ?ClientUpdate { // return client op to broadcast
+  : ?ClientUpdatePacket { // return client op to broadcast
     let currentHash = this.helper.hash(this.state)
 
     // the op we just applied!
-    let op: BufferOperation = {
-      ops: edit,
+    let op: BufferEdit = {
+      operation: edit,
       childHash: currentHash
     }
 
@@ -325,11 +322,11 @@ export class ClientController<S> {
     ])
 
     // append operation to undo stack
-    this.undos.opsStack.push(undo)
+    this.undos.operationsStack.push(undo)
     this.undos.parentHash = currentHash
 
     // clear the redo stack
-    this.redos.opsStack = []
+    this.redos.operationsStack = []
     this.redos.parentHash = currentHash
 
     return this._flushBuffer()
