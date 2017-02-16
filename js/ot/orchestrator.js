@@ -1,7 +1,7 @@
 /* @flow */
 
 import { observeArray, observeEach } from './observe.js'
-import { skipNulls, map, reiterable, concat, flatten, maybePush, hash, clone, merge, last, genUid, zipPairs, first, pop, push, contains, reverse, findLastIndex, subarray, asyncWait } from './utils.js'
+import * as U from './utils.js'
 
 export type ServerUpdate<O> = {
   kind: 'ServerUpdate'
@@ -69,7 +69,7 @@ export class OutOfOrderServerUpdate extends Error {
 }
 
 function castServerOp<O>(op: Operation<O>, opts?: Object): ServerOperation<O> {
-  op = merge(op, opts)
+  op = U.merge(op, opts)
   if (!('ops' in op) || op.id == null ||
       op.parentHash == null || op.childHash == null ||
       op.startIndex == null || op.nextIndex == null) {
@@ -79,7 +79,7 @@ function castServerOp<O>(op: Operation<O>, opts?: Object): ServerOperation<O> {
 }
 
 function castAppliedOp<O>(op: Operation<O>, opts?: Object): AppliedOperation<O> {
-  op = merge(op, opts)
+  op = U.merge(op, opts)
   if (!('ops' in op) || op.childHash == null || op.parentHash == null) {
     throw new Error('applied contains keys: ' + Object.keys(op).join(', '))
   }
@@ -87,7 +87,7 @@ function castAppliedOp<O>(op: Operation<O>, opts?: Object): AppliedOperation<O> 
 }
 
 function castBufferOp<O>(op: Operation<O>, opts?: Object): BufferOperation<O> {
-  op = merge(op, opts)
+  op = U.merge(op, opts)
   if (!('ops' in op) || op.childHash == null) {
     throw new Error('buffer op contains keys: ' + Object.keys(op).join(', '))
   }
@@ -95,7 +95,7 @@ function castBufferOp<O>(op: Operation<O>, opts?: Object): BufferOperation<O> {
 }
 
 function castPrebufferOp<O>(op: Operation<O>, opts?: Object): PrebufferOperation<O> {
-  op = merge(op, opts)
+  op = U.merge(op, opts)
   if (!('ops' in op) || op.id == null ||
       op.parentHash == null ||
       op.startIndex == null) {
@@ -184,17 +184,17 @@ export class OTHelper<O,S> {
     }
 
     let composed: O[] = this.transformer.composeMany(
-      skipNulls(map(reiterable(operations), o => o.ops))()
+      U.skipNulls(U.map(U.reiterable(operations), o => o.ops))()
     )
 
     let op: Operation<O> = {
       ops: composed,
     }
 
-    let firstOp = first(operations)
+    let firstOp = U.first(operations)
     if (firstOp.parentHash != null) { op.parentHash = firstOp.parentHash }
 
-    let lastOp = last(operations)
+    let lastOp = U.last(operations)
     if (lastOp.childHash != null) { op.childHash = lastOp.childHash }
 
     return op
@@ -231,7 +231,7 @@ export class OTHelper<O,S> {
     // thus, the most recent ops are transformed first
 
     let b: ?O[] = appliedOp.ops
-    for (let a: ?O[] of reverse(operationsStack.opsStack)()) {
+    for (let a: ?O[] of U.reverse(operationsStack.opsStack)()) {
       let [aP, bP] = this.transformer.transformNullable(a, b)
 
       transformedOps.push(aP)
@@ -413,7 +413,7 @@ export class OTClient<O,S> {
   constructor(helper: OTHelper<O,S>) {
     this.helper = helper
 
-    this.uid = genUid()
+    this.uid = U.genUid()
     this.state = this.helper.initial()
 
     let hash = this.helper.hash(this.state)
@@ -426,7 +426,7 @@ export class OTClient<O,S> {
       startIndex: 0,
       parentHash: hash,
       ops: undefined,
-      id: genUid()
+      id: U.genUid()
     }
     this.undos = {
       opsStack: [],
@@ -477,7 +477,7 @@ export class OTClient<O,S> {
     // prebuffer is now the buffer
     this.prebuffer = {
       ops: this.buffer.ops,
-      id: genUid(),
+      id: U.genUid(),
       parentHash: this.prebuffer.parentHash,
       startIndex: this.prebuffer.startIndex
     }
@@ -490,7 +490,7 @@ export class OTClient<O,S> {
 
     this._checkInvariants()
 
-    return merge({
+    return U.merge({
       kind: 'ClientUpdate',
     }, this.prebuffer)
   }
@@ -510,7 +510,7 @@ export class OTClient<O,S> {
       // clear the prebuffer out
       this.prebuffer = {
         ops: undefined,
-        id: genUid(),
+        id: U.genUid(),
         parentHash: op.childHash,
         startIndex: op.nextIndex
       }
@@ -678,7 +678,7 @@ export class OTServer<O,S> {
   ) {
     this.helper = helper
 
-    this.uid = genUid()
+    this.uid = U.genUid()
 
     if (doc != null) {
       this.doc = doc
@@ -696,7 +696,7 @@ export class OTServer<O,S> {
   }
 
   _historySince(startIndex: number): Array<ServerOperation<O>> {
-    let ops = Array.from(subarray(this.doc.log, {start: startIndex})())
+    let ops = Array.from(U.subarray(this.doc.log, {start: startIndex})())
     if (ops.length === 0) { throw new Error('wat') }
 
     return ops
@@ -710,7 +710,7 @@ export class OTServer<O,S> {
         childHash: this._hash()
       }
     } else if (startIndex < this.doc.log.length) {
-      let ops: Operation<O>[] = Array.from(subarray(this.doc.log, {start: startIndex})())
+      let ops: Operation<O>[] = Array.from(U.subarray(this.doc.log, {start: startIndex})())
       if (ops.length === 0) { throw new Error('wat') }
       return this.helper.compose(ops)
     } else {
@@ -746,7 +746,7 @@ export class OTServer<O,S> {
     this.doc.state = newState
     this.doc.log.push(aP)
 
-    return merge({
+    return U.merge({
       kind: 'ServerUpdate'
     }, castServerOp(aP))
   }

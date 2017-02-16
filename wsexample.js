@@ -10,13 +10,13 @@ import {
   OTClient,
   OTServer,
   OTHelper,
-  castServerBroadcast,
+  castServerUpdate,
   castClientUpdate
 } from './js/ot/orchestrator.js'
 
 import type {
   ClientUpdate,
-  ServerBroadcast,
+  ServerUpdate,
   OTServerDocument,
 } from './js/ot/orchestrator.js'
 
@@ -50,18 +50,18 @@ function getDocument(docId: string): OTServerDocument<*,*> {
   return documents[docId]
 }
 
-function serverHandler(docId: string, clientUpdate: ClientUpdate<*>): ?ServerBroadcast<*> {
+function serverHandler(docId: string, clientUpdate: ClientUpdate<*>): ?ServerUpdate<*> {
   let doc = getDocument(docId)
   let server = new OTServer(TextOTHelper, doc)
   let serverUpdate = server.handleUpdate(clientUpdate)
   return serverUpdate
 }
 
-function serializeServerUpdate(broadcast: ServerBroadcast<*>): string {
-  return JSON.stringify(broadcast)
+function serializeServerUpdate(serverUpdate: ServerUpdate<*>): string {
+  return JSON.stringify(serverUpdate)
 }
 
-function deserializeServerUpdate(json: string): ServerBroadcast<*> {
+function deserializeServerUpdate(json: string): ServerUpdate<*> {
   return JSON.parse(json)
 }
 
@@ -79,6 +79,7 @@ function deserializeClientUpdate(json: string): [string, ClientUpdate<*>] {
 
 server.on('connection', (socket) => {
   socket.on('open document', (docId) => {
+    // request room at index
     socket.join(docId)
   })
   socket.on('client update', (json) => {
@@ -102,8 +103,8 @@ function createClient(clientId, docId) {
   client.on('server update', (json) => {
     let serverUpdate = deserializeServerUpdate(json)
 
-    let clientUpdate = otClient.handleBroadcast(serverUpdate)
-    console.log(clientId, otClient.state)
+    let clientUpdate = otClient.handleUpdate(serverUpdate)
+    printAll()
 
     if (clientUpdate != null) {
       let clientUpdateJSON = serializeClientUpdate(docId, clientUpdate)
@@ -118,7 +119,7 @@ function createClient(clientId, docId) {
       let ops = inferOps(otClient.state, newText)
       if (ops == null) { return }
 
-      let clientUpdate = otClient.handleEdit(ops)
+      let clientUpdate = otClient.performEdit(ops)
 
       if (clientUpdate != null) {
         let clientUpdateJSON = serializeClientUpdate(docId, clientUpdate)
@@ -137,6 +138,13 @@ let c2 = createClient('CLIENT2', 'DOC0')
 
 let cs = [c0, c1, c2]
 
+function printAll() {
+  console.log('')
+  for (let c of cs) {
+    console.log(c.current())
+  }
+  console.log('')
+}
 
 let WORDS = [
   "lorem", "ipsum", "dolor", "sit", "amet", "consectetur", "adipiscing",
@@ -192,6 +200,9 @@ let shouldAdjust = false
       adjust(c0)
       adjust(c1)
       adjust(c2)
+      adjust(c0)
+      adjust(c1)
+      adjust(c2)
     }
   }
 })()
@@ -203,14 +214,5 @@ rl.on('line', (input) => {
 
   if (input === 'stop') {
     shouldAdjust = false
-  }
-
-  if (input === 'status') {
-    let syncd = allEqual(cs.map(c => c.current()))
-    if (syncd) {
-      console.log('synchronized as:', c0.current())
-    } else {
-      console.log('not yet synchronized:', c0.current())
-    }
   }
 })

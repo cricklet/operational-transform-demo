@@ -9,7 +9,6 @@ import { expect } from 'chai'
 import { spy } from 'sinon'
 
 import { assert } from 'chai'
-import { map, zip } from 'wu'
 
 import {
   Transformer,

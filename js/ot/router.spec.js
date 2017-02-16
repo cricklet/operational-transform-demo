@@ -11,7 +11,7 @@ import { spy, useFakeTimers } from 'sinon'
 import { assert } from 'chai'
 import { map, zip } from 'wu'
 
-import { shuffle, push, concat } from './utils.js'
+import * as U from './utils.js'
 import { SimulatedRouter } from './router.js'
 
 describe("SimulatedRouter", () => {

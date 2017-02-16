@@ -1,5 +1,5 @@
 /* @flow */
-import { genUid, pop, filterInPlace, subarray } from './utils.js'
+import * as U from './utils.js'
 import { find } from 'wu'
 
 export type Packet<D> = {
@@ -7,8 +7,6 @@ export type Packet<D> = {
   data: D,
   source: string
 }
-
-
 
 export interface IRouter<Outgoing, Incoming> {
   // create a packet with this data
@@ -49,7 +47,7 @@ export class SimulatedRouter<Outgoing, Incoming> {
     logger?: (s: string) => void
   ) {
     (this: IRouter<Outgoing, Incoming>)
-    this.uid = genUid()
+    this.uid = U.genUid()
 
     this.otherRouters = []
 
@@ -89,7 +87,7 @@ export class SimulatedRouter<Outgoing, Incoming> {
 
   _flushReceived() {
     while (true) {
-      let packet: ?Packet<Incoming> = pop(
+      let packet: ?Packet<Incoming> = U.pop(
         this.incomingQueue, p => p.index === (this.nextIncomingIndex[p.source] || 0))
 
       if (packet == null) {
@@ -105,7 +103,7 @@ export class SimulatedRouter<Outgoing, Incoming> {
     }
 
     // remove old elements
-    filterInPlace(this.incomingQueue, p => p.index >= (this.nextIncomingIndex[p.source] || 0))
+    U.filterInPlace(this.incomingQueue, p => p.index >= (this.nextIncomingIndex[p.source] || 0))
   }
 
   sendPacket(other: SimulatedRouter<*,*>, packet: Packet<*>) {

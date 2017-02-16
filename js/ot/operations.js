@@ -1,6 +1,6 @@
 /* @flow */
 
-import { last, removeInPlace, hash, clone, genUid, rearray, repeat, calculatePostfixLength, removeTail, calculatePrefixLength, substring, restring, all } from './utils.js'
+import * as U from './utils.js'
 import { map } from 'wu'
 
 
@@ -159,7 +159,7 @@ function join(op0: Op, op1: Op): ?Op {
 function simplify(ops: Op[]): Op[] {
   for (let i = 0; i < ops.length; i ++) {
     if (length(ops[i]) === 0) {
-      removeInPlace(ops, i)
+      U.removeInPlace(ops, i)
       i --
     }
   }
@@ -168,12 +168,12 @@ function simplify(ops: Op[]): Op[] {
     let newOp = join(ops[i - 1], ops[i])
     if (newOp != null) {
       ops[i - 1] = newOp
-      removeInPlace(ops, i) // remove extra op
+      U.removeInPlace(ops, i) // remove extra op
       i --
     }
   }
 
-  if (ops.length > 0 && isRetain(last(ops))) {
+  if (ops.length > 0 && isRetain(U.last(ops))) {
     ops.pop() // remove trailing retain
   }
 
@@ -457,10 +457,10 @@ export let inferOps = function(oldText: string, newText: string)
   }
 
   // or we have a selection being overwritten.
-  let postfixLength = calculatePostfixLength(oldText, newText)
-  let newTextLeftover = removeTail(newText, postfixLength)
-  let oldTextLeftover = removeTail(oldText, postfixLength)
-  let prefixLength = calculatePrefixLength(oldTextLeftover, newTextLeftover)
+  let postfixLength = U.calculatePostfixLength(oldText, newText)
+  let newTextLeftover = U.removeTail(newText, postfixLength)
+  let oldTextLeftover = U.removeTail(oldText, postfixLength)
+  let prefixLength = U.calculatePrefixLength(oldTextLeftover, newTextLeftover)
 
   let start = prefixLength
   let endOld = oldText.length - postfixLength
@@ -469,7 +469,7 @@ export let inferOps = function(oldText: string, newText: string)
   return [ // update
     start,
     - (endOld - start),
-    restring(substring(newText, {start: start, stop: endNew}))
+    U.restring(U.substring(newText, {start: start, stop: endNew}))
   ]
 }
 
