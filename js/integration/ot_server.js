@@ -86,7 +86,7 @@ export class OTServer {
         childHash: this._hash(doc)
       }
     } else if (startIndex < doc.log.length) {
-      let ops: Operation[] = Array.from(U.subarray(doc.log, {start: startIndex})())
+      let ops: Operation[] = U.array(U.subarray(doc.log, {start: startIndex}))
       if (ops.length === 0) { throw new Error('wat') }
       return this.helper.compose(ops)
     } else {

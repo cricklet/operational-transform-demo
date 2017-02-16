@@ -1,8 +1,6 @@
 /* @flow */
 
-import { zip, zipLongest, take } from 'wu'
-
-export type Reiterable<T> = () => Iterable<T>
+import * as Wu from 'wu'
 
 export let Greater = 1
 export let Equal = 0
@@ -14,12 +12,18 @@ export type Comparitor<T> = (a: T, b: T) => Comparison
 //         Less    if a  <  b
 //         Equal   if a === b
 
-export function reiterable <T> (it: Iterable<T>): Reiterable<T> {
-  return () => it
-}
+type SafeIterable<T> = (() => Iterable<T>) | Iterable<T>
 
-export function iterable <T> (it: Reiterable<T>): Iterable<T> {
-  return it()
+export function * iterate<T>(ts: SafeIterable<T>): Iterable<T> {
+  if (typeof ts === 'function') {
+    for (let t of ts()) {
+      yield t
+    }
+  } else {
+    for (let t of ts) {
+      yield t
+    }
+  }
 }
 
 export function genUid(): string {
@@ -36,7 +40,7 @@ export function merge<A, B, C: A & B>(a: A, b: B): C {
   return Object.assign(clone(a), b)
 }
 
-export function specificRange(start: number, stop: number, step: number): Reiterable<number> {
+export function specificRange(start: number, stop: number, step: number): SafeIterable<number> {
   return function * () {
     for (let i = start; i < stop; i += step) {
       yield i;
@@ -44,31 +48,31 @@ export function specificRange(start: number, stop: number, step: number): Reiter
   }
 }
 
-export function map<T1, T2>(t1s: Reiterable<T1>, f: (t1: T1) => T2): Reiterable<T2> {
+export function map<T1, T2>(t1s: SafeIterable<T1>, f: (t1: T1) => T2): SafeIterable<T2> {
   return function * () {
-    for (let t1 of t1s()) {
+    for (let t1 of iterate(t1s)) {
       yield f(t1)
     }
   }
 }
 
-export function rearray<T>(is: Reiterable<T>): Array<T> {
-  return Array.from(is())
+export function array<T>(is: SafeIterable<T>): Array<T> {
+  return Array.from(iterate(is))
 }
 
-export function restring<T>(is: Reiterable<T>): string {
-  return Array.from(is()).join('')
+export function string<T>(is: SafeIterable<T>): string {
+  return Array.from(iterate(is)).join('')
 }
 
-export function range(stop: number): Reiterable<number> {
+export function range(stop: number): SafeIterable<number> {
   return specificRange(0, stop, 1)
 }
 
-export function reverseRange(stop: number): Reiterable<number> {
+export function reverseRange(stop: number): SafeIterable<number> {
   return reverseSpecificRange(0, stop, 1)
 }
 
-export function reverseSpecificRange(start: number, stop: number, step: number): Reiterable<number> {
+export function reverseSpecificRange(start: number, stop: number, step: number): SafeIterable<number> {
   return function * () {
     let actualStop = start + (Math.ceil((stop - start) / step) - 1) * step // this is tested ;)
     for (let i = actualStop; i >= start; i -= step) {
@@ -77,7 +81,7 @@ export function reverseSpecificRange(start: number, stop: number, step: number):
   }
 }
 
-export function reverseString(s: string): Reiterable<string> {
+export function reverseString(s: string): SafeIterable<string> {
   return map(reverseRange(s.length), i => s[i])
 }
 
@@ -89,16 +93,16 @@ export function * counter(): Generator<number, void, void> {
   }
 }
 
-export function length<T>(s: Reiterable<T>): number {
+export function length<T>(s: SafeIterable<T>): number {
   let length = 0
-  for (let c of s()) {
+  for (let c of iterate(s)) {
     length += 1
   }
   return length
 }
 
-export function calculatePrefixLength(text0: Reiterable<string>, text1: Reiterable<string>) {
-  for (let [[c0, c1], i] of zip(zipLongest(text0(), text1()), counter())) {
+export function calculatePrefixLength(text0: SafeIterable<string>, text1: SafeIterable<string>) {
+  for (let [[c0, c1], i] of iterate(zip(zipLongest(text0, text1), counter()))) {
     if (c0 != c1) {
       return i
     }
@@ -110,16 +114,16 @@ export function calculatePostfixLength(text0: string, text1: string): number {
   return calculatePrefixLength(reverseString(text0), reverseString(text1))
 }
 
-export function repeat<T>(num: number, f: (i: number) => T): Reiterable<T> {
+export function repeat<T>(num: number, f: (i: number) => T): SafeIterable<T> {
   return map(range(num), f)
 }
 
 export function maxOfIterable<T>(
-  ts: Reiterable<T>,
+  ts: SafeIterable<T>,
   comparitor: Comparitor<T>
 ): T {
   let maxT = undefined
-  for (let t of ts()) {
+  for (let t of iterate(ts)) {
     if (maxT === undefined || comparitor(t, maxT) === Greater) {
       maxT = t
     }
@@ -184,8 +188,8 @@ export function allEqual<T>(as: T[]): boolean {
 
 export function characters (
   s: string,
-  indices: ?Reiterable<number>
-): Reiterable<string> {
+  indices: ?SafeIterable<number>
+): SafeIterable<string> {
   if (!indices) {
     indices = range(s.length);
   }
@@ -193,10 +197,10 @@ export function characters (
   return map(indices, i => s[i])
 }
 
-export function filter<T>(ts: Reiterable<T>, f: (t: T) => boolean)
-: Reiterable<T> {
+export function filter<T>(ts: SafeIterable<T>, f: (t: T) => boolean)
+: SafeIterable<T> {
   return function * () {
-    for (let t of ts()) {
+    for (let t of iterate(ts)) {
       if (f(t)) {
         yield t
       }
@@ -204,8 +208,7 @@ export function filter<T>(ts: Reiterable<T>, f: (t: T) => boolean)
   }
 }
 
-/* @flow-ignore */
-export function skipNulls<T>(ts: Reiterable<?T>): Reiterable<T> {
+export function skipNulls<T>(ts: SafeIterable<?T>): SafeIterable<T> {
   return filter(ts, t => t != null)
 }
 
@@ -224,7 +227,7 @@ export function substring (
     stop?:  number,
     step?:  number
   }
-): Reiterable<string> {
+): SafeIterable<string> {
   let start: number = defaults(opt.start, 0);
   let stop:  number = defaults(opt.stop, s.length);
   let step:  number = defaults(opt.step, 1);
@@ -239,7 +242,7 @@ export function subarray <T> (
     stop?:  number,
     step?:  number
   }
-): Reiterable<T> {
+): SafeIterable<T> {
   let start: number = defaults(opt.start, 0);
   let stop:  number = defaults(opt.stop, arr.length);
   let step:  number = defaults(opt.step, 1);
@@ -250,16 +253,16 @@ export function subarray <T> (
 export function removeTail (
   s: string,
   n: number
-): Reiterable<string> {
+): SafeIterable<string> {
   return substring(s, { stop: s.length - n })
 }
 
-export function reverse <T> (arr: Array<T>): Reiterable<T> {
+export function reverse <T> (arr: Array<T>): SafeIterable<T> {
   return map(reverseRange(arr.length), i => arr[i])
 }
 
 export function findIndex <T> (f: (t: T) => bool, arr: Array<T>): ?number {
-  for (let [t, i] of zip(arr, counter())) {
+  for (let [t, i] of iterate(zip(arr, counter()))) {
     if (f(t)) {
       return i
     }
@@ -339,31 +342,26 @@ export function flatten <A> (tree: Tree<A>): Array<A> {
   return as
 }
 
-export function shuffle <T> (arr: Array<T>): Reiterable<T> {
-  let indices = Array.from(take(arr.length, counter()))
-  let i = indices.length
-
-  while (0 !== i) {
-    let randomI = Math.floor(Math.random() * i);
-    i --;
-
-    // And swap it with the current element.
-    let value = indices[i];
-    indices[i] = indices[randomI];
-    indices[randomI] = value;
-  }
-
+export function zipPairs <T> (arr: Array<T>): SafeIterable<[T ,T]> {
   return function * () {
-    for (let index of indices) {
-      yield arr[index]
+    for (let i = 0; i < arr.length - 1; i ++) {
+      yield [arr[i], arr[i+1]]
     }
   }
 }
 
-export function zipPairs <T> (arr: Array<T>): Reiterable<[T ,T]> {
+export function zipLongest <T1,T2> (t1s: SafeIterable<T1>, t2s: SafeIterable<T2>): SafeIterable<[T1 ,T2]> {
   return function * () {
-    for (let i = 0; i < arr.length - 1; i ++) {
-      yield [arr[i], arr[i+1]]
+    for (let [t1: T1, t2: T2] of Wu.zipLongest(iterate(t1s), iterate(t2s))) {
+      yield [t1, t2]
+    }
+  }
+}
+
+export function zip <T1,T2> (t1s: SafeIterable<T1>, t2s: SafeIterable<T2>): SafeIterable<[T1 ,T2]> {
+  return function * () {
+    for (let [t1: T1, t2: T2] of Wu.zip(iterate(t1s), iterate(t2s))) {
+      yield [t1, t2]
     }
   }
 }

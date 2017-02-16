@@ -469,7 +469,7 @@ export let inferOps = function(oldText: string, newText: string)
   return [ // update
     start,
     - (endOld - start),
-    U.restring(U.substring(newText, {start: start, stop: endNew}))
+    U.string(U.substring(newText, {start: start, stop: endNew}))
   ]
 }
 

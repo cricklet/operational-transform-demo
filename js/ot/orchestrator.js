@@ -184,8 +184,7 @@ export class OTHelper<O,S> {
     }
 
     let composed: O[] = this.transformer.composeMany(
-      U.skipNulls(U.map(U.reiterable(operations), o => o.ops))()
-    )
+      U.iterate(U.skipNulls(U.map(operations, o => o.ops))))
 
     let op: Operation<O> = {
       ops: composed,
@@ -231,7 +230,7 @@ export class OTHelper<O,S> {
     // thus, the most recent ops are transformed first
 
     let b: ?O[] = appliedOp.ops
-    for (let a: ?O[] of U.reverse(operationsStack.opsStack)()) {
+    for (let a: ?O[] of U.iterate(U.reverse(operationsStack.opsStack))) {
       let [aP, bP] = this.transformer.transformNullable(a, b)
 
       transformedOps.push(aP)
@@ -696,7 +695,7 @@ export class OTServer<O,S> {
   }
 
   _historySince(startIndex: number): Array<ServerOperation<O>> {
-    let ops = Array.from(U.subarray(this.doc.log, {start: startIndex})())
+    let ops = U.array(U.subarray(this.doc.log, {start: startIndex}))
     if (ops.length === 0) { throw new Error('wat') }
 
     return ops
@@ -710,7 +709,7 @@ export class OTServer<O,S> {
         childHash: this._hash()
       }
     } else if (startIndex < this.doc.log.length) {
-      let ops: Operation<O>[] = Array.from(U.subarray(this.doc.log, {start: startIndex})())
+      let ops: Operation<O>[] = U.array(U.subarray(this.doc.log, {start: startIndex}))
       if (ops.length === 0) { throw new Error('wat') }
       return this.helper.compose(ops)
     } else {

@@ -6,6 +6,8 @@ import { expect } from 'chai'
 import { spy } from 'sinon'
 import { assert } from 'chai'
 
+import * as U from './utils'
+
 import {
   Greater,
   Equal,
@@ -25,7 +27,6 @@ import {
   removeTail,
   reverse,
   reverseString,
-  rearray,
   findIndex,
   findLastIndex,
   pop,
@@ -33,8 +34,7 @@ import {
   flatten,
   filterInPlace,
   skipNulls,
-  filter,
-  reiterable
+  filter
 } from './utils'
 
 import { Notify, NotifyAfter, NotifyOnce } from './utils.js'
@@ -43,39 +43,39 @@ import type { Comparison, Tree } from './utils.js'
 
 describe('skipNulls', () => {
   it ('works', () => {
-    let vs = skipNulls(reiterable([1,2,null,3,4,undefined,5]))
+    let vs = skipNulls([1,2,null,3,4,undefined,5])
     assert.deepEqual(
-      rearray(vs),
+      U.array(vs),
       [1,2,3,4,5])
   })
 })
 describe('iterators', () => {
   it ('range() works', () => {
     assert.deepEqual(
-      rearray(range(6)),
+      U.array(range(6)),
       [0,1,2,3,4,5])
   })
   it ('reverseRange() works', () => {
     assert.deepEqual(
-      rearray(reverseRange(6)),
+      U.array(reverseRange(6)),
       [5,4,3,2,1,0])
   })
 
   it ('specificRange() works', () => {
     assert.deepEqual(
-      rearray(specificRange(2, 9, 2)),
+      U.array(specificRange(2, 9, 2)),
       [2,4,6,8])
   })
   it ('reverseSpecificRange() matches specificRange()', () => {
     assert.deepEqual(
-      rearray(reverseSpecificRange(2, 9, 2)),
-      rearray(specificRange(2, 9, 2)).reverse())
+      U.array(reverseSpecificRange(2, 9, 2)),
+      U.array(specificRange(2, 9, 2)).reverse())
     assert.deepEqual(
-      rearray(reverseSpecificRange(2, 10, 2)),
-      rearray(specificRange(2, 10, 2)).reverse())
+      U.array(reverseSpecificRange(2, 10, 2)),
+      U.array(specificRange(2, 10, 2)).reverse())
     assert.deepEqual(
-      rearray(reverseSpecificRange(2, 10, 3)),
-      rearray(specificRange(2, 10, 3)).reverse())
+      U.array(reverseSpecificRange(2, 10, 3)),
+      U.array(specificRange(2, 10, 3)).reverse())
   })
 })
 
@@ -84,7 +84,7 @@ describe('repeat', () => {
     let counter = (i) => { return i }
 
     assert.deepEqual(
-      rearray(repeat(10, counter)),
+      U.array(repeat(10, counter)),
       [0,1,2,3,4,5,6,7,8,9])
   })
 })
@@ -160,7 +160,7 @@ describe('concat', () => {
 describe('reverse', () => {
   it ('works', () => {
     assert.deepEqual(
-      rearray(reverseString('asdf')),
+      U.array(reverseString('asdf')),
       ['f', 'd', 's', 'a'])
   })
 })
@@ -168,10 +168,10 @@ describe('reverse', () => {
 describe('characters', () => {
   it ('works', () => {
     assert.deepEqual(
-      rearray(characters('asdf')),
+      U.array(characters('asdf')),
       ['a','s','d','f'])
     assert.deepEqual(
-      rearray(characters('asdf', range(2))),
+      U.array(characters('asdf', range(2))),
       ['a','s'])
   })
 })
@@ -179,10 +179,10 @@ describe('characters', () => {
 describe('removeTail', () => {
   it ('works', () => {
     assert.deepEqual(
-      rearray(removeTail('asdf', 1)),
+      U.array(removeTail('asdf', 1)),
       ['a','s','d'])
     assert.deepEqual(
-      rearray(removeTail('asdf', 2)),
+      U.array(removeTail('asdf', 2)),
       ['a','s'])
   })
 })
@@ -190,13 +190,13 @@ describe('removeTail', () => {
 describe('substring', () => {
   it ('works', () => {
     assert.deepEqual(
-      rearray(substring('012345', {'start': 3})),
+      U.array(substring('012345', {'start': 3})),
       ['3','4','5'])
     assert.deepEqual(
-      rearray(substring('012345', {'start': 3, 'stop': 5})),
+      U.array(substring('012345', {'start': 3, 'stop': 5})),
       ['3','4'])
     assert.deepEqual(
-      rearray(substring('012345', {'step': 2})),
+      U.array(substring('012345', {'step': 2})),
       ['0','2','4'])
   })
 })

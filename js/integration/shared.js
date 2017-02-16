@@ -152,8 +152,7 @@ export class OTHelper<S> {
     }
 
     let composed: Op[] = Transformer.composeMany(
-      U.skipNulls(U.map(U.reiterable(operations), o => o.ops))()
-    )
+      U.iterate(U.skipNulls(U.map(operations, o => o.ops))))
 
     let op: Operation = {
       ops: composed,
@@ -199,7 +198,7 @@ export class OTHelper<S> {
     // thus, the most recent ops are transformed first
 
     let b: ?Op[] = appliedOp.ops
-    for (let a: ?Op[] of U.reverse(operationsStack.opsStack)()) {
+    for (let a: ?Op[] of U.iterate(U.reverse(operationsStack.opsStack))) {
       let [aP, bP] = Transformer.transformNullable(a, b)
 
       transformedOps.push(aP)
