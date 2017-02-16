@@ -6,10 +6,10 @@ import * as process from 'process'
 import SocketServer from 'socket.io'
 import SocketClient from 'socket.io-client'
 
-import type { ClientUpdate, ServerUpdate } from './js/integration/shared.js'
-import { OTClient } from './js/integration/ot_client.js'
-import { OTServer } from './js/integration/ot_server.js'
-import { OTHelper } from './js/integration/shared.js'
+import type { ClientUpdate, ServerUpdate } from './js/controllers/shared.js'
+import { ClientController } from './js/controllers/client_controller.js'
+import { ServerController } from './js/controllers/server_controller.js'
+import { OTHelper } from './js/controllers/shared.js'
 
 import { TextApplier } from './js/operations/applier.js'
 import * as Inferrer from './js/operations/inferrer.js'
@@ -27,7 +27,7 @@ let TextOTHelper = new OTHelper(TextApplier)
 let docId = '1234'
 
 let server = SocketServer();
-let serverController = new OTServer(TextOTHelper)
+let serverController = new ServerController(TextOTHelper)
 
 function serverHandler(docId: string, clientUpdate: ClientUpdate): ?ServerUpdate {
   return serverController.handleUpdate(clientUpdate)
@@ -71,7 +71,7 @@ function createClient(clientId, docId) {
   let client = SocketClient(URL)
   client.emit('open document', docId)
 
-  let otClient = new OTClient(docId, TextOTHelper)
+  let otClient = new ClientController(docId, TextOTHelper)
 
   client.on('server update', (json) => {
     let serverUpdate = deserializeServerUpdate(json)

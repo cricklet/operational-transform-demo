@@ -28,19 +28,19 @@ export class OutOfOrderUpdate extends Error {
   }
 }
 
-export class OTClient<S> {
+export class ClientController<S> {
   // This class maintains the state of the client, computes what updates
   // should be sent to the server (i.e. ClientUpdate), and applies
   // remote updates (i.e. ServerUpdate) to the local state.
 
-  // OTClient {
+  // ClientController {
   //   performEdit(operations: OpComponent[]): ?ClientUpdate
   //   handleUpdate(serverUpdate: ServerUpdate): ?ServerUpdate
   // }
 
   // USAGE:
 
-  // let client = new OTClient(...)
+  // let client = new ClientController(...)
   //
   // connection.on('update', (serverUpdate) => { // LISTEN for remote changes
   //   let clientUpdate = client.handleUpdate(serverUpdate)

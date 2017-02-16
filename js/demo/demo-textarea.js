@@ -10,10 +10,10 @@ import { TextApplier, DocumentApplier } from '../operations/applier.js'
 import * as Inferrer from '../operations/inferrer.js'
 import * as Transformer from '../operations/transformer.js'
 
-import type { ClientUpdate, ServerUpdate } from '../integration/shared.js'
-import { OTClient } from '../integration/ot_client.js'
-import { OTServer } from '../integration/ot_server.js'
-import { OTHelper } from '../integration/shared.js'
+import type { ClientUpdate, ServerUpdate } from '../controllers/shared.js'
+import { ClientController } from '../controllers/client_controller.js'
+import { ServerController } from '../controllers/server_controller.js'
+import { OTHelper } from '../controllers/shared.js'
 
 import { SimulatedConnection } from '../network/simulated_connection.js'
 
@@ -39,7 +39,7 @@ function updateDOMTextbox($text, state: DocumentState): void {
 }
 
 function setupClient(
-  client: OTClient<*>,
+  client: ClientController<*>,
   connection: SimulatedConnection<*,*>,
   $text: any,
 ) {
@@ -306,10 +306,10 @@ $(document).ready(() => {
   let serverLogger = generateLogger($('#server-log'))
   $serverContainer.append($server)
 
-  let clients: OTClient<*>[] = []
+  let clients: ClientController<*>[] = []
   let clientConnections = []
 
-  let server = new OTServer(TextOTHelper)
+  let server = new ServerController(TextOTHelper)
   let serverConnection: SimulatedConnection<ServerUpdate, ClientUpdate> = new SimulatedConnection(chaos, serverLogger)
   serverConnection.listen((clientUpdate: ClientUpdate) => {
     let serverUpdate: ServerUpdate = server.handleUpdate(clientUpdate)
@@ -332,7 +332,7 @@ $(document).ready(() => {
     $client.insertBefore($clientPlaceholder)
     clientId ++
 
-    let client = new OTClient(DOC_ID, DocumentOTHelper)
+    let client = new ClientController(DOC_ID, DocumentOTHelper)
     let clientConnection: SimulatedConnection<ClientUpdate, ServerUpdate> = new SimulatedConnection(chaos)
     clientConnection.listen((serverUpdate: ServerUpdate) => {
       let update = client.handleUpdate(serverUpdate)
