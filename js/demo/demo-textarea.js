@@ -7,6 +7,7 @@ import { observeArray, observeObject } from '../ot/observe'
 import {
   OTClient,
   OTServer,
+  OTHelper,
 } from '../ot/orchestrator.js'
 
 import type {
@@ -17,12 +18,6 @@ import type {
 import { SimulatedRouter } from '../ot/router.js'
 
 import type { IRouter } from '../ot/router.js'
-
-import type {
-  IApplier,
-  IInferrer,
-  ITransformer
-} from '../ot/operations.js'
 
 import type {
   DocumentState
@@ -311,6 +306,7 @@ function generateLogger($log) {
 
 $(document).ready(() => {
   // stuff to dependency inject
+  let DocumentOTHelper = new OTHelper(Transformer, DocumentApplier)
 
   let $serverContainer = $('#server')
   let $clientContainer = $('#clients')
@@ -322,7 +318,7 @@ $(document).ready(() => {
   let clients: OTClient<*,*>[] = []
   let clientRouters = []
 
-  let server = new OTServer(Transformer, DocumentApplier)
+  let server = new OTServer(DocumentOTHelper)
   let serverRouter = new SimulatedRouter(chaos, serverLogger)
   serverRouter.listen((update: ClientUpdate<*>) => {
     let broadcast = server.handleUpdate(update)
@@ -345,7 +341,7 @@ $(document).ready(() => {
     $client.insertBefore($clientPlaceholder)
     clientId ++
 
-    let client = new OTClient(Transformer, DocumentApplier)
+    let client = new OTClient(DocumentOTHelper)
     let clientRouter = new SimulatedRouter(chaos)
     clientRouter.listen((broadcast: ServerBroadcast<*>) => {
       let update = client.handleBroadcast(broadcast)

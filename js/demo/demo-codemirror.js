@@ -21,12 +21,6 @@ import { SimulatedRouter } from '../ot/router.js'
 import type { IRouter } from '../ot/router.js'
 
 import type {
-  IApplier,
-  IInferrer,
-  ITransformer
-} from '../ot/operations.js'
-
-import type {
   DocumentState
 } from '../ot/operations.js'
 

@@ -1,6 +1,5 @@
 /* @flow */
 
-import type { ITransformer, IApplier } from './operations.js'
 import { observeArray, observeEach } from './observe.js'
 import { skipNulls, map, reiterable, concat, flatten, maybePush, hash, clone, merge, last, genUid, zipPairs, first, pop, push, contains, reverse, findLastIndex, subarray, asyncWait } from './utils.js'
 
@@ -123,13 +122,31 @@ export function castClientUpdate<O>(obj: Object): ClientUpdate<O> {
   return op
 }
 
-class OperationHelper<O,S> {
+export interface IApplier<O,S> {
+  initial(): S,
+  stateHash(s: S): string,
+  apply(state: S, ops: O[]): [S, O[]],
+}
+
+export interface ITransformer<O> {
+  transformNullable(clientOps: ?O[], serverOps: ?O[]): [?O[], ?O[]],
+  transform(clientOps: O[], serverOps: O[]): [O[], O[]],
+  composeNullable (ops1: ?O[], ops2P: ?O[]): ?O[],
+  compose(ops1: O[], ops2: O[]): O[],
+  composeMany(ops: Iterable<O[]>): O[],
+}
+
+export class OTHelper<O,S> {
   applier: IApplier<O,S>
   transformer: ITransformer<O>
 
   constructor(transformer: ITransformer<O>, applier: IApplier<O,S>) {
     this.transformer = transformer
     this.applier = applier
+  }
+
+  initial(): S {
+    return this.applier.initial()
   }
 
   hash(s: S): string {
@@ -391,13 +408,13 @@ export class OTClient<O,S> {
   undos: OperationsStack<O>
   redos: OperationsStack<O>
 
-  helper: OperationHelper<O,S>
+  helper: OTHelper<O,S>
 
-  constructor(transformer: ITransformer<O>, applier: IApplier<O,S>) {
-    this.helper = new OperationHelper(transformer, applier)
+  constructor(helper: OTHelper<O,S>) {
+    this.helper = helper
 
     this.uid = genUid()
-    this.state = applier.initial()
+    this.state = this.helper.initial()
 
     let hash = this.helper.hash(this.state)
 
@@ -653,14 +670,13 @@ export class OTServer<O,S> {
   uid: string
   doc: OTServerDocument<O,S>
 
-  helper: OperationHelper<O,S>
+  helper: OTHelper<O,S>
 
   constructor(
-    transformer: ITransformer<O>,
-    applier: IApplier<O,S>,
+    helper: OTHelper<O,S>,
     doc?: OTServerDocument<O,S>
   ) {
-    this.helper = new OperationHelper(transformer, applier)
+    this.helper = helper
 
     this.uid = genUid()
 
@@ -668,7 +684,7 @@ export class OTServer<O,S> {
       this.doc = doc
     } else {
       this.doc = {
-        state: applier.initial(),
+        state: this.helper.initial(),
         log: []
       }
     }

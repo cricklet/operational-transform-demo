@@ -368,7 +368,7 @@ export function zipPairs <T> (arr: Array<T>): Reiterable<[T ,T]> {
   }
 }
 
-export function all<T>(arr: T[], f: (t: T) => boolean): boolean {
+export function all<T>(arr: Iterator<T>, f: (t: T) => boolean): boolean {
   for (let a of arr) {
     if (f(a) === false) return false
   }
@@ -466,4 +466,9 @@ export class NotifyOnce extends NotifyAfter {
 	constructor() {
     super(1)
 	}
+}
+
+
+export function asyncSleep(time: number): Promise<null> {
+  return new Promise((resolve, reject) => setTimeout(resolve, time))
 }
