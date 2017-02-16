@@ -100,7 +100,10 @@ export function length<T>(s: Iterable<T>): number {
   return length
 }
 
-export function calculatePrefixLength(text0: Iterable<string>, text1: Iterable<string>) {
+export function calculatePrefixLength(
+  text0: SafeIterable<string> | string,
+  text1: SafeIterable<string> | string
+) {
   for (let [[c0, c1], i] of zip(zipLongest(text0, text1), counter())) {
     if (c0 != c1) {
       return i
