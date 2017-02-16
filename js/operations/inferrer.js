@@ -1,7 +1,7 @@
 /* @flow */
 
 import * as Components from './components.js'
-import type { Insert, Remove, Retain, OpComponent } from './components.js'
+import type { Insert, Remove, Retain, OpComponent, Operation } from './types.js'
 
 import * as U from '../helpers/utils.js'
 

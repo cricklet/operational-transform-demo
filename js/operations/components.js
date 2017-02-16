@@ -2,11 +2,7 @@
 
 import * as U from '../helpers/utils.js'
 
-export type Insert = string
-export type Remove = number // always negative
-export type Retain = number // always positive
-
-export type OpComponent = Insert | Remove | Retain
+import type { Insert, Remove, Retain, OpComponent, Operation } from './types.js'
 
 export function generateInsertion(pos: number, text: string): OpComponent[] {
   return [ createRetain(pos), createInsert(text) ]

@@ -1,6 +1,7 @@
 /* @flow */
 
-import type { OpComponent } from '../operations/components.js'
+import type { Operation } from '../operations/types.js'
+
 import * as Transformer from '../operations/transformer.js'
 
 import * as U from '../helpers/utils.js'
@@ -23,7 +24,7 @@ import {
 export interface IApplier<S> {
   initial(): S,
   stateHash(s: S): string,
-  apply(state: S, operation: OpComponent[]): [S, OpComponent[]],
+  apply(state: S, operation: Operation): [S, Operation],
 }
 
 export class OTHelper<S> {
@@ -48,12 +49,12 @@ export class OTHelper<S> {
     return this.applier.stateHash(s)
   }
 
-  apply(s: S, operation: OpComponent[]): [S, OpComponent[]] {
+  apply(s: S, operation: Operation): [S, Operation] {
     return this.applier.apply(s, operation)
   }
 
   _createEdit(
-    operation: ?OpComponent[],
+    operation: ?Operation,
     optional: {
       parent?: Edit,
       source?: Edit,
@@ -78,7 +79,7 @@ export class OTHelper<S> {
       throw new Error('wat can\'t compose empty list')
     }
 
-    let composed: OpComponent[] = Transformer.composeMany(
+    let composed: Operation = Transformer.composeMany(
       U.skipNulls(U.map(edits, o => o.operation)))
 
     let edit: Edit = {
@@ -124,8 +125,8 @@ export class OTHelper<S> {
     // iterate through the stack in reverse order
     // thus, the most recent ops are transformed first
 
-    let b: ?OpComponent[] = appliedEdit.operation
-    for (let a: ?OpComponent[] of U.reverse(editsStack.operationsStack)) {
+    let b: ?Operation = appliedEdit.operation
+    for (let a: ?Operation of U.reverse(editsStack.operationsStack)) {
       let [aP, bP] = Transformer.transformNullable(a, b)
 
       transformedOps.push(aP)
@@ -140,8 +141,8 @@ export class OTHelper<S> {
 
   applyNullable(
     state: S,
-    o: ?OpComponent[]
-  ): [S, ?OpComponent[]] {
+    o: ?Operation
+  ): [S, ?Operation] {
     if (o == null) {
       return [state, undefined]
     } else {

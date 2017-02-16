@@ -6,7 +6,7 @@ import { expect } from 'chai'
 import { spy } from 'sinon'
 import { assert } from 'chai'
 
-import type { OpComponent } from './Components.js'
+import type { OpComponent, Operation } from './types.js'
 import { TextApplier } from './applier.js'
 import * as Inferrer from './inferrer.js'
 import * as Transformer from './transformer.js'

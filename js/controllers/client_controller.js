@@ -11,15 +11,9 @@ import type {
   ServerEdit
 } from './types.js'
 
-import {
-  castPrebufferEdit
-} from './types.js'
-
-import {
-  OTHelper,
-} from './ot_helper.js'
-
-import type { OpComponent } from '../operations/components.js'
+import { castPrebufferEdit } from './types.js'
+import { OTHelper } from './ot_helper.js'
+import type { Operation } from '../operations/types.js'
 
 export class OutOfOrderUpdate extends Error {
   expectedIndex: number
@@ -37,7 +31,7 @@ export class ClientController<S> {
   // remote updates (i.e. ServerUpdatePacket) to the local state.
 
   // ClientController {
-  //   performEdit(operations: OpComponent[]): ?ClientUpdatePacket
+  //   performEdit(edit: Operation): ?ClientUpdatePacket
   //   handleUpdate(serverUpdate: ServerUpdatePacket): ?ServerUpdatePacket
   // }
 
@@ -289,7 +283,7 @@ export class ClientController<S> {
     }
   }
 
-  performNullableEdit(edit: ?OpComponent[]): ?ClientUpdatePacket {
+  performNullableEdit(edit: ?Operation): ?ClientUpdatePacket {
     if (edit == null) {
       return undefined
     }
@@ -297,7 +291,7 @@ export class ClientController<S> {
     return this.performEdit(edit)
   }
 
-  performEdit(edit: OpComponent[]): ?ClientUpdatePacket {
+  performEdit(edit: Operation): ?ClientUpdatePacket {
     // apply the operation
     let [newState, undo] = this.helper.apply(this.state, edit)
     this.state = newState
@@ -305,7 +299,7 @@ export class ClientController<S> {
     return this.handleAppliedEdit(edit, undo)
   }
 
-  handleAppliedEdit(edit: OpComponent[], undo: OpComponent[])
+  handleAppliedEdit(edit: Operation, undo: Operation)
   : ?ClientUpdatePacket { // return client op to broadcast
     let currentHash = this.helper.hash(this.state)
 

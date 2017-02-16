@@ -1,9 +1,7 @@
 /* @flow */
 
 import * as Components from './components.js'
-import type {
-  Insert, Remove, Retain, OpComponent
-} from './components.js'
+import type { Insert, Remove, Retain, OpComponent, Operation } from './types.js'
 
 import * as U from '../helpers/utils.js'
 
@@ -14,8 +12,8 @@ export let TextApplier = {
   stateHash: function(text: string): string {
     return text
   },
-  apply: function(text: string, operation: OpComponent[])
-  : [string, OpComponent[]] { // returns [state, undo]
+  apply: function(text: string, operation: Operation)
+  : [string, Operation] { // returns [state, undo]
     let i = 0
     let undo = []
     for (let c of operation) {
@@ -55,7 +53,7 @@ export let CursorApplier = {
   stateHash: function(state: CursorState): string {
     throw new Error('not implemented')
   },
-  _adjustPosition: function(pos: number, operation: OpComponent[]): number {
+  _adjustPosition: function(pos: number, operation: Operation): number {
     let i = 0
     for (let c of operation) {
       if (i >= pos) { break }
@@ -75,7 +73,7 @@ export let CursorApplier = {
     }
     return pos
   },
-  apply: function(state: CursorState, operation: OpComponent[]): CursorState {
+  apply: function(state: CursorState, operation: Operation): CursorState {
     return {
       start: this._adjustPosition(state.start, operation),
       end: this._adjustPosition(state.end, operation)
@@ -93,7 +91,7 @@ export let DocumentApplier = {
   stateHash: function(state: DocumentState): string {
     return TextApplier.stateHash(state.text)
   },
-  apply: function(state: DocumentState, operation: OpComponent[]): [DocumentState, OpComponent[]] {
+  apply: function(state: DocumentState, operation: Operation): [DocumentState, Operation] {
     let [text, undo] = TextApplier.apply(state.text, operation)
     let cursor = CursorApplier.apply(state.cursor, operation)
     return [

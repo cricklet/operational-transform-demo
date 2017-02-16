@@ -2,7 +2,7 @@
 
 import * as U from '../helpers/utils.js'
 
-import type { OpComponent } from '../operations/components.js'
+import type { Operation } from '../operations/types.js'
 
 export type ServerUpdatePacket = {
   kind: 'ServerUpdatePacket',
@@ -21,7 +21,7 @@ export type ClientUpdatePacket = {
 export type Edit = $Shape<{
   id: string,
 
-  operation: ?OpComponent[],
+  operation: ?Operation,
 
   parentHash: string,
   childHash: string,
@@ -33,7 +33,7 @@ export type Edit = $Shape<{
 export type ServerEdit = {
   id: string,
 
-  operation: ?OpComponent[],
+  operation: ?Operation,
 
   parentHash: string,
   childHash: string,
@@ -43,25 +43,25 @@ export type ServerEdit = {
 }
 
 export type AppliedEdit = {
-  operation: ?OpComponent[],
+  operation: ?Operation,
   parentHash: string,
   childHash: string,
 }
 
 export type BufferEdit = {
-  operation: ?OpComponent[],
+  operation: ?Operation,
   childHash: string
 }
 
 export type PrebufferEdit = {
   id: string,
-  operation: ?OpComponent[],
+  operation: ?Operation,
   parentHash: string,
   startIndex: number
 }
 
 export type EditsStack = {
-  operationsStack: Array<?OpComponent[]>, // oldest first
+  operationsStack: Array<?Operation>, // oldest first
   parentHash: string
 }
 
