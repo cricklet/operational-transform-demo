@@ -1,6 +1,6 @@
-/* @flowx */
+/* @flow */
 
-import { skipNulls, map, reiterable, concat, flatten, maybePush, hash, clone, merge, last, genUid, zipPairs, first, pop, push, contains, reverse, findLastIndex, subarray, asyncWait } from '../ot/utils.js'
+import * as U from '../ot/utils.js'
 
 import type {
   Operation,
@@ -15,17 +15,17 @@ import {
   castServerOp
 } from './shared.js'
 
-export type OTDocument<O,S> = {
+export type OTDocument = {
   docId: string,
-  state: S,
-  log: Array<ServerOperation<O>>
+  state: string,
+  log: Array<ServerOperation>
 }
 
-export class OTDocuments<O,S> {
-  documents: {[docId: string]: OTDocument<O,S>}
-  helper: OTHelper<O,S>
+export class OTDocuments {
+  documents: {[docId: string]: OTDocument}
+  helper: OTHelper<string>
 
-  constructor(helper: OTHelper<O,S>) {
+  constructor(helper: OTHelper<string>) {
     this.helper = helper
     this.documents = {}
   }
@@ -42,13 +42,13 @@ export class OTDocuments<O,S> {
   }
 }
 
-export class OTServer<O,S> {
+export class OTServer {
   // This class maintains the state of the server, computes what updates
   // should be sent to the client (i.e. ServerUpdate), and applies
   // remote updates (i.e. ClientUpdate) to the server state.
 
   // class ServerClient {
-  //   handleUpdate(clientUpdate: ClientUpdate<O>): ?ServerUpdate<O>
+  //   handleUpdate(clientUpdate: ClientUpdate): ?ServerUpdate
   // }
 
   // USAGE: (w/ an imaginary 'connection' object)
@@ -62,12 +62,12 @@ export class OTServer<O,S> {
   //   connection.broadcast(serverUpdate) // SEND applied changes
   // })
 
-  helper: OTHelper<O,S>
-  store: OTDocuments<O,S>
+  helper: OTHelper<string>
+  store: OTDocuments
 
   constructor(
-    helper: OTHelper<O,S>,
-    store?: OTDocuments<O,S>
+    helper: OTHelper<string>,
+    store?: OTDocuments
   ) {
     this.helper = helper
 
@@ -78,7 +78,7 @@ export class OTServer<O,S> {
     }
   }
 
-  _historyOp(doc: OTDocument<O,S>, startIndex: number): Operation<O> {
+  _historyOp(doc: OTDocument, startIndex: number): Operation {
     if (startIndex === doc.log.length) {
       return {
         ops: undefined,
@@ -86,7 +86,7 @@ export class OTServer<O,S> {
         childHash: this._hash(doc)
       }
     } else if (startIndex < doc.log.length) {
-      let ops: Operation<O>[] = Array.from(subarray(doc.log, {start: startIndex})())
+      let ops: Operation[] = Array.from(U.subarray(doc.log, {start: startIndex})())
       if (ops.length === 0) { throw new Error('wat') }
       return this.helper.compose(ops)
     } else {
@@ -94,20 +94,20 @@ export class OTServer<O,S> {
     }
   }
 
-  _hash(doc: OTDocument<O,S>): string {
+  _hash(doc: OTDocument): string {
     return this.helper.hash(doc.state)
   }
 
-  _nextIndex(doc: OTDocument<O,S>): number {
+  _nextIndex(doc: OTDocument): number {
     return doc.log.length
   }
 
-  state(docId: string): S {
+  state(docId: string): string {
     return this.store.getDocument(docId).state
   }
 
-  handleUpdate(clientUpdate: ClientUpdate<O>, )
-  : ServerUpdate<O> {
+  handleUpdate(clientUpdate: ClientUpdate)
+  : ServerUpdate {
     // update the server state & return the update to broadcast to the clients
 
     // a = clientUpdate
@@ -120,12 +120,13 @@ export class OTServer<O,S> {
     // bP \  / aP
     //     \/
 
-    let clientOp: PrebufferOperation<O> = clientUpdate.operation
+    let clientOp: PrebufferOperation = clientUpdate.operation
     let docId: string = clientUpdate.docId
+    let sourceUid: string = clientUpdate.sourceUid
 
-    let doc: OTDocument<O,S> = this.store.getDocument(docId)
+    let doc: OTDocument = this.store.getDocument(docId)
 
-    let historyOp: Operation<O> = this._historyOp(doc, clientOp.startIndex)
+    let historyOp: Operation = this._historyOp(doc, clientOp.startIndex)
 
     let [a, b] = [clientOp, historyOp]
     let [aP, bP, undo, newState] = this.helper.transformAndApplyToServer(a, b, doc.state)
@@ -136,7 +137,10 @@ export class OTServer<O,S> {
     doc.state = newState
     doc.log.push(aP)
 
-    let appliedOp = castServerOp(aP)
-    return appliedOp
+    return {
+      sourceUid: sourceUid,
+      docId: docId,
+      operation: castServerOp(aP)
+    }
   }
 }

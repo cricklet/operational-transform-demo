@@ -1,4 +1,4 @@
-/* @flowx */
+/* @flow */
 
 "use strict"
 
@@ -10,8 +10,6 @@ import { spy } from 'sinon'
 
 import { assert } from 'chai'
 import { map, zip } from 'wu'
-
-import { shuffle, push, concat } from '../ot/utils.js'
 
 import {
   Transformer,
@@ -27,27 +25,27 @@ import { OTServer, OTDocuments } from './ot_server.js'
 import type { ClientUpdate, ServerUpdate } from './shared.js'
 import { OTHelper } from './shared.js'
 
-function generatePropogator <O,S> (
-  server: OTServer<O,S>,
-  clients: Array<OTClient<O,S>>
-): (update: ?ClientUpdate<O>) => void {
+function generatePropogator (
+  server: OTServer,
+  clients: Array<OTClient<*>>
+): (update: ?ClientUpdate) => void {
   // This setups a fake network between a server & multiple clients.
 
   let toServer = []
   let toClients = []
 
-  function propogateBroadcast (serverUpdate: ServerUpdate<O>) {
-    let updates = clients.map(
+  function propogateBroadcast (serverUpdate: ServerUpdate) {
+    let clientUpdates = clients.map(
       client => client.handleUpdate(serverUpdate))
 
-    for (let update of updates) {
-      if (update) {
-        propogateUpdate(update)
+    for (let clientUpdate of clientUpdates) {
+      if (clientUpdate) {
+        propogateUpdate(clientUpdate)
       }
     }
   }
 
-  function propogateUpdate (clientUpdate: ClientUpdate<O>) {
+  function propogateUpdate (clientUpdate: ClientUpdate) {
     let serverUpdate = server.handleUpdate(clientUpdate)
     propogateBroadcast(serverUpdate)
   }
@@ -57,22 +55,22 @@ function generatePropogator <O,S> (
   }
 }
 
-let OTTextHelper = new OTHelper(Transformer, TextApplier)
+let TextOTHelper = new OTHelper(TextApplier)
 let DOC_ID = '12345'
 
 describe('Client & Server', () => {
   it('initialize', () => {
-    let server = new OTServer(OTTextHelper)
-    let client = new OTClient(DOC_ID, OTTextHelper)
+    let server = new OTServer(TextOTHelper)
+    let client = new OTClient(DOC_ID, TextOTHelper)
   })
   it('one client updates', () => {
-    let client = new OTClient(DOC_ID, OTTextHelper)
+    let client = new OTClient(DOC_ID, TextOTHelper)
     client.performEdit(generateInsertion(0, 'hello!'), [])
     assert.equal('hello!', client.state)
   })
   it('one client updates server', () => {
-    let server = new OTServer(OTTextHelper)
-    let client = new OTClient(DOC_ID, OTTextHelper)
+    let server = new OTServer(TextOTHelper)
+    let client = new OTClient(DOC_ID, TextOTHelper)
 
     let propogate = generatePropogator(server, [client])
 
@@ -83,9 +81,9 @@ describe('Client & Server', () => {
     assert.equal('hello!', server.state(DOC_ID))
   })
   it ('two clients are handled', () => {
-    let server = new OTServer(OTTextHelper)
-    let client0 = new OTClient(DOC_ID, OTTextHelper)
-    let client1 = new OTClient(DOC_ID, OTTextHelper)
+    let server = new OTServer(TextOTHelper)
+    let client0 = new OTClient(DOC_ID, TextOTHelper)
+    let client1 = new OTClient(DOC_ID, TextOTHelper)
 
     let propogate = generatePropogator(server, [client0, client1])
 
@@ -98,9 +96,9 @@ describe('Client & Server', () => {
     assert.equal('world', server.state(DOC_ID))
   })
   it ('two clients conflicts are handled', () => {
-    let server = new OTServer(OTTextHelper)
-    let client0 = new OTClient(DOC_ID, OTTextHelper)
-    let client1 = new OTClient(DOC_ID, OTTextHelper)
+    let server = new OTServer(TextOTHelper)
+    let client0 = new OTClient(DOC_ID, TextOTHelper)
+    let client1 = new OTClient(DOC_ID, TextOTHelper)
 
     let propogate = generatePropogator(server, [client0, client1])
 
@@ -115,9 +113,9 @@ describe('Client & Server', () => {
     assert.equal('helloworld', server.state(DOC_ID))
   })
   it ('two clients out of order', () => {
-    let server = new OTServer(OTTextHelper)
-    let client0 = new OTClient(DOC_ID, OTTextHelper)
-    let client1 = new OTClient(DOC_ID, OTTextHelper)
+    let server = new OTServer(TextOTHelper)
+    let client0 = new OTClient(DOC_ID, TextOTHelper)
+    let client1 = new OTClient(DOC_ID, TextOTHelper)
 
     let propogate = generatePropogator(server, [client0, client1])
 
@@ -134,12 +132,12 @@ describe('Client & Server', () => {
     assert.equal('01234', server.state(DOC_ID))
   })
   it ('multiple clients with interleaved requests', () => {
-    let client0 = new OTClient(DOC_ID, OTTextHelper)
-    let client1 = new OTClient(DOC_ID, OTTextHelper)
-    let client2 = new OTClient(DOC_ID, OTTextHelper)
+    let client0 = new OTClient(DOC_ID, TextOTHelper)
+    let client1 = new OTClient(DOC_ID, TextOTHelper)
+    let client2 = new OTClient(DOC_ID, TextOTHelper)
 
     let clients = [client0, client1, client2]
-    let server = new OTServer(OTTextHelper)
+    let server = new OTServer(TextOTHelper)
 
     let propogate = generatePropogator(server, clients)
 
@@ -179,7 +177,7 @@ describe('Client & Server', () => {
 
 describe('undo & redo', () => {
   it('undo works for one client', () => {
-    let client = new OTClient(DOC_ID, OTTextHelper)
+    let client = new OTClient(DOC_ID, TextOTHelper)
 
     client.performNullableEdit(inferOps(client.state, 'hello'))
     assert.equal(client.state, 'hello')
@@ -198,7 +196,7 @@ describe('undo & redo', () => {
   })
 
   it('undo redo for one client', () => {
-    let client = new OTClient(DOC_ID, OTTextHelper)
+    let client = new OTClient(DOC_ID, TextOTHelper)
 
     client.performNullableEdit(inferOps(client.state, 'hello'))
     assert.equal(client.state, 'hello')
@@ -220,7 +218,7 @@ describe('undo & redo', () => {
   })
 
   it('redo is reset on edit', () => {
-    let client = new OTClient(DOC_ID, OTTextHelper)
+    let client = new OTClient(DOC_ID, TextOTHelper)
 
     client.performNullableEdit(inferOps(client.state, 'hello'))
     assert.equal(client.state, 'hello')
@@ -243,7 +241,7 @@ describe('undo & redo', () => {
   })
 
   it('undo/redo extra times for one client', () => {
-    let client = new OTClient(DOC_ID, OTTextHelper)
+    let client = new OTClient(DOC_ID, TextOTHelper)
 
     client.performNullableEdit(inferOps(client.state, 'hello'))
     assert.equal(client.state, 'hello')
@@ -285,9 +283,9 @@ describe('undo & redo', () => {
   })
 
   it('undo works for two clients', () => { // tested on dropbox paper!
-    let client0 = new OTClient(DOC_ID, OTTextHelper)
-    let client1 = new OTClient(DOC_ID, OTTextHelper)
-    let server = new OTServer(OTTextHelper)
+    let client0 = new OTClient(DOC_ID, TextOTHelper)
+    let client1 = new OTClient(DOC_ID, TextOTHelper)
+    let server = new OTServer(TextOTHelper)
 
     let propogate = generatePropogator(server, [client0, client1])
 
@@ -312,9 +310,9 @@ describe('undo & redo', () => {
   })
 
   it('redo works for two clients', () => { // tested on dropbox paper!
-    let client0 = new OTClient(DOC_ID, OTTextHelper)
-    let client1 = new OTClient(DOC_ID, OTTextHelper)
-    let server = new OTServer(OTTextHelper)
+    let client0 = new OTClient(DOC_ID, TextOTHelper)
+    let client1 = new OTClient(DOC_ID, TextOTHelper)
+    let server = new OTServer(TextOTHelper)
 
     let propogate = generatePropogator(server, [client0, client1])
 

@@ -1,23 +1,26 @@
-/* @flowx */
+/* @flow */
 
-import { merge, map, reiterable, skipNulls, first, last, reverse } from '../ot/utils.js'
+import type { Op } from '../ot/operations.js'
+import { Transformer } from '../ot/operations.js'
 
-export type ServerUpdate<O> = {
+import * as U from '../ot/utils.js'
+
+export type ServerUpdate = {
   sourceUid: string,
   docId: string,
-  operation: ServerOperation<O>
+  operation: ServerOperation
 }
 
-export type ClientUpdate<O> = {
+export type ClientUpdate = {
   sourceUid: string,
   docId: string,
-  operation: PrebufferOperation<O>
+  operation: PrebufferOperation
 }
 
-export type Operation<O> = $Shape<{
+export type Operation = $Shape<{
   id: string,
 
-  ops: ?O[],
+  ops: ?Op[],
 
   parentHash: string,
   childHash: string,
@@ -26,10 +29,10 @@ export type Operation<O> = $Shape<{
   nextIndex: number,
 }>
 
-export type ServerOperation<O> = {
+export type ServerOperation = {
   id: string,
 
-  ops: ?O[],
+  ops: ?Op[],
 
   parentHash: string,
   childHash: string,
@@ -38,31 +41,31 @@ export type ServerOperation<O> = {
   nextIndex: number
 }
 
-export type AppliedOperation<O> = {
-  ops: ?O[],
+export type AppliedOperation = {
+  ops: ?Op[],
   parentHash: string,
   childHash: string,
 }
 
-export type BufferOperation<O> = {
-  ops: ?O[],
+export type BufferOperation = {
+  ops: ?Op[],
   childHash: string
 }
 
-export type PrebufferOperation<O> = {
+export type PrebufferOperation = {
   id: string,
-  ops: ?O[],
+  ops: ?Op[],
   parentHash: string,
   startIndex: number
 }
 
-export type OperationsStack<O> = {
-  opsStack: Array<?O[]>, // oldest first
+export type OperationsStack = {
+  opsStack: Array<?Op[]>, // oldest first
   parentHash: string
 }
 
-export function castServerOp<O>(op: Operation<O>, opts?: Object): ServerOperation<O> {
-  op = merge(op, opts)
+export function castServerOp(op: Operation, opts?: Object): ServerOperation {
+  op = U.merge(op, opts)
   if (!('ops' in op) || op.id == null ||
       op.parentHash == null || op.childHash == null ||
       op.startIndex == null || op.nextIndex == null) {
@@ -71,24 +74,24 @@ export function castServerOp<O>(op: Operation<O>, opts?: Object): ServerOperatio
   return op
 }
 
-export function castAppliedOp<O>(op: Operation<O>, opts?: Object): AppliedOperation<O> {
-  op = merge(op, opts)
+export function castAppliedOp(op: Operation, opts?: Object): AppliedOperation {
+  op = U.merge(op, opts)
   if (!('ops' in op) || op.childHash == null || op.parentHash == null) {
     throw new Error('applied contains keys: ' + Object.keys(op).join(', '))
   }
   return op
 }
 
-export function castBufferOp<O>(op: Operation<O>, opts?: Object): BufferOperation<O> {
-  op = merge(op, opts)
+export function castBufferOp(op: Operation, opts?: Object): BufferOperation {
+  op = U.merge(op, opts)
   if (!('ops' in op) || op.childHash == null) {
     throw new Error('buffer op contains keys: ' + Object.keys(op).join(', '))
   }
   return op
 }
 
-export function castPrebufferOp<O>(op: Operation<O>, opts?: Object): PrebufferOperation<O> {
-  op = merge(op, opts)
+export function castPrebufferOp(op: Operation, opts?: Object): PrebufferOperation {
+  op = U.merge(op, opts)
   if (!('ops' in op) || op.id == null ||
       op.parentHash == null ||
       op.startIndex == null) {
@@ -97,43 +100,16 @@ export function castPrebufferOp<O>(op: Operation<O>, opts?: Object): PrebufferOp
   return op
 }
 
-export function castServerUpdate<O>(obj: Object): ServerUpdate<O> {
-  if (obj.kind !== 'ServerUpdate') {
-    throw new Error('not a server broadcast...')
-  }
-  let op = castServerOp(obj)
-  return op
-}
-
-export function castClientUpdate<O>(obj: Object): ClientUpdate<O> {
-  if (obj.kind !== 'ClientUpdate') {
-    throw new Error('not a client update...')
-  }
-  let op = castPrebufferOp(obj)
-  return op
-}
-
-export interface IApplier<O,S> {
+export interface IApplier<S> {
   initial(): S,
   stateHash(s: S): string,
-  apply(state: S, ops: O[]): [S, O[]],
+  apply(state: S, ops: Op[]): [S, Op[]],
 }
 
-export interface ITransformer<O> {
-  transformNullable(clientOps: ?O[], serverOps: ?O[]): [?O[], ?O[]],
-  transform(clientOps: O[], serverOps: O[]): [O[], O[]],
-  composeNullable (ops1: ?O[], ops2P: ?O[]): ?O[],
-  compose(ops1: O[], ops2: O[]): O[],
-  composeMany(ops: Iterable<O[]>): O[],
-}
+export class OTHelper<S> {
+  applier: IApplier<S>
 
-
-export class OTHelper<O,S> {
-  applier: IApplier<O,S>
-  transformer: ITransformer<O>
-
-  constructor(transformer: ITransformer<O>, applier: IApplier<O,S>) {
-    this.transformer = transformer
+  constructor(applier: IApplier<S>) {
     this.applier = applier
   }
 
@@ -145,19 +121,19 @@ export class OTHelper<O,S> {
     return this.applier.stateHash(s)
   }
 
-  apply(s: S, ops: O[]): [S, O[]] {
+  apply(s: S, ops: Op[]): [S, Op[]] {
     return this.applier.apply(s, ops)
   }
 
   _createOp(
-    ops: ?O[],
+    ops: ?Op[],
     optional: {
-      parent?: Operation<O>,
-      source?: Operation<O>,
+      parent?: Operation,
+      source?: Operation,
       resultHash?: string
     }
-  ): Operation<O> {
-    let op: Operation<O> = {ops: ops}
+  ): Operation {
+    let op: Operation = {ops: ops}
 
     if (optional.parent != null) {
       if (optional.parent.childHash != null) { op.parentHash = optional.parent.childHash }
@@ -170,32 +146,32 @@ export class OTHelper<O,S> {
     return op
   }
 
-  compose(operations: Operation<O>[]): Operation<O> {
+  compose(operations: Operation[]): Operation {
     if (operations.length === 0) {
       throw new Error('wat can\'t compose empty list')
     }
 
-    let composed: O[] = this.transformer.composeMany(
-      skipNulls(map(reiterable(operations), o => o.ops))()
+    let composed: Op[] = Transformer.composeMany(
+      U.skipNulls(U.map(U.reiterable(operations), o => o.ops))()
     )
 
-    let op: Operation<O> = {
+    let op: Operation = {
       ops: composed,
     }
 
-    let firstOp = first(operations)
+    let firstOp = U.first(operations)
     if (firstOp.parentHash != null) { op.parentHash = firstOp.parentHash }
 
-    let lastOp = last(operations)
+    let lastOp = U.last(operations)
     if (lastOp.childHash != null) { op.childHash = lastOp.childHash }
 
     return op
   }
 
   transformOperationsStack(
-    appliedOp: AppliedOperation<O>,
-    operationsStack: OperationsStack<O>
-  ): OperationsStack<O> {
+    appliedOp: AppliedOperation,
+    operationsStack: OperationsStack
+  ): OperationsStack {
     // a: stack op
     // b: applied op
 
@@ -222,9 +198,9 @@ export class OTHelper<O,S> {
     // iterate through the stack in reverse order
     // thus, the most recent ops are transformed first
 
-    let b: ?O[] = appliedOp.ops
-    for (let a: ?O[] of reverse(operationsStack.opsStack)()) {
-      let [aP, bP] = this.transformer.transformNullable(a, b)
+    let b: ?Op[] = appliedOp.ops
+    for (let a: ?Op[] of U.reverse(operationsStack.opsStack)()) {
+      let [aP, bP] = Transformer.transformNullable(a, b)
 
       transformedOps.push(aP)
       b = bP
@@ -238,8 +214,8 @@ export class OTHelper<O,S> {
 
   applyNullable(
     state: S,
-    o: ?O[]
-  ): [S, ?O[]] {
+    o: ?Op[]
+  ): [S, ?Op[]] {
     if (o == null) {
       return [state, undefined]
     } else {
@@ -249,10 +225,10 @@ export class OTHelper<O,S> {
   }
 
   transformAndApplyToClient(
-    clientOp: Operation<O>,
-    serverOp: Operation<O>,
+    clientOp: Operation,
+    serverOp: Operation,
     clientState: S
-  ): [Operation<O>, Operation<O>, Operation<O>, S] {
+  ): [Operation, Operation, Operation, S] {
     // returns [aP, bP, undo, newState]
 
     //   a /\ b
@@ -279,10 +255,10 @@ export class OTHelper<O,S> {
   }
 
   transformAndApplyToServer(
-    clientOp: Operation<O>,
-    serverOp: Operation<O>,
+    clientOp: Operation,
+    serverOp: Operation,
     serverState: S
-  ): [Operation<O>, Operation<O>, Operation<O>, S] {
+  ): [Operation, Operation, Operation, S] {
     // returns [aP, bP, undo, newState]
 
     //   a /\ b
@@ -309,11 +285,11 @@ export class OTHelper<O,S> {
   }
 
   transformAndApplyBuffers(
-    prebufferOp: PrebufferOperation<O>,
-    bufferOp: BufferOperation<O>,
-    serverOp: ServerOperation<O>,
+    prebufferOp: PrebufferOperation,
+    bufferOp: BufferOperation,
+    serverOp: ServerOperation,
     clientState: S
-  ): [PrebufferOperation<O>, BufferOperation<O>, AppliedOperation<O>, S] {
+  ): [PrebufferOperation, BufferOperation, AppliedOperation, S] {
     // returns [newPrebuffer, newBuffer, appliedOp, newState]
 
     if (prebufferOp.parentHash !== serverOp.parentHash ||
@@ -355,9 +331,9 @@ export class OTHelper<O,S> {
     return [newPrebufferOp, newBufferOp, appliedOp, newState]
   }
   transform(
-    clientOp: Operation<O>,
-    serverOp: Operation<O>
-  ): [Operation<O>, Operation<O>] {
+    clientOp: Operation,
+    serverOp: Operation
+  ): [Operation, Operation] {
     //   a /\ b
     //    /  \
     // bP \  / aP
@@ -371,7 +347,7 @@ export class OTHelper<O,S> {
     let [aOp,bOp] = [clientOp, serverOp]
     let [a,b] = [aOp.ops, bOp.ops]
 
-    let [aP,bP] = this.transformer.transformNullable(a, b)
+    let [aP,bP] = Transformer.transformNullable(a, b)
 
     let aOpP = this._createOp(aP, {parent: bOp, source: aOp})
     let bOpP = this._createOp(bP, {parent: aOp, source: bOp})

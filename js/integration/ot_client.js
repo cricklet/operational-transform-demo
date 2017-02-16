@@ -1,6 +1,6 @@
-/* @flowx */
+/* @flow */
 
-import { skipNulls, map, reiterable, concat, flatten, maybePush, hash, clone, merge, last, genUid, zipPairs, first, pop, push, contains, reverse, findLastIndex, subarray, asyncWait } from '../ot/utils.js'
+import * as U from '../ot/utils.js'
 
 import type {
   BufferOperation,
@@ -12,8 +12,13 @@ import type {
 } from './shared.js'
 
 import {
-  OTHelper
+  OTHelper,
+  castPrebufferOp
 } from './shared.js'
+
+import type {
+  Op
+} from '../ot/operations.js'
 
 export class OutOfOrderUpdate extends Error {
   expectedIndex: number
@@ -25,14 +30,14 @@ export class OutOfOrderUpdate extends Error {
   }
 }
 
-export class OTClient<O,S> {
+export class OTClient<S> {
   // This class maintains the state of the client, computes what updates
   // should be sent to the server (i.e. ClientUpdate), and applies
   // remote updates (i.e. ServerUpdate) to the local state.
 
   // OTClient {
-  //   performEdit(operations: O[]): ?ClientUpdate<O>
-  //   handleUpdate(serverUpdate: ServerUpdate<O>): ?ServerUpdate<O>
+  //   performEdit(operations: Op[]): ?ClientUpdate
+  //   handleUpdate(serverUpdate: ServerUpdate): ?ServerUpdate
   // }
 
   // USAGE:
@@ -53,24 +58,24 @@ export class OTClient<O,S> {
 
   state: S
 
-  buffer: BufferOperation<O>
+  buffer: BufferOperation
   // the client ops not yet sent to the server.
-  // sometimes we know the full state of this buffer (hence ParentedOperation<O>)
+  // sometimes we know the full state of this buffer (hence ParentedOperation)
   // if the buffer has been transformed, we don't know the full state (hence $Shape)
 
-  prebuffer: PrebufferOperation<O>
+  prebuffer: PrebufferOperation
   // the client op that has been sent to the server (but not yet ACKd by the server)
   // together, prebuffer + buffer is the 'bridge'
 
-  undos: OperationsStack<O>
-  redos: OperationsStack<O>
+  undos: OperationsStack
+  redos: OperationsStack
 
-  helper: OTHelper<O,S>
+  helper: OTHelper<S>
 
-  constructor(docId: string, helper: OTHelper<O,S>) {
+  constructor(docId: string, helper: OTHelper<S>) {
     this.helper = helper
 
-    this.uid = genUid()
+    this.uid = U.genUid()
     this.docId = docId
     this.state = this.helper.initial()
 
@@ -84,7 +89,7 @@ export class OTClient<O,S> {
       startIndex: 0,
       parentHash: hash,
       ops: undefined,
-      id: genUid()
+      id: U.genUid()
     }
     this.undos = {
       opsStack: [],
@@ -121,7 +126,7 @@ export class OTClient<O,S> {
     return this.prebuffer.startIndex
   }
 
-  _flushBuffer(): ?ClientUpdate<O> {
+  _flushBuffer(): ?ClientUpdate {
     // if there's no buffer, skip
     if (this.buffer.ops == null) {
       return undefined
@@ -135,7 +140,7 @@ export class OTClient<O,S> {
     // prebuffer is now the buffer
     this.prebuffer = {
       ops: this.buffer.ops,
-      id: genUid(),
+      id: U.genUid(),
       parentHash: this.prebuffer.parentHash,
       startIndex: this.prebuffer.startIndex
     }
@@ -148,14 +153,16 @@ export class OTClient<O,S> {
 
     this._checkInvariants()
 
-    return merge({
-      kind: 'ClientUpdate',
-    }, this.prebuffer)
+    return {
+      operation: castPrebufferOp(this.prebuffer),
+      sourceUid: this.uid,
+      docId: this.docId,
+    }
   }
 
-  handleUpdate(serverUpdate: ServerUpdate<O>)
-  : ?ClientUpdate<O> {
-    let op: ServerOperation<O> = serverUpdate.operation
+  handleUpdate(serverUpdate: ServerUpdate)
+  : ?ClientUpdate {
+    let op: ServerOperation = serverUpdate.operation
     let docId: string = serverUpdate.docId
 
     if (docId !== this.docId) {
@@ -177,7 +184,7 @@ export class OTClient<O,S> {
       // clear the prebuffer out
       this.prebuffer = {
         ops: undefined,
-        id: genUid(),
+        id: U.genUid(),
         parentHash: op.childHash,
         startIndex: op.nextIndex
       }
@@ -205,7 +212,7 @@ export class OTClient<O,S> {
     }
   }
 
-  performUndo(): ?ClientUpdate<O> {
+  performUndo(): ?ClientUpdate {
     let currentHash = this.helper.hash(this.state)
     let undoHash = this.undos.parentHash
 
@@ -244,7 +251,7 @@ export class OTClient<O,S> {
     }
   }
 
-  performRedo(): ?ClientUpdate<O> {
+  performRedo(): ?ClientUpdate {
     let currentHash = this.helper.hash(this.state)
     let redoHash = this.redos.parentHash
 
@@ -283,7 +290,7 @@ export class OTClient<O,S> {
     }
   }
 
-  performNullableEdit(edit: ?O[]): ?ClientUpdate<O> {
+  performNullableEdit(edit: ?Op[]): ?ClientUpdate {
     if (edit == null) {
       return undefined
     }
@@ -291,7 +298,7 @@ export class OTClient<O,S> {
     return this.performEdit(edit)
   }
 
-  performEdit(edit: O[]): ?ClientUpdate<O> {
+  performEdit(edit: Op[]): ?ClientUpdate {
     // apply the operation
     let [newState, undo] = this.helper.apply(this.state, edit)
     this.state = newState
@@ -299,12 +306,12 @@ export class OTClient<O,S> {
     return this.handleAppliedEdit(edit, undo)
   }
 
-  handleAppliedEdit(edit: O[], undo: O[])
-  : ?ClientUpdate<O> { // return client op to broadcast
+  handleAppliedEdit(edit: Op[], undo: Op[])
+  : ?ClientUpdate { // return client op to broadcast
     let currentHash = this.helper.hash(this.state)
 
     // the op we just applied!
-    let op: BufferOperation<O> = {
+    let op: BufferOperation = {
       ops: edit,
       childHash: currentHash
     }
