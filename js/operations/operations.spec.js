@@ -7,13 +7,10 @@ import { spy } from 'sinon'
 import { assert } from 'chai'
 
 import type { Op } from './operations.js'
-import {
-  TextApplier,
-  Transformer,
-  inferOps,
-  generateInsertion,
-  generateDeletion
-} from './operations.js'
+import { TextApplier } from './applier.js'
+import * as Inferrer from './inferrer.js'
+import * as Transformer from './transformer.js'
+import * as O from './operations.js'
 
 function opsString <A> (as: A[]): string {
   return "[" + as.join(', ') + "]"
@@ -29,12 +26,12 @@ function apply(text: string, ops: Op[]): string {
 }
 
 describe('apply()', () => {
-  [ { text: '0123', op: generateInsertion(5, 'a'),  throws: true },
-    { text: '0123', op: generateInsertion(1, 'a'),  result: '0a123' },
-    { text: '0123', op: generateInsertion(4, 'a'),  result: '0123a' },
-    { text: '0123', op: generateDeletion(0, 4),    result: '' },
-    { text: '0123', op: generateDeletion(0, 5),    throws: true },
-    { text: '0123', op: generateDeletion(3, 1),    result: '012' }
+  [ { text: '0123', op: O.generateInsertion(5, 'a'),  throws: true },
+    { text: '0123', op: O.generateInsertion(1, 'a'),  result: '0a123' },
+    { text: '0123', op: O.generateInsertion(4, 'a'),  result: '0123a' },
+    { text: '0123', op: O.generateDeletion(0, 4),    result: '' },
+    { text: '0123', op: O.generateDeletion(0, 5),    throws: true },
+    { text: '0123', op: O.generateDeletion(3, 1),    result: '012' }
   ].forEach((test) => {
     if (test.throws) {
       it ('raises an error for op: ' + opsString(test.op) + ' on text: ' + test.text, () => {
@@ -51,16 +48,16 @@ describe('apply()', () => {
 
 describe('transform()', () => {
   [
-    [generateInsertion(1, 'asdf'), generateInsertion(3, 'qwerty')],
-    [generateInsertion(5, 'asdf'), generateInsertion(3, 'qwerty')],
-    [generateInsertion(9, 'asdf'), generateInsertion(3, 'qwerty')],
-    [generateInsertion(1, 'asdf'), generateDeletion(3, 5)],
-    [generateInsertion(5, 'asdf'), generateDeletion(3, 5)],
-    [generateInsertion(9, 'asdf'), generateDeletion(3, 5)],
-    [generateDeletion(1, 5), generateInsertion(1, 'asdf')],
-    [generateDeletion(5, 5), generateInsertion(5, 'asdf')],
-    [generateDeletion(9, 5), generateInsertion(9, 'asdf')],
-    [generateDeletion(0, 1), generateInsertion(1, 'a')],
+    [O.generateInsertion(1, 'asdf'), O.generateInsertion(3, 'qwerty')],
+    [O.generateInsertion(5, 'asdf'), O.generateInsertion(3, 'qwerty')],
+    [O.generateInsertion(9, 'asdf'), O.generateInsertion(3, 'qwerty')],
+    [O.generateInsertion(1, 'asdf'), O.generateDeletion(3, 5)],
+    [O.generateInsertion(5, 'asdf'), O.generateDeletion(3, 5)],
+    [O.generateInsertion(9, 'asdf'), O.generateDeletion(3, 5)],
+    [O.generateDeletion(1, 5), O.generateInsertion(1, 'asdf')],
+    [O.generateDeletion(5, 5), O.generateInsertion(5, 'asdf')],
+    [O.generateDeletion(9, 5), O.generateInsertion(9, 'asdf')],
+    [O.generateDeletion(0, 1), O.generateInsertion(1, 'a')],
   ].forEach(([op1, op2]) => {
     it (opsString(op1) + ', ' + opsString(op2) + ' are propertly transformed', () => {
       let [op1P, op2P] = Transformer.transform(op1, op2)
@@ -74,10 +71,10 @@ describe('transform()', () => {
 
 describe('compose()', () => {
   [
-    ['012345', generateInsertion(1, 'asdf'), generateInsertion(3, 'qwerty'), '0asqwertydf12345'],
-    ['012345', generateInsertion(1, 'asdf'), generateDeletion(3, 3), '0as2345'],
-    ['012345', generateDeletion(1, 3), generateDeletion(1, 1), '05'],
-    ['012345', generateDeletion(1, 3), generateInsertion(2, 'asdf'), '04asdf5']
+    ['012345', O.generateInsertion(1, 'asdf'), O.generateInsertion(3, 'qwerty'), '0asqwertydf12345'],
+    ['012345', O.generateInsertion(1, 'asdf'), O.generateDeletion(3, 3), '0as2345'],
+    ['012345', O.generateDeletion(1, 3), O.generateDeletion(1, 1), '05'],
+    ['012345', O.generateDeletion(1, 3), O.generateInsertion(2, 'asdf'), '04asdf5']
   ].forEach(([start, op1, op2, result]) => {
     it (start + ' becomes ' + result + ' via ' + opsString(op1) + ', ' + opsString(op2), () => {
       assert.equal(
@@ -93,10 +90,10 @@ describe('compose()', () => {
 
 describe('combinatorial', () => {
   let ops = [
-    generateInsertion(1, 'asdf'), generateInsertion(3, 'qwerty'),
-    // generateInsertion(5, 'banana'),
-    generateDeletion(0, 2), generateDeletion(2, 2),]
-    // generateDeletion(4, 3)]
+    O.generateInsertion(1, 'asdf'), O.generateInsertion(3, 'qwerty'),
+    // O.generateInsertion(5, 'banana'),
+    O.generateDeletion(0, 2), O.generateDeletion(2, 2),]
+    // O.generateDeletion(4, 3)]
 
   ops.forEach(op1 => {
     ops.forEach(op2 => {
@@ -166,7 +163,7 @@ describe('inferOperations() & performOperations()', () => {
   it ('handles no-ops', () => {
     assert.deepEqual(
       undefined,
-      inferOps(
+      Inferrer.inferOps(
         'mary had a little lamb',
         'mary had a little lamb'))
   });
@@ -225,7 +222,7 @@ describe('inferOperations() & performOperations()', () => {
       newText: 'mary qwerty has asdf a little zxcv lamb' }
   ].forEach((test) => {
     it ('handles "' + test.oldText + '" -> "' + test.newText + '"', () => {
-      let ops = inferOps(test.oldText, test.newText)
+      let ops = Inferrer.inferOps(test.oldText, test.newText)
       if (ops == null) {
         throw new Error('wat')
       }

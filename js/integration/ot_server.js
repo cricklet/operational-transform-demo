@@ -138,6 +138,7 @@ export class OTServer {
     doc.log.push(aP)
 
     return {
+      kind: 'ServerUpdate',
       sourceUid: sourceUid,
       docId: docId,
       operation: castServerOp(aP)

@@ -1,17 +1,19 @@
 /* @flow */
 
-import type { Op } from '../ot/operations.js'
-import { Transformer } from '../ot/operations.js'
+import type { Op } from '../operations/operations.js'
+import * as Transformer from '../operations/transformer.js'
 
 import * as U from '../helpers/utils.js'
 
 export type ServerUpdate = {
+  kind: 'ServerUpdate',
   sourceUid: string,
   docId: string,
   operation: ServerOperation
 }
 
 export type ClientUpdate = {
+  kind: 'ClientUpdate',
   sourceUid: string,
   docId: string,
   operation: PrebufferOperation

@@ -16,9 +16,7 @@ import {
   castPrebufferOp
 } from './shared.js'
 
-import type {
-  Op
-} from '../ot/operations.js'
+import type { Op } from '../operations/operations.js'
 
 export class OutOfOrderUpdate extends Error {
   expectedIndex: number
@@ -154,6 +152,7 @@ export class OTClient<S> {
     this._checkInvariants()
 
     return {
+      kind: 'ClientUpdate',
       operation: castPrebufferOp(this.prebuffer),
       sourceUid: this.uid,
       docId: this.docId,

@@ -1,38 +1,7 @@
 /* @flow */
 
-import { Less, Greater, Equal, reverse, push, findIndex, findLastIndex, subarray, asyncWait, insert, allEqual, remove } from '../helpers/utils.js'
-import { count, zip, filter, find, takeWhile, take, map } from 'wu'
-import { observeArray, observeObject } from '../ot/observe'
-
+import * as U from '../helpers/utils.js'
 import * as CodeMirror from '../libs/codemirror.js'
-
-import {
-  OTClient,
-  OTServer,
-} from '../ot/orchestrator.js'
-
-import type {
-  ClientUpdate,
-  ServerUpdate,
-} from '../ot/orchestrator.js'
-
-import { SimulatedRouter } from '../ot/router.js'
-
-import type { IRouter } from '../ot/router.js'
-
-import type {
-  DocumentState
-} from '../ot/operations.js'
-
-import {
-  Transformer,
-  DocumentApplier,
-  inferOps,
-} from '../ot/operations.js'
-
-import {
-  merge
-} from '../helpers/utils.js'
 
 // class CodeMirrorAdapter {
 //   cm: CodeMirror

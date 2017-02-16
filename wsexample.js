@@ -1,4 +1,4 @@
-/* @flow */
+/* @floxw */
 
 import * as readline from 'readline'
 import * as process from 'process'
@@ -20,16 +20,10 @@ import type {
   OTServerDocument,
 } from './js/ot/orchestrator.js'
 
-import type {
-  DocumentState
-} from './js/ot/operations.js'
-
-import {
-  Transformer,
-  TextApplier,
-  inferOps,
-} from './js/ot/operations.js'
-
+import { TextApplier } from './js/operations/applier.js'
+import * as Inferrer from './js/operations/inferrer.js'
+import * as Transformer from './js/operations/transformer.js'
+import * as O from './js/operations/operations.js'
 
 import { allEqual, asyncSleep, remove, insert, genUid, pop, filterInPlace, subarray, NotifyOnce } from './js/helpers/utils.js'
 import { find } from 'wu'
@@ -116,7 +110,7 @@ function createClient(clientId, docId) {
     update: (newText: string) => {
       console.log(clientId, 'UPDATE', newText)
 
-      let ops = inferOps(otClient.state, newText)
+      let ops = Inferrer.inferOps(otClient.state, newText)
       if (ops == null) { return }
 
       let clientUpdate = otClient.performEdit(ops)

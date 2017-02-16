@@ -2,32 +2,21 @@
 
 import { merge, Less, Greater, Equal, reverse, push, findIndex, findLastIndex, subarray, asyncWait, insert, allEqual, remove } from '../helpers/utils.js'
 import { count, zip, filter, find, takeWhile, take, map } from 'wu'
-import { observeArray, observeObject } from '../ot/observe'
+import { observeArray, observeObject } from '../helpers/observe'
 
-import {
-  OTClient,
-  OTServer,
-  OTHelper,
-} from '../ot/orchestrator.js'
+import type { DocumentState } from '../operations/applier.js'
+import { TextApplier, DocumentApplier } from '../operations/applier.js'
 
-import type {
-  ClientUpdate,
-  ServerUpdate,
-} from '../ot/orchestrator.js'
+import * as Inferrer from '../operations/inferrer.js'
+import * as Transformer from '../operations/transformer.js'
+import * as O from '../operations/operations.js'
 
-import { SimulatedRouter } from '../ot/router.js'
+import type { ClientUpdate, ServerUpdate } from '../integration/shared.js'
+import { OTClient } from '../integration/ot_client.js'
+import { OTServer } from '../integration/ot_server.js'
+import { OTHelper } from '../integration/shared.js'
 
-import type { IRouter } from '../ot/router.js'
-
-import type {
-  DocumentState
-} from '../ot/operations.js'
-
-import {
-  Transformer,
-  DocumentApplier,
-  inferOps,
-} from '../ot/operations.js'
+import { SimulatedConnection } from '../network/simulated_connection.js'
 
 type Lock = { ignoreEvents: boolean }
 
@@ -51,8 +40,8 @@ function updateDOMTextbox($text, state: DocumentState): void {
 }
 
 function setupClient(
-  client: OTClient<*,*>,
-  router: IRouter<*,*>,
+  client: OTClient<*>,
+  connection: SimulatedConnection<*,*>,
   $text: any,
 ) {
   let lock = generateLock()
@@ -89,11 +78,11 @@ function setupClient(
     let [newText, newCursorStart, newCursorEnd] = getValuesFromDOMTextbox($text)
 
     // handle new text
-    let editOps = inferOps(client.state.text, newText)
+    let editOps = Inferrer.inferOps(client.state.text, newText)
     if (editOps != null) {
       let update = client.performEdit(editOps)
       if (update != null) {
-        router.send(update)
+        connection.send(update)
       }
     }
 
@@ -305,8 +294,11 @@ function generateLogger($log) {
 }
 
 $(document).ready(() => {
+  let DOC_ID = 'asdf1234'
+
   // stuff to dependency inject
-  let DocumentOTHelper = new OTHelper(Transformer, DocumentApplier)
+  let DocumentOTHelper = new OTHelper(DocumentApplier)
+  let TextOTHelper = new OTHelper(TextApplier)
 
   let $serverContainer = $('#server')
   let $clientContainer = $('#clients')
@@ -315,14 +307,14 @@ $(document).ready(() => {
   let serverLogger = generateLogger($('#server-log'))
   $serverContainer.append($server)
 
-  let clients: OTClient<*,*>[] = []
-  let clientRouters = []
+  let clients: OTClient<*>[] = []
+  let clientConnections = []
 
-  let server = new OTServer(DocumentOTHelper)
-  let serverRouter = new SimulatedRouter(chaos, serverLogger)
-  serverRouter.listen((update: ClientUpdate<*>) => {
-    let serverUpdate = server.handleUpdate(update)
-    serverRouter.send(serverUpdate)
+  let server = new OTServer(TextOTHelper)
+  let serverConnection: SimulatedConnection<ServerUpdate, ClientUpdate> = new SimulatedConnection(chaos, serverLogger)
+  serverConnection.listen((clientUpdate: ClientUpdate) => {
+    let serverUpdate: ServerUpdate = server.handleUpdate(clientUpdate)
+    serverConnection.send(serverUpdate)
   })
 
   observeObject(server,
@@ -341,20 +333,20 @@ $(document).ready(() => {
     $client.insertBefore($clientPlaceholder)
     clientId ++
 
-    let client = new OTClient(DocumentOTHelper)
-    let clientRouter = new SimulatedRouter(chaos)
-    clientRouter.listen((serverUpdate: ServerUpdate<*>) => {
+    let client = new OTClient(DOC_ID, DocumentOTHelper)
+    let clientConnection: SimulatedConnection<ClientUpdate, ServerUpdate> = new SimulatedConnection(chaos)
+    clientConnection.listen((serverUpdate: ServerUpdate) => {
       let update = client.handleUpdate(serverUpdate)
       if (update == null) { return }
-      clientRouter.send(update)
+      clientConnection.send(update)
     })
 
-    clientRouter.connect(serverRouter)
-    serverRouter.connect(clientRouter)
+    clientConnection.connect(serverConnection)
+    serverConnection.connect(clientConnection)
 
-    clientRouters.push(clientRouter)
+    clientConnections.push(clientConnection)
 
-    setupClient(client, clientRouter, $text)
+    setupClient(client, clientConnection, $text)
     randomlyAdjustText($text, shouldRandomize, 500)
 
     clients.push(client);
@@ -362,7 +354,7 @@ $(document).ready(() => {
     (async () => {
       while (true) {
         await asyncWait(500)
-        if (client.state.text === server.state.text) {
+        if (client.state.text === server.state(DOC_ID)) {
           $client.find('.converging').hide()
         } else {
           $client.find('.converging').show()
@@ -380,6 +372,6 @@ $(document).ready(() => {
   window.clients = clients
   window.server = server
 
-  window.serverRouter = serverRouter
-  window.clientRouters = clientRouters
+  window.serverConnection = serverConnection
+  window.clientConnections = clientConnections
 })

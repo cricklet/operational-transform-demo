@@ -8,16 +8,7 @@ export type Packet<D> = {
   source: string
 }
 
-export interface IRouter<Outgoing, Incoming> {
-  // create a packet with this data
-  // then, send it to all other connected routers
-  send(data: Outgoing): void,
-
-  // callback for receiving packets from other routers!
-  listen(l: (data: Incoming) => void): void,
-}
-
-export class SimulatedRouter<Outgoing, Incoming> {
+export class SimulatedConnection<Outgoing, Incoming> {
   uid: string
 
   outgoingLog: Packet<Outgoing>[]
@@ -32,7 +23,7 @@ export class SimulatedRouter<Outgoing, Incoming> {
     dropPercentage: number,
   }
 
-  otherRouters: SimulatedRouter<Incoming, Outgoing>[]
+  otherRouters: SimulatedConnection<Incoming, Outgoing>[]
 
   listeners: ((data: Incoming) => void)[]
 
@@ -46,7 +37,6 @@ export class SimulatedRouter<Outgoing, Incoming> {
     },
     logger?: (s: string) => void
   ) {
-    (this: IRouter<Outgoing, Incoming>)
     this.uid = U.genUid()
 
     this.otherRouters = []
@@ -106,7 +96,7 @@ export class SimulatedRouter<Outgoing, Incoming> {
     U.filterInPlace(this.incomingQueue, p => p.index >= (this.nextIncomingIndex[p.source] || 0))
   }
 
-  sendPacket(other: SimulatedRouter<*,*>, packet: Packet<*>) {
+  sendPacket(other: SimulatedConnection<*,*>, packet: Packet<*>) {
     let delay = this.chaos.minDelay + Math.random() * (this.chaos.maxDelay - this.chaos.minDelay)
     setTimeout(() => {
       if (Math.random() >= this.chaos.dropPercentage) {
@@ -130,7 +120,7 @@ export class SimulatedRouter<Outgoing, Incoming> {
   // this router can connect to other routers
   // all previously sent packets will be sent to this other router
   // all future pakcets will also be sent to this other router
-  connect(other: SimulatedRouter<Incoming, Outgoing>): void {
+  connect(other: SimulatedConnection<Incoming, Outgoing>): void {
     this.otherRouters.push(other)
 
     for (let packet of this.outgoingLog) {

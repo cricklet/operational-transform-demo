@@ -12,9 +12,9 @@ import { assert } from 'chai'
 import { map, zip } from 'wu'
 
 import * as U from '../helpers/utils.js'
-import { SimulatedRouter } from './router.js'
+import { SimulatedConnection } from './simulated_connection.js'
 
-describe("SimulatedRouter", () => {
+describe("SimulatedConnection", () => {
   let clock
 
   beforeEach(function() {
@@ -27,7 +27,7 @@ describe("SimulatedRouter", () => {
 
   function createRouter() {
     let vs: number[] = []
-    let r: SimulatedRouter<number, number> = new SimulatedRouter(
+    let r: SimulatedConnection<number, number> = new SimulatedConnection(
       { minDelay: 1000, maxDelay: 2000, dropPercentage: 0.5 },
       s => {})
     r.listen((v: number) => { vs.push(v) })
