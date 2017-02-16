@@ -1,15 +1,13 @@
 /* @flow */
 
-import * as O from './operations.js'
-import type {
-  Insert, Remove, Retain, Op
-} from './operations.js'
+import * as Components from './components.js'
+import type { Insert, Remove, Retain, OpComponent } from './components.js'
 
 import * as U from '../helpers/utils.js'
 
 
-export let inferOps = function(oldText: string, newText: string)
-: ?Op[] {
+export let inferOperation = function(oldText: string, newText: string)
+: ?OpComponent[] {
   if (oldText.length === newText.length) {
     // we have a no-op
     if (oldText === newText) {
@@ -36,8 +34,8 @@ export let inferOps = function(oldText: string, newText: string)
   let endNew = newText.length - postfixLength
 
   return [ // update
-    O.retainOp(start),
-    O.removeOp(endOld - start),
-    O.insertOp(U.string(U.substring(newText, {start: start, stop: endNew})))
+    Components.createRetain(start),
+    Components.createRemove(endOld - start),
+    Components.createInsert(U.string(U.substring(newText, {start: start, stop: endNew})))
   ]
 }

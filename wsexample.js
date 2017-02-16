@@ -1,4 +1,4 @@
-/* @floxw */
+/* @flow */
 
 import * as readline from 'readline'
 import * as process from 'process'
@@ -6,24 +6,15 @@ import * as process from 'process'
 import SocketServer from 'socket.io'
 import SocketClient from 'socket.io-client'
 
-import {
-  OTClient,
-  OTServer,
-  OTHelper,
-  castServerUpdate,
-  castClientUpdate
-} from './js/ot/orchestrator.js'
-
-import type {
-  ClientUpdate,
-  ServerUpdate,
-  OTServerDocument,
-} from './js/ot/orchestrator.js'
+import type { ClientUpdate, ServerUpdate } from './js/integration/shared.js'
+import { OTClient } from './js/integration/ot_client.js'
+import { OTServer } from './js/integration/ot_server.js'
+import { OTHelper } from './js/integration/shared.js'
 
 import { TextApplier } from './js/operations/applier.js'
 import * as Inferrer from './js/operations/inferrer.js'
 import * as Transformer from './js/operations/transformer.js'
-import * as O from './js/operations/operations.js'
+import * as O from './js/operations/components.js'
 
 import { allEqual, asyncSleep, remove, insert, genUid, pop, filterInPlace, subarray, NotifyOnce } from './js/helpers/utils.js'
 import { find } from 'wu'
@@ -31,44 +22,32 @@ import { find } from 'wu'
 let PORT = 9643
 let URL = `http://localhost:${PORT}`
 
-let TextOTHelper = new OTHelper(Transformer, TextApplier)
+let TextOTHelper = new OTHelper(TextApplier)
 
 let docId = '1234'
 
 let server = SocketServer();
-let documents: {[docId: string]: OTServerDocument<*,*>} = {}
+let serverController = new OTServer(TextOTHelper)
 
-function getDocument(docId: string): OTServerDocument<*,*> {
-  if (docId in documents) {
-  } else { documents[docId] =  { state: '', log: [] } }
-  return documents[docId]
+function serverHandler(docId: string, clientUpdate: ClientUpdate): ?ServerUpdate {
+  return serverController.handleUpdate(clientUpdate)
 }
 
-function serverHandler(docId: string, clientUpdate: ClientUpdate<*>): ?ServerUpdate<*> {
-  let doc = getDocument(docId)
-  let server = new OTServer(TextOTHelper, doc)
-  let serverUpdate = server.handleUpdate(clientUpdate)
-  return serverUpdate
-}
-
-function serializeServerUpdate(serverUpdate: ServerUpdate<*>): string {
+function serializeServerUpdate(serverUpdate: ServerUpdate): string {
   return JSON.stringify(serverUpdate)
 }
 
-function deserializeServerUpdate(json: string): ServerUpdate<*> {
+function deserializeServerUpdate(json: string): ServerUpdate {
   return JSON.parse(json)
 }
 
-function serializeClientUpdate(docId: string, update: ClientUpdate<*>): string {
-  return JSON.stringify({
-    docId: docId,
-    update: update
-  })
+function serializeClientUpdate(clientUpdate: ClientUpdate): string {
+  return JSON.stringify(clientUpdate)
 }
 
-function deserializeClientUpdate(json: string): [string, ClientUpdate<*>] {
+function deserializeClientUpdate(json: string): [string, ClientUpdate] {
   let packet = JSON.parse(json)
-  return [ packet.docId, packet.update ]
+  return [ packet.docId, packet ]
 }
 
 server.on('connection', (socket) => {
@@ -92,7 +71,7 @@ function createClient(clientId, docId) {
   let client = SocketClient(URL)
   client.emit('open document', docId)
 
-  let otClient = new OTClient(TextOTHelper)
+  let otClient = new OTClient(docId, TextOTHelper)
 
   client.on('server update', (json) => {
     let serverUpdate = deserializeServerUpdate(json)
@@ -101,7 +80,7 @@ function createClient(clientId, docId) {
     printAll()
 
     if (clientUpdate != null) {
-      let clientUpdateJSON = serializeClientUpdate(docId, clientUpdate)
+      let clientUpdateJSON = serializeClientUpdate(clientUpdate)
       client.emit('client update', clientUpdateJSON)
     }
   })
@@ -110,13 +89,13 @@ function createClient(clientId, docId) {
     update: (newText: string) => {
       console.log(clientId, 'UPDATE', newText)
 
-      let ops = Inferrer.inferOps(otClient.state, newText)
+      let ops = Inferrer.inferOperation(otClient.state, newText)
       if (ops == null) { return }
 
       let clientUpdate = otClient.performEdit(ops)
 
       if (clientUpdate != null) {
-        let clientUpdateJSON = serializeClientUpdate(docId, clientUpdate)
+        let clientUpdateJSON = serializeClientUpdate(clientUpdate)
         client.emit('client update', clientUpdateJSON)
       }
     },

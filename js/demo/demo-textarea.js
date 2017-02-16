@@ -9,7 +9,6 @@ import { TextApplier, DocumentApplier } from '../operations/applier.js'
 
 import * as Inferrer from '../operations/inferrer.js'
 import * as Transformer from '../operations/transformer.js'
-import * as O from '../operations/operations.js'
 
 import type { ClientUpdate, ServerUpdate } from '../integration/shared.js'
 import { OTClient } from '../integration/ot_client.js'
@@ -78,7 +77,7 @@ function setupClient(
     let [newText, newCursorStart, newCursorEnd] = getValuesFromDOMTextbox($text)
 
     // handle new text
-    let editOps = Inferrer.inferOps(client.state.text, newText)
+    let editOps = Inferrer.inferOperation(client.state.text, newText)
     if (editOps != null) {
       let update = client.performEdit(editOps)
       if (update != null) {

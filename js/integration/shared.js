@@ -1,6 +1,6 @@
 /* @flow */
 
-import type { Op } from '../operations/operations.js'
+import type { OpComponent } from '../operations/components.js'
 import * as Transformer from '../operations/transformer.js'
 
 import * as U from '../helpers/utils.js'
@@ -22,7 +22,7 @@ export type ClientUpdate = {
 export type Operation = $Shape<{
   id: string,
 
-  ops: ?Op[],
+  ops: ?OpComponent[],
 
   parentHash: string,
   childHash: string,
@@ -34,7 +34,7 @@ export type Operation = $Shape<{
 export type ServerOperation = {
   id: string,
 
-  ops: ?Op[],
+  ops: ?OpComponent[],
 
   parentHash: string,
   childHash: string,
@@ -44,25 +44,25 @@ export type ServerOperation = {
 }
 
 export type AppliedOperation = {
-  ops: ?Op[],
+  ops: ?OpComponent[],
   parentHash: string,
   childHash: string,
 }
 
 export type BufferOperation = {
-  ops: ?Op[],
+  ops: ?OpComponent[],
   childHash: string
 }
 
 export type PrebufferOperation = {
   id: string,
-  ops: ?Op[],
+  ops: ?OpComponent[],
   parentHash: string,
   startIndex: number
 }
 
 export type OperationsStack = {
-  opsStack: Array<?Op[]>, // oldest first
+  opsStack: Array<?OpComponent[]>, // oldest first
   parentHash: string
 }
 
@@ -105,7 +105,7 @@ export function castPrebufferOp(op: Operation, opts?: Object): PrebufferOperatio
 export interface IApplier<S> {
   initial(): S,
   stateHash(s: S): string,
-  apply(state: S, ops: Op[]): [S, Op[]],
+  apply(state: S, ops: OpComponent[]): [S, OpComponent[]],
 }
 
 export class OTHelper<S> {
@@ -123,12 +123,12 @@ export class OTHelper<S> {
     return this.applier.stateHash(s)
   }
 
-  apply(s: S, ops: Op[]): [S, Op[]] {
+  apply(s: S, ops: OpComponent[]): [S, OpComponent[]] {
     return this.applier.apply(s, ops)
   }
 
   _createOp(
-    ops: ?Op[],
+    ops: ?OpComponent[],
     optional: {
       parent?: Operation,
       source?: Operation,
@@ -153,7 +153,7 @@ export class OTHelper<S> {
       throw new Error('wat can\'t compose empty list')
     }
 
-    let composed: Op[] = Transformer.composeMany(
+    let composed: OpComponent[] = Transformer.composeMany(
       U.skipNulls(U.map(operations, o => o.ops)))
 
     let op: Operation = {
@@ -199,8 +199,8 @@ export class OTHelper<S> {
     // iterate through the stack in reverse order
     // thus, the most recent ops are transformed first
 
-    let b: ?Op[] = appliedOp.ops
-    for (let a: ?Op[] of U.reverse(operationsStack.opsStack)) {
+    let b: ?OpComponent[] = appliedOp.ops
+    for (let a: ?OpComponent[] of U.reverse(operationsStack.opsStack)) {
       let [aP, bP] = Transformer.transformNullable(a, b)
 
       transformedOps.push(aP)
@@ -215,8 +215,8 @@ export class OTHelper<S> {
 
   applyNullable(
     state: S,
-    o: ?Op[]
-  ): [S, ?Op[]] {
+    o: ?OpComponent[]
+  ): [S, ?OpComponent[]] {
     if (o == null) {
       return [state, undefined]
     } else {

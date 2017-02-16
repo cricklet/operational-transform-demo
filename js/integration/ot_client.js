@@ -16,7 +16,7 @@ import {
   castPrebufferOp
 } from './shared.js'
 
-import type { Op } from '../operations/operations.js'
+import type { OpComponent } from '../operations/components.js'
 
 export class OutOfOrderUpdate extends Error {
   expectedIndex: number
@@ -34,20 +34,20 @@ export class OTClient<S> {
   // remote updates (i.e. ServerUpdate) to the local state.
 
   // OTClient {
-  //   performEdit(operations: Op[]): ?ClientUpdate
+  //   performEdit(operations: OpComponent[]): ?ClientUpdate
   //   handleUpdate(serverUpdate: ServerUpdate): ?ServerUpdate
   // }
 
   // USAGE:
 
-  // let clientModel = new OTClient(...)
+  // let client = new OTClient(...)
   //
   // connection.on('update', (serverUpdate) => { // LISTEN for remote changes
-  //   let clientUpdate = clientModel.handleUpdate(serverUpdate)
+  //   let clientUpdate = client.handleUpdate(serverUpdate)
   //   connection.send(clientUpdate)
   // })
   //
-  // let clientUpdate = clientModel.performEdit(['hello']) // SEND local changes
+  // let clientUpdate = client.performEdit(['hello']) // SEND local changes
   // connection.send(clientUpdate)
 
   uid: string
@@ -289,7 +289,7 @@ export class OTClient<S> {
     }
   }
 
-  performNullableEdit(edit: ?Op[]): ?ClientUpdate {
+  performNullableEdit(edit: ?OpComponent[]): ?ClientUpdate {
     if (edit == null) {
       return undefined
     }
@@ -297,7 +297,7 @@ export class OTClient<S> {
     return this.performEdit(edit)
   }
 
-  performEdit(edit: Op[]): ?ClientUpdate {
+  performEdit(edit: OpComponent[]): ?ClientUpdate {
     // apply the operation
     let [newState, undo] = this.helper.apply(this.state, edit)
     this.state = newState
@@ -305,7 +305,7 @@ export class OTClient<S> {
     return this.handleAppliedEdit(edit, undo)
   }
 
-  handleAppliedEdit(edit: Op[], undo: Op[])
+  handleAppliedEdit(edit: OpComponent[], undo: OpComponent[])
   : ?ClientUpdate { // return client op to broadcast
     let currentHash = this.helper.hash(this.state)
 

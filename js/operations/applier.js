@@ -1,9 +1,9 @@
 /* @flow */
 
-import * as O from './operations.js'
+import * as Components from './components.js'
 import type {
-  Insert, Remove, Retain, Op
-} from './operations.js'
+  Insert, Remove, Retain, OpComponent
+} from './components.js'
 
 import * as U from '../helpers/utils.js'
 
@@ -14,26 +14,26 @@ export let TextApplier = {
   stateHash: function(text: string): string {
     return text
   },
-  apply: function(text: string, ops: Op[])
-  : [string, Op[]] { // returns [state, undo]
+  apply: function(text: string, operation: OpComponent[])
+  : [string, OpComponent[]] { // returns [state, undo]
     let i = 0
     let undo = []
-    for (let op of ops) {
-      O.switchOnOp(op, {
+    for (let c of operation) {
+      Components.handleComponent(c, {
         insert: (insert: Insert) => {
           undo.push(- insert.length)
           text = text.slice(0, i) + insert + text.slice(i)
-          i += O.length(insert)
+          i += Components.length(insert)
         },
         remove: (remove: Remove) => {
-          let num = O.length(remove)
+          let num = Components.length(remove)
           if (i + num > text.length) { throw new Error('wat, trying to delete too much') }
           undo.push(text.slice(i, i + num))
           text = text.slice(0, i) + text.slice(i + num)
         },
         retain: (retain: Retain) => {
           undo.push(retain)
-          i += O.length(retain)
+          i += Components.length(retain)
         }
       })
 
@@ -41,7 +41,7 @@ export let TextApplier = {
       if (i > text.length) { throw new Error('wat, overshot') }
     }
 
-    return [text, O.simplify(undo)]
+    return [text, Components.simplify(undo)]
   }
 }
 
@@ -55,30 +55,30 @@ export let CursorApplier = {
   stateHash: function(state: CursorState): string {
     throw new Error('not implemented')
   },
-  _adjustPosition: function(pos: number, ops: Op[]): number {
+  _adjustPosition: function(pos: number, operation: OpComponent[]): number {
     let i = 0
-    for (let op of ops) {
+    for (let c of operation) {
       if (i >= pos) { break }
 
-      O.switchOnOp(op, {
+      Components.handleComponent(c, {
         insert: (insert: Insert) => {
-          i += O.length(insert)
-          pos += O.length(insert)
+          i += Components.length(insert)
+          pos += Components.length(insert)
         },
         remove: (remove: Remove) => {
-          pos -= O.length(remove)
+          pos -= Components.length(remove)
         },
         retain: (retain: Retain) => {
-          i += O.length(retain)
+          i += Components.length(retain)
         }
       })
     }
     return pos
   },
-  apply: function(state: CursorState, ops: Op[]): CursorState {
+  apply: function(state: CursorState, operation: OpComponent[]): CursorState {
     return {
-      start: this._adjustPosition(state.start, ops),
-      end: this._adjustPosition(state.end, ops)
+      start: this._adjustPosition(state.start, operation),
+      end: this._adjustPosition(state.end, operation)
     }
   }
 }
@@ -93,9 +93,9 @@ export let DocumentApplier = {
   stateHash: function(state: DocumentState): string {
     return TextApplier.stateHash(state.text)
   },
-  apply: function(state: DocumentState, ops: Op[]): [DocumentState, Op[]] {
-    let [text, undo] = TextApplier.apply(state.text, ops)
-    let cursor = CursorApplier.apply(state.cursor, ops)
+  apply: function(state: DocumentState, operation: OpComponent[]): [DocumentState, OpComponent[]] {
+    let [text, undo] = TextApplier.apply(state.text, operation)
+    let cursor = CursorApplier.apply(state.cursor, operation)
     return [
       { cursor: cursor, text: text },
       undo
