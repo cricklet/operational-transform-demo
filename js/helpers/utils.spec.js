@@ -37,10 +37,22 @@ import {
   filter
 } from './utils'
 
-import { Notify, NotifyAfter, NotifyOnce } from './utils.js'
+import { Notify, NotifyAfter, NotifyOnce } from '../helpers/utils.js'
 
-import type { Comparison, Tree } from './utils.js'
+import type { Comparison, Tree } from '../helpers/utils.js'
 
+describe('reiterable', () => {
+  it('wors', () => {
+    let reit = new U.Reiterable(function * () {
+      yield 1
+      yield 2
+      yield 3
+    })
+    assert.deepEqual(Array.from(reit), [1,2,3])
+    assert.deepEqual(Array.from(reit), [1,2,3])
+    assert.deepEqual(Array.from(reit), [1,2,3])
+  })
+})
 describe('skipNulls', () => {
   it ('works', () => {
     let vs = skipNulls([1,2,null,3,4,undefined,5])
@@ -206,18 +218,18 @@ describe('string diffing', () => {
     assert.deepEqual(
       6,
       calculatePrefixLength(
-        () => '012345asdf',
-        () => '0123456789'))
+        '012345asdf',
+        '0123456789'))
     assert.deepEqual(
       6,
       calculatePrefixLength(
-        () => '012345asdf',
-        () => '012345'))
+        '012345asdf',
+        '012345'))
     assert.deepEqual(
       6,
       calculatePrefixLength(
-        () => '012345',
-        () => '012345'))
+        '012345',
+        '012345'))
   })
   it ('calculatePostfixLength() works', () => {
     assert.deepEqual(
@@ -253,7 +265,7 @@ describe('maxOfIterable', () => {
     }
     let ints = [2,5,3,6,1,9,3,5]
     let maxInt = Math.max(...ints)
-    assert.equal(maxInt, maxOfIterable(() => ints, intComparitor))
+    assert.equal(maxInt, maxOfIterable(ints, intComparitor))
   })
 })
 

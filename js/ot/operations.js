@@ -1,6 +1,6 @@
 /* @flow */
 
-import * as U from './utils.js'
+import * as U from '../helpers/utils.js'
 import { map } from 'wu'
 
 

@@ -1,5 +1,5 @@
 /* @flow */
-import * as U from './utils.js'
+import * as U from '../helpers/utils.js'
 import { find } from 'wu'
 
 export type Packet<D> = {

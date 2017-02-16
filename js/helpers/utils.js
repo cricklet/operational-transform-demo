@@ -2,6 +2,8 @@
 
 import * as Wu from 'wu'
 
+import { IterableBase } from './iterable_base.js'
+
 export let Greater = 1
 export let Equal = 0
 export let Less = -1
@@ -12,17 +14,16 @@ export type Comparitor<T> = (a: T, b: T) => Comparison
 //         Less    if a  <  b
 //         Equal   if a === b
 
-type SafeIterable<T> = (() => Iterable<T>) | Iterable<T>
+type SafeIterable<T> = Reiterable<T> | Iterable<T>
 
-export function * iterate<T>(ts: SafeIterable<T>): Iterable<T> {
-  if (typeof ts === 'function') {
-    for (let t of ts()) {
-      yield t
-    }
-  } else {
-    for (let t of ts) {
-      yield t
-    }
+export class Reiterable<T> extends IterableBase {
+  ts: () => Iterable<T>
+  constructor(ts: () => Iterable<T>) {
+    super()
+    this.ts = ts
+  }
+  iterator (): Iterable<T> {
+    return this.ts()
   }
 }
 
@@ -41,27 +42,27 @@ export function merge<A, B, C: A & B>(a: A, b: B): C {
 }
 
 export function specificRange(start: number, stop: number, step: number): SafeIterable<number> {
-  return function * () {
+  return new Reiterable(function * () {
     for (let i = start; i < stop; i += step) {
       yield i;
     }
-  }
+  })
 }
 
 export function map<T1, T2>(t1s: SafeIterable<T1>, f: (t1: T1) => T2): SafeIterable<T2> {
-  return function * () {
-    for (let t1 of iterate(t1s)) {
+  return new Reiterable(function * () {
+    for (let t1 of t1s) {
       yield f(t1)
     }
-  }
+  })
 }
 
 export function array<T>(is: SafeIterable<T>): Array<T> {
-  return Array.from(iterate(is))
+  return Array.from(is)
 }
 
 export function string<T>(is: SafeIterable<T>): string {
-  return Array.from(iterate(is)).join('')
+  return Array.from(is).join('')
 }
 
 export function range(stop: number): SafeIterable<number> {
@@ -73,12 +74,12 @@ export function reverseRange(stop: number): SafeIterable<number> {
 }
 
 export function reverseSpecificRange(start: number, stop: number, step: number): SafeIterable<number> {
-  return function * () {
+  return new Reiterable(function * () {
     let actualStop = start + (Math.ceil((stop - start) / step) - 1) * step // this is tested ;)
     for (let i = actualStop; i >= start; i -= step) {
       yield i;
     }
-  }
+  })
 }
 
 export function reverseString(s: string): SafeIterable<string> {
@@ -95,14 +96,14 @@ export function * counter(): Generator<number, void, void> {
 
 export function length<T>(s: SafeIterable<T>): number {
   let length = 0
-  for (let c of iterate(s)) {
+  for (let c of s) {
     length += 1
   }
   return length
 }
 
 export function calculatePrefixLength(text0: SafeIterable<string>, text1: SafeIterable<string>) {
-  for (let [[c0, c1], i] of iterate(zip(zipLongest(text0, text1), counter()))) {
+  for (let [[c0, c1], i] of zip(zipLongest(text0, text1), counter())) {
     if (c0 != c1) {
       return i
     }
@@ -123,7 +124,7 @@ export function maxOfIterable<T>(
   comparitor: Comparitor<T>
 ): T {
   let maxT = undefined
-  for (let t of iterate(ts)) {
+  for (let t of ts) {
     if (maxT === undefined || comparitor(t, maxT) === Greater) {
       maxT = t
     }
@@ -199,13 +200,13 @@ export function characters (
 
 export function filter<T>(ts: SafeIterable<T>, f: (t: T) => boolean)
 : SafeIterable<T> {
-  return function * () {
-    for (let t of iterate(ts)) {
+  return new Reiterable(function * () {
+    for (let t of ts) {
       if (f(t)) {
         yield t
       }
     }
-  }
+  })
 }
 
 export function skipNulls<T>(ts: SafeIterable<?T>): SafeIterable<T> {
@@ -262,7 +263,7 @@ export function reverse <T> (arr: Array<T>): SafeIterable<T> {
 }
 
 export function findIndex <T> (f: (t: T) => bool, arr: Array<T>): ?number {
-  for (let [t, i] of iterate(zip(arr, counter()))) {
+  for (let [t, i] of zip(arr, counter())) {
     if (f(t)) {
       return i
     }
@@ -343,27 +344,27 @@ export function flatten <A> (tree: Tree<A>): Array<A> {
 }
 
 export function zipPairs <T> (arr: Array<T>): SafeIterable<[T ,T]> {
-  return function * () {
+  return new Reiterable(function * () {
     for (let i = 0; i < arr.length - 1; i ++) {
       yield [arr[i], arr[i+1]]
     }
-  }
+  })
 }
 
 export function zipLongest <T1,T2> (t1s: SafeIterable<T1>, t2s: SafeIterable<T2>): SafeIterable<[T1 ,T2]> {
-  return function * () {
-    for (let [t1: T1, t2: T2] of Wu.zipLongest(iterate(t1s), iterate(t2s))) {
+  return new Reiterable(function * () {
+    for (let [t1: T1, t2: T2] of Wu.zipLongest(t1s, t2s)) {
       yield [t1, t2]
     }
-  }
+  })
 }
 
 export function zip <T1,T2> (t1s: SafeIterable<T1>, t2s: SafeIterable<T2>): SafeIterable<[T1 ,T2]> {
-  return function * () {
-    for (let [t1: T1, t2: T2] of Wu.zip(iterate(t1s), iterate(t2s))) {
+  return new Reiterable(function * () {
+    for (let [t1: T1, t2: T2] of Wu.zip(t1s, t2s)) {
       yield [t1, t2]
     }
-  }
+  })
 }
 
 export function all<T>(arr: Iterator<T>, f: (t: T) => boolean): boolean {

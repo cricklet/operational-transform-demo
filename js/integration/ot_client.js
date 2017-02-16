@@ -1,6 +1,6 @@
 /* @flow */
 
-import * as U from '../ot/utils.js'
+import * as U from '../helpers/utils.js'
 
 import type {
   BufferOperation,

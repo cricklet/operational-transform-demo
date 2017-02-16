@@ -1,7 +1,7 @@
 /* @flow */
 
 import { observeArray, observeEach } from './observe.js'
-import * as U from './utils.js'
+import * as U from '../helpers/utils.js'
 
 export type ServerUpdate<O> = {
   kind: 'ServerUpdate'
@@ -184,7 +184,7 @@ export class OTHelper<O,S> {
     }
 
     let composed: O[] = this.transformer.composeMany(
-      U.iterate(U.skipNulls(U.map(operations, o => o.ops))))
+      U.skipNulls(U.map(operations, o => o.ops)))
 
     let op: Operation<O> = {
       ops: composed,
@@ -230,7 +230,7 @@ export class OTHelper<O,S> {
     // thus, the most recent ops are transformed first
 
     let b: ?O[] = appliedOp.ops
-    for (let a: ?O[] of U.iterate(U.reverse(operationsStack.opsStack))) {
+    for (let a: ?O[] of U.reverse(operationsStack.opsStack)) {
       let [aP, bP] = this.transformer.transformNullable(a, b)
 
       transformedOps.push(aP)

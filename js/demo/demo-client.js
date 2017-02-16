@@ -2,7 +2,7 @@
 
 import SockJS from 'sockjs-client'
 
-import { merge, Less, Greater, Equal, reverse, push, findIndex, findLastIndex, subarray, asyncWait, insert, allEqual, remove } from '../ot/utils.js'
+import { merge, Less, Greater, Equal, reverse, push, findIndex, findLastIndex, subarray, asyncWait, insert, allEqual, remove } from '../helpers/utils.js'
 import { count, zip, filter, find, takeWhile, take, map } from 'wu'
 import { observeArray, observeObject } from '../ot/observe'
 

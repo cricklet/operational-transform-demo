@@ -1,6 +1,6 @@
 /* @flow */
 
-import { Less, Greater, Equal, reverse, push, findIndex, findLastIndex, subarray, asyncWait, insert, allEqual, remove } from '../ot/utils.js'
+import { Less, Greater, Equal, reverse, push, findIndex, findLastIndex, subarray, asyncWait, insert, allEqual, remove } from '../helpers/utils.js'
 import { count, zip, filter, find, takeWhile, take, map } from 'wu'
 import { observeArray, observeObject } from '../ot/observe'
 
@@ -32,7 +32,7 @@ import {
 
 import {
   merge
-} from '../ot/utils.js'
+} from '../helpers/utils.js'
 
 // class CodeMirrorAdapter {
 //   cm: CodeMirror

@@ -11,7 +11,7 @@ import { spy } from 'sinon'
 import { assert } from 'chai'
 import { map, zip } from 'wu'
 
-import * as U from './utils.js'
+import * as U from '../helpers/utils.js'
 
 import type {
   ClientUpdate,
