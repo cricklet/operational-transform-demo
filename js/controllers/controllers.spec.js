@@ -17,8 +17,8 @@ import { generateInsertion, generateDeletion } from '../operations/components.js
 import { ClientController } from './client_controller.js'
 import { ServerController, OTDocuments } from './server_controller.js'
 
-import type { ClientUpdate, ServerUpdate } from './shared.js'
-import { OTHelper } from './shared.js'
+import type { ClientUpdate, ServerUpdate } from './types.js'
+import { OTHelper } from './ot_helper.js'
 
 function generatePropogator (
   server: ServerController,

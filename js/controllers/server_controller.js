@@ -8,12 +8,15 @@ import type {
   ClientUpdate,
   ServerUpdate,
   ServerOperation
-} from './shared.js'
+} from './types.js'
 
 import {
   OTHelper,
+} from './ot_helper.js'
+
+import {
   castServerOp
-} from './shared.js'
+} from './types.js'
 
 export type OTDocument = {
   docId: string,

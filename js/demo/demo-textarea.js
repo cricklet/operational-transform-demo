@@ -10,10 +10,10 @@ import { TextApplier, DocumentApplier } from '../operations/applier.js'
 import * as Inferrer from '../operations/inferrer.js'
 import * as Transformer from '../operations/transformer.js'
 
-import type { ClientUpdate, ServerUpdate } from '../controllers/shared.js'
+import type { ClientUpdate, ServerUpdate } from '../controllers/types.js'
 import { ClientController } from '../controllers/client_controller.js'
 import { ServerController } from '../controllers/server_controller.js'
-import { OTHelper } from '../controllers/shared.js'
+import { OTHelper } from '../controllers/ot_helper.js'
 
 import { SimulatedConnection } from '../network/simulated_connection.js'
 

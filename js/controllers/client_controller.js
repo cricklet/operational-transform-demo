@@ -9,12 +9,15 @@ import type {
   ClientUpdate,
   ServerUpdate,
   ServerOperation
-} from './shared.js'
+} from './types.js'
+
+import {
+  castPrebufferOp
+} from './types.js'
 
 import {
   OTHelper,
-  castPrebufferOp
-} from './shared.js'
+} from './ot_helper.js'
 
 import type { OpComponent } from '../operations/components.js'
 

@@ -6,10 +6,10 @@ import * as process from 'process'
 import SocketServer from 'socket.io'
 import SocketClient from 'socket.io-client'
 
-import type { ClientUpdate, ServerUpdate } from './js/controllers/shared.js'
+import type { ClientUpdate, ServerUpdate } from './js/controllers/types.js'
 import { ClientController } from './js/controllers/client_controller.js'
 import { ServerController } from './js/controllers/server_controller.js'
-import { OTHelper } from './js/controllers/shared.js'
+import { OTHelper } from './js/controllers/ot_helper.js'
 
 import { TextApplier } from './js/operations/applier.js'
 import * as Inferrer from './js/operations/inferrer.js'
