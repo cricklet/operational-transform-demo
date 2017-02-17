@@ -16,28 +16,33 @@ export function setupClientConnection(
   logger: (s: string) => void
 ): ClientConnection {
   let client = new SocketClient(url)
-  client.emit('open-document', docId)
 
-  let update = (clientUpdate: ClientUpdatePacket) => {
+  function emitUpdate (clientUpdate: ClientUpdatePacket) {
     let clientUpdateJSON = JSON.stringify(clientUpdate)
     client.emit('client-update', clientUpdateJSON)
   }
 
+  // join the document
+  client.emit('join-document', docId)
+
+  // server sent an edit
   client.on('server-update', (json) => {
-    let data = JSON.parse(json)
-    let serverUpdate: ?ServerUpdatePacket = castServerUpdatePacket(data)
+    // parse the server update
+    logger(`server sent update: ${json}`)
+    let serverUpdate: ?ServerUpdatePacket = castServerUpdatePacket(JSON.parse(json))
 
     if (serverUpdate == null) {
       throw new Error('un-parseable server update: ' + json)
     }
 
+    // apply server update & compute response
     let clientUpdate: ?ClientUpdatePacket = clientController.handleUpdate(serverUpdate)
     if (clientUpdate != null) {
-      update(clientUpdate)
+      emitUpdate(clientUpdate)
     }
   })
 
   return {
-    update: update
+    update: emitUpdate
   }
 }

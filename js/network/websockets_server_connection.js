@@ -14,28 +14,32 @@ export function setupServerConnection(
   let server = new SocketServer()
 
   server.on('connection', (socket) => {
-    socket.on('open-document', (docId) => {
+
+    // client opened a document
+    socket.on('join-document', (docId) => {
       logger(`client joined document: ${docId}`)
       socket.join(docId)
     })
+
+    // client sent an edit
     socket.on('client-update', (json) => {
+      // parse the client update
       logger(`client sent update: ${json}`)
-      let data = JSON.parse(json)
-      let clientUpdate: ?ClientUpdatePacket = castClientUpdatePacket(data)
+      let clientUpdate: ?ClientUpdatePacket = castClientUpdatePacket(JSON.parse(json))
 
       if (clientUpdate == null) {
         throw new Error('un-parseable client update: ' + json)
       }
 
-      let docId = clientUpdate.docId
-
+      // apply client update & compute response
       let serverUpdate = serverController.handleUpdate(clientUpdate)
       if (serverUpdate == null) { return }
       let serverUpdateJSON = JSON.stringify(serverUpdate)
 
       logger(`sending update: ${serverUpdateJSON}`)
-      server.sockets.in(docId).emit('server-update', serverUpdateJSON)
+      server.sockets.in(clientUpdate.docId).emit('server-update', serverUpdateJSON)
     })
+
   })
 
   server.listen(port)
