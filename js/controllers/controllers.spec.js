@@ -10,9 +10,9 @@ import { spy } from 'sinon'
 
 import { assert } from 'chai'
 
-import { TextApplier } from '../operations/applier.js'
-import { inferOperation } from '../operations/inferrer.js'
-import { generateInsertion, generateDeletion } from '../operations/components.js'
+import { TextApplier } from '../ot/applier.js'
+import { inferOperation } from '../ot/inferrer.js'
+import { generateInsertion, generateDeletion } from '../ot/components.js'
 
 import { ClientController } from './client_controller.js'
 import { ServerController, OTDocuments } from './server_controller.js'

@@ -4,11 +4,11 @@ import { merge, Less, Greater, Equal, reverse, push, findIndex, findLastIndex, s
 import { count, zip, filter, find, takeWhile, take, map } from 'wu'
 import { observeArray, observeObject } from '../helpers/observe'
 
-import type { DocumentState } from '../operations/applier.js'
-import { TextApplier, DocumentApplier } from '../operations/applier.js'
+import type { DocumentState } from '../ot/applier.js'
+import { TextApplier, DocumentApplier } from '../ot/applier.js'
 
-import * as Inferrer from '../operations/inferrer.js'
-import * as Transformer from '../operations/transformer.js'
+import * as Inferrer from '../ot/inferrer.js'
+import * as Transformer from '../ot/transformer.js'
 
 import type { ClientUpdatePacket, ServerUpdatePacket } from '../controllers/types.js'
 import { ClientController } from '../controllers/client_controller.js'

@@ -1,8 +1,8 @@
 /* @flow */
 
-import type { Operation } from '../operations/types.js'
+import type { Operation } from '../ot/types.js'
 
-import * as Transformer from '../operations/transformer.js'
+import * as Transformer from '../ot/transformer.js'
 
 import * as U from '../helpers/utils.js'
 

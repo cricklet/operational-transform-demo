@@ -2,7 +2,7 @@
 
 import * as U from '../helpers/utils.js'
 
-import type { Operation } from '../operations/types.js'
+import type { Operation } from '../ot/types.js'
 
 export type ServerUpdatePacket = {
   kind: 'ServerUpdatePacket',

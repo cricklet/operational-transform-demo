@@ -13,7 +13,7 @@ import type {
 
 import { castPrebufferEdit } from './types.js'
 import { OTHelper } from './ot_helper.js'
-import type { Operation } from '../operations/types.js'
+import type { Operation } from '../ot/types.js'
 
 export class OutOfOrderUpdate extends Error {
   expectedIndex: number
