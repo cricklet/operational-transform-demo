@@ -56,7 +56,7 @@ export let CursorApplier = {
   _adjustPosition: function(pos: number, operation: Operation): number {
     let i = 0
     for (let c of operation) {
-      if (i >= pos) { break }
+      if (i > pos) { break }
 
       Components.handleComponent(c, {
         insert: (insert: Insert) => {

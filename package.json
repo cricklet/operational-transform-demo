@@ -8,7 +8,7 @@
     "watch": "mocha --compilers js:babel-core/register --watch -R spec ./**/*.spec.js",
     "watch-one": "mocha --compilers js:babel-core/register --watch -R spec",
     "client": "webpack-dev-server --progress --colors",
-    "server": "nodemon ./js/server/server.js --exec babel-node"
+    "server": "nodemon ./js/demo/demo-server.js --exec babel-node"
   },
   "description": "operational transform",
   "author": "Kenrick Rilee",

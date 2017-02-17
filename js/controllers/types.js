@@ -100,3 +100,21 @@ export function castPrebufferEdit(op: Edit, opts?: Object): PrebufferEdit {
   }
   return op
 }
+
+export function castClientUpdatePacket(obj: Object): ?ClientUpdatePacket {
+  if (obj.kind !== 'ClientUpdatePacket') { return undefined }
+  if (obj.sourceUid == null || obj.docId == null) { return undefined }
+  if ('edit' in obj) {
+    castPrebufferEdit(obj.edit)
+  }
+  return obj
+}
+
+export function castServerUpdatePacket(obj: Object): ?ServerUpdatePacket {
+  if (obj.kind !== 'ServerUpdatePacket') { return undefined }
+  if (obj.sourceUid == null || obj.docId == null) { return undefined }
+  if ('edit' in obj) {
+    castPrebufferEdit(obj.edit)
+  }
+  return obj
+}
