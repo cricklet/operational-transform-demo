@@ -335,7 +335,7 @@ $(document).ready(() => {
     let client = new ClientController(DOC_ID, DocumentOTHelper)
     let clientConnection: SimulatedConnection<ClientUpdatePacket, ServerUpdatePacket> = new SimulatedConnection(chaos)
     clientConnection.listen((serverUpdate: ServerUpdatePacket) => {
-      let update = client.handleUpdate(serverUpdate)
+      let update = client.handleOrderedUpdate(serverUpdate)
       if (update == null) { return }
       clientConnection.send(update)
     })

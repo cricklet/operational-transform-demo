@@ -76,7 +76,7 @@ function createClient(clientId, docId) {
   client.on('server update', (json) => {
     let serverUpdate = deserializeServerUpdate(json)
 
-    let clientUpdate = otClient.handleUpdate(serverUpdate)
+    let clientUpdate = otClient.handleOrderedUpdate(serverUpdate)
     printAll()
 
     if (clientUpdate != null) {

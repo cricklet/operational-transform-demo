@@ -31,7 +31,7 @@ function generatePropogator (
 
   function propogateBroadcast (serverUpdate: ServerUpdatePacket) {
     let clientUpdates = clients.map(
-      client => client.handleUpdate(serverUpdate))
+      client => client.handleOrderedUpdate(serverUpdate))
 
     for (let clientUpdate of clientUpdates) {
       if (clientUpdate) {

@@ -7,23 +7,15 @@ import type {
   OutstandingEdit,
   EditsStack,
   ClientUpdatePacket,
+  ClientResetRequest,
   ServerUpdatePacket,
+  ServerResetResponse,
   ServerEdit
 } from './types.js'
 
 import { castOutstandingEdit } from './types.js'
 import { OTHelper } from './ot_helper.js'
 import type { Operation } from '../ot/types.js'
-
-export class OutOfOrderUpdate extends Error {
-  expectedIndex: number
-  actualIndex: number
-  constructor(indices: { expected: number, actual: number }) {
-    super(`Expected ${indices.expected}, received ${indices.actual}.`)
-    this.expectedIndex = indices.expected
-    this.actualIndex = indices.actual
-  }
-}
 
 export class ClientController<S> {
   // This class maintains the state of the client, computes what updates
@@ -154,6 +146,25 @@ export class ClientController<S> {
   }
 
   handleUpdate(serverUpdate: ServerUpdatePacket)
+  : ?(ClientUpdatePacket | ClientResetRequest) {
+    let op: ServerEdit = serverUpdate.edit
+    let docId: string = serverUpdate.docId
+
+    if (docId !== this.docId) {
+      throw new Error('wat, different doc id', docId, this.docId)
+    }
+
+    if (op.startIndex !== this._nextIndex()) {
+      return {
+        kind: 'ClientResetRequest',
+        outstandingEdit: this.outstandingEdit,
+        sourceUid: this.uid,
+        docId: this.docId,
+      }
+    }
+  }
+
+  handleOrderedUpdate(serverUpdate: ServerUpdatePacket)
   : ?ClientUpdatePacket {
     let op: ServerEdit = serverUpdate.edit
     let docId: string = serverUpdate.docId
@@ -163,10 +174,7 @@ export class ClientController<S> {
     }
 
     if (op.startIndex !== this._nextIndex()) {
-      throw new OutOfOrderUpdate({
-        expected: this._nextIndex(),
-        actual: op.startIndex
-      })
+      throw new Error(`Expected server update #${this._nextIndex()} instead of ${op.startIndex}.`)
     }
 
     if (this.outstandingEdit != null && op.id === this.outstandingEdit.id) {

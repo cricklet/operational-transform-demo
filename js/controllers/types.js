@@ -18,6 +18,23 @@ export type ClientUpdatePacket = {
   edit: OutstandingEdit
 }
 
+export type ClientResetRequest = {
+  kind: 'ClientResetRequest',
+  sourceUid: string,
+  docId: string,
+  outstandingEdit: OutstandingEdit,
+}
+
+export type ServerResetResponse = {
+  kind: 'ServerElucidatePacket',
+  docId: string,
+  edits: {
+    before: ServerEdit,
+    outstanding: ServerEdit,
+    after: ServerEdit,
+  }
+}
+
 export type Edit = $Shape<{
   id: string,
 

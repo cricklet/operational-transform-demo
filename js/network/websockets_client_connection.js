@@ -36,7 +36,7 @@ export function setupClientConnection(
     }
 
     // apply server update & compute response
-    let clientUpdate: ?ClientUpdatePacket = clientController.handleUpdate(serverUpdate)
+    let clientUpdate: ?ClientUpdatePacket = clientController.handleOrderedUpdate(serverUpdate)
     if (clientUpdate != null) {
       emitUpdate(clientUpdate)
     }
