@@ -154,13 +154,15 @@ export class ClientController<S> {
       throw new Error('wat, different doc id', docId, this.docId)
     }
 
-    if (op.startIndex !== this._nextIndex()) {
+    if (op.startIndex > this._nextIndex()) { // raise on future edits
       return {
         kind: 'ClientResetRequest',
         outstandingEdit: this.outstandingEdit,
         sourceUid: this.uid,
         docId: this.docId,
       }
+    } else if (op.startIndex < this._nextIndex()) { // ignore old edits
+      return undefined
     }
 
     return this.handleOrderedUpdate(serverUpdate)
