@@ -162,6 +162,8 @@ export class ClientController<S> {
         docId: this.docId,
       }
     }
+
+    return this.handleOrderedUpdate(serverUpdate)
   }
 
   handleOrderedUpdate(serverUpdate: ServerUpdatePacket)
