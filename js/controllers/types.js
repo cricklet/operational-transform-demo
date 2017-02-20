@@ -15,7 +15,7 @@ export type ClientUpdatePacket = {
   kind: 'ClientUpdatePacket',
   sourceUid: string,
   docId: string,
-  edit: PrebufferEdit
+  edit: OutstandingEdit
 }
 
 export type Edit = $Shape<{
@@ -53,7 +53,7 @@ export type BufferEdit = {
   childHash: string
 }
 
-export type PrebufferEdit = {
+export type OutstandingEdit = {
   id: string,
   operation: ?Operation,
   parentHash: string,
@@ -91,12 +91,12 @@ export function castBufferEdit(op: Edit, opts?: Object): BufferEdit {
   return op
 }
 
-export function castPrebufferEdit(op: Edit, opts?: Object): PrebufferEdit {
+export function castOutstandingEdit(op: Edit, opts?: Object): OutstandingEdit {
   op = U.merge(op, opts)
   if (!('operation' in op) || op.id == null ||
       op.parentHash == null ||
       op.startIndex == null) {
-    throw new Error('prebuffer op contains keys: ' + Object.keys(op).join(', '))
+    throw new Error('outstanding op contains keys: ' + Object.keys(op).join(', '))
   }
   return op
 }
@@ -105,7 +105,7 @@ export function castClientUpdatePacket(obj: Object): ?ClientUpdatePacket {
   if (obj.kind !== 'ClientUpdatePacket') { return undefined }
   if (obj.sourceUid == null || obj.docId == null) { return undefined }
   if ('edit' in obj) {
-    castPrebufferEdit(obj.edit)
+    castOutstandingEdit(obj.edit)
   }
   return obj
 }
@@ -114,7 +114,7 @@ export function castServerUpdatePacket(obj: Object): ?ServerUpdatePacket {
   if (obj.kind !== 'ServerUpdatePacket') { return undefined }
   if (obj.sourceUid == null || obj.docId == null) { return undefined }
   if ('edit' in obj) {
-    castPrebufferEdit(obj.edit)
+    castServerEdit(obj.edit)
   }
   return obj
 }

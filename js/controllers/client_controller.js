@@ -4,14 +4,14 @@ import * as U from '../helpers/utils.js'
 
 import type {
   BufferEdit,
-  PrebufferEdit,
+  OutstandingEdit,
   EditsStack,
   ClientUpdatePacket,
   ServerUpdatePacket,
   ServerEdit
 } from './types.js'
 
-import { castPrebufferEdit } from './types.js'
+import { castOutstandingEdit } from './types.js'
 import { OTHelper } from './ot_helper.js'
 import type { Operation } from '../ot/types.js'
 
@@ -53,10 +53,10 @@ export class ClientController<S> {
 
   state: S
 
-  buffer: BufferEdit
+  bufferEdit: BufferEdit
   // the client ops not yet sent to the server.
 
-  prebuffer: PrebufferEdit
+  outstandingEdit: OutstandingEdit
   // the client op that has been sent to the server (but not yet ACKd by the server)
 
   undos: EditsStack
@@ -73,11 +73,11 @@ export class ClientController<S> {
 
     let hash = this.helper.hash(this.state)
 
-    this.buffer = {
+    this.bufferEdit = {
       operation: undefined,
       childHash: hash
     }
-    this.prebuffer = {
+    this.outstandingEdit = {
       startIndex: 0,
       parentHash: hash,
       operation: undefined,
@@ -96,7 +96,7 @@ export class ClientController<S> {
   _checkInvariants () {
     let hash = this.helper.hash(this.state)
 
-    if (this.buffer.childHash !== hash) {
+    if (this.bufferEdit.childHash !== hash) {
       throw new Error('buffer should point to current state')
     }
 
@@ -104,50 +104,50 @@ export class ClientController<S> {
       throw new Error("wat, undos and redos should start at the same place")
     }
 
-    if (this.undos.parentHash !== this.buffer.childHash) {
+    if (this.undos.parentHash !== this.bufferEdit.childHash) {
       throw new Error("wat, undo should start on buffer end state.")
     }
   }
 
   _nextIndex(): number {
-    // because neither the prebuffer nor buffer exist on the
+    // because neither the outstanding nor buffer exist on the
     // server yet, they don't increment the index at all!
 
     // thus, the next index we expect from the server is
-    // exactly the index we think the prebuffer exists at.
-    return this.prebuffer.startIndex
+    // exactly the index we think the outstanding exists at.
+    return this.outstandingEdit.startIndex
   }
 
   _flushBuffer(): ?ClientUpdatePacket {
     // if there's no buffer, skip
-    if (this.buffer.operation == null) {
+    if (this.bufferEdit.operation == null) {
       return undefined
     }
 
-    // if there is a prebuffer, skip
-    if (this.prebuffer.operation != null) {
+    // if there is a outstanding, skip
+    if (this.outstandingEdit.operation != null) {
       return undefined
     }
 
-    // prebuffer is now the buffer
-    this.prebuffer = {
-      operation: this.buffer.operation,
+    // outstanding is now the buffer
+    this.outstandingEdit = {
+      operation: this.bufferEdit.operation,
       id: U.genUid(),
-      parentHash: this.prebuffer.parentHash,
-      startIndex: this.prebuffer.startIndex
+      parentHash: this.outstandingEdit.parentHash,
+      startIndex: this.outstandingEdit.startIndex
     }
 
     // buffer is now empty
-    this.buffer = {
+    this.bufferEdit = {
       operation: undefined,
-      childHash: this.buffer.childHash,
+      childHash: this.bufferEdit.childHash,
     }
 
     this._checkInvariants()
 
     return {
       kind: 'ClientUpdatePacket',
-      edit: castPrebufferEdit(this.prebuffer),
+      edit: castOutstandingEdit(this.outstandingEdit),
       sourceUid: this.uid,
       docId: this.docId,
     }
@@ -169,13 +169,13 @@ export class ClientController<S> {
       })
     }
 
-    if (this.prebuffer != null && op.id === this.prebuffer.id) {
+    if (this.outstandingEdit != null && op.id === this.outstandingEdit.id) {
       if (serverUpdate.sourceUid !== this.uid) {
         throw new Error('wat, different source')
       }
 
-      // clear the prebuffer out
-      this.prebuffer = {
+      // clear the outstanding out
+      this.outstandingEdit = {
         operation: undefined,
         id: U.genUid(),
         parentHash: op.childHash,
@@ -186,9 +186,9 @@ export class ClientController<S> {
       return this._flushBuffer()
 
     } else {
-      // transform the prebuffer & buffer & op
-      let [newPrebufferEdit, newBufferEdit, appliedEdit, newState]
-          = this.helper.transformAndApplyBuffers(this.prebuffer, this.buffer, op, this.state)
+      // transform the outstanding & buffer & op
+      let [newOutstandingEdit, newBufferEdit, appliedEdit, newState]
+          = this.helper.transformAndApplyBuffers(this.outstandingEdit, this.bufferEdit, op, this.state)
 
       // update undo
       this.undos = this.helper.transformEditsStack(appliedEdit, this.undos)
@@ -197,9 +197,9 @@ export class ClientController<S> {
       // apply the operation
       this.state = newState
 
-      // update prebuffer & buffer
-      this.prebuffer = newPrebufferEdit
-      this.buffer = newBufferEdit
+      // update outstanding & buffer
+      this.outstandingEdit = newOutstandingEdit
+      this.bufferEdit = newBufferEdit
 
       return undefined
     }
@@ -228,8 +228,8 @@ export class ClientController<S> {
       this.state = newState
 
       // append applied undo to buffer
-      this.buffer = this.helper.compose([
-        this.buffer,
+      this.bufferEdit = this.helper.compose([
+        this.bufferEdit,
         { operation: undo, childHash: newHash }
       ])
 
@@ -267,8 +267,8 @@ export class ClientController<S> {
       this.state = newState
 
       // append applied redo to buffer
-      this.buffer = this.helper.compose([
-        this.buffer,
+      this.bufferEdit = this.helper.compose([
+        this.bufferEdit,
         { operation: redo, childHash: newHash }
       ])
 
@@ -310,8 +310,8 @@ export class ClientController<S> {
     }
 
     // append operation to buffer (& thus bridge)
-    this.buffer = this.helper.compose([
-      this.buffer,
+    this.bufferEdit = this.helper.compose([
+      this.bufferEdit,
       op
     ])
 

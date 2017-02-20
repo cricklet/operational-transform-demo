@@ -8,7 +8,7 @@ import * as U from '../helpers/utils.js'
 
 import type {
   Edit,
-  PrebufferEdit,
+  OutstandingEdit,
   BufferEdit,
   ServerEdit,
   AppliedEdit,
@@ -16,7 +16,7 @@ import type {
 } from './types.js'
 
 import {
-  castPrebufferEdit,
+  castOutstandingEdit,
   castBufferEdit,
   castAppliedEdit
 } from './types.js'
@@ -32,7 +32,7 @@ export class OTHelper<S> {
   // transforming operations.
 
   // It's tightly coupled to the logic and expectations of the controllers!
-  // For example, it knows about how the client manages & stores prebuffers
+  // For example, it knows about how the client manages & stores outstandings
   // and buffers.
 
   applier: IApplier<S>
@@ -212,19 +212,19 @@ export class OTHelper<S> {
   }
 
   transformAndApplyBuffers(
-    prebufferEdit: PrebufferEdit,
+    outstandingEdit: OutstandingEdit,
     bufferEdit: BufferEdit,
     serverEdit: ServerEdit,
     clientState: S
-  ): [PrebufferEdit, BufferEdit, AppliedEdit, S] {
-    // returns [newPrebuffer, newBuffer, appliedEdit, newState]
+  ): [OutstandingEdit, BufferEdit, AppliedEdit, S] {
+    // returns [newOutstanding, newBuffer, appliedEdit, newState]
 
-    if (prebufferEdit.parentHash !== serverEdit.parentHash ||
-        prebufferEdit.startIndex !== serverEdit.startIndex) {
-      throw new Error('wat, to transform prebuffer there must be the same parent')
+    if (outstandingEdit.parentHash !== serverEdit.parentHash ||
+        outstandingEdit.startIndex !== serverEdit.startIndex) {
+      throw new Error('wat, to transform outstanding there must be the same parent')
     }
 
-    // a: prebuffer
+    // a: outstanding
     // c: buffer
     // b: server operation
 
@@ -240,7 +240,7 @@ export class OTHelper<S> {
     // bPP \  / cP
     //      \/
 
-    let [a, c, b] = [prebufferEdit, bufferEdit, serverEdit]
+    let [a, c, b] = [outstandingEdit, bufferEdit, serverEdit]
 
     let [aP, bP] = this.transform(a, b)
     let [cP, bPP, undo, newState] = this.transformAndApplyToClient(c, bP, clientState)
@@ -249,13 +249,13 @@ export class OTHelper<S> {
     cP.childHash = newHash
     bPP.childHash = newHash
 
-    let [newPrebufferEdit, newBufferEdit, appliedEdit] = [
-      castPrebufferEdit(aP, { startIndex: serverEdit.nextIndex }),
+    let [newOutstandingEdit, newBufferEdit, appliedEdit] = [
+      castOutstandingEdit(aP, { startIndex: serverEdit.nextIndex }),
       castBufferEdit(cP),
       castAppliedEdit(bPP)
     ]
 
-    return [newPrebufferEdit, newBufferEdit, appliedEdit, newState]
+    return [newOutstandingEdit, newBufferEdit, appliedEdit, newState]
   }
   transform(
     clientEdit: Edit,

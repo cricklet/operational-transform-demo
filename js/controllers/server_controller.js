@@ -4,7 +4,7 @@ import * as U from '../helpers/utils.js'
 
 import type {
   Edit,
-  PrebufferEdit,
+  OutstandingEdit,
   ClientUpdatePacket,
   ServerUpdatePacket,
   ServerEdit
@@ -123,7 +123,7 @@ export class ServerController {
     // bP \  / aP
     //     \/
 
-    let clientEdit: PrebufferEdit = clientUpdate.edit
+    let clientEdit: OutstandingEdit = clientUpdate.edit
     let docId: string = clientUpdate.docId
     let sourceUid: string = clientUpdate.sourceUid
 
