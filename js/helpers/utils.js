@@ -55,6 +55,15 @@ export function map<T1, T2>(t1s: Iterable<T1>, f: (t1: T1) => T2): SafeIterable<
   })
 }
 
+export function objectFrom<T> (tuples: Iterable<[string, T]>)
+: {[key: string]: T} {
+  let obj = {}
+  for (let [key, t] of tuples) {
+    obj[key] = t
+  }
+  return obj
+}
+
 export function array<T>(is: Iterable<T>): Array<T> {
   return Array.from(is)
 }
@@ -215,12 +224,16 @@ export function skipNulls<T>(ts: Iterable<?T>): SafeIterable<T> {
   return filter(ts, t => t != null)
 }
 
-export function defaults<T> (t: ?T, def: T): T {
+export function defaultFallback<T> (t: ?T, def: T): T {
   if (t === undefined || t === null) {
     return def;
   }
 
   return t;
+}
+
+export function fillDefaults<T: Object>(t: ?$Shape<T>, defaults: T): T {
+  return merge(defaults, t || {})
 }
 
 export function substring (
@@ -231,9 +244,9 @@ export function substring (
     step?:  number
   }
 ): SafeIterable<string> {
-  let start: number = defaults(opt.start, 0);
-  let stop:  number = defaults(opt.stop, s.length);
-  let step:  number = defaults(opt.step, 1);
+  let start: number = defaultFallback(opt.start, 0);
+  let stop:  number = defaultFallback(opt.stop, s.length);
+  let step:  number = defaultFallback(opt.step, 1);
 
   return characters(s, specificRange(start, stop, step))
 }
@@ -246,9 +259,9 @@ export function subarray <T> (
     step?:  number
   }
 ): SafeIterable<T> {
-  let start: number = defaults(opt.start, 0);
-  let stop:  number = defaults(opt.stop, arr.length);
-  let step:  number = defaults(opt.step, 1);
+  let start: number = defaultFallback(opt.start, 0);
+  let stop:  number = defaultFallback(opt.stop, arr.length);
+  let step:  number = defaultFallback(opt.step, 1);
 
   return map(specificRange(start, stop, step), i => arr[i])
 }
@@ -272,6 +285,15 @@ export function findIndex <T> (f: (t: T) => bool, arr: Array<T>): ?number {
   }
 
   return undefined
+}
+
+export function find <T> (f: (t: T) => bool, arr: Array<T>): ?T {
+  let i = findIndex(f, arr)
+  if (i == null) {
+    return undefined
+  }
+
+  return arr[i]
 }
 
 export function findLastIndex <T> (f: (t: T) => bool, arr: Array<T>): ?number {

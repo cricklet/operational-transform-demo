@@ -7,13 +7,14 @@ import type {
   OutstandingEdit,
   EditsStack,
   ClientUpdatePacket,
-  ClientResetRequest,
+  ClientConnectionRequest,
   ServerUpdatePacket,
-  ServerResetResponse,
-  ServerEdit
+  ServerConnectionResponse,
+  ServerEdit,
+  UpdateEdit
 } from './types.js'
 
-import { castOutstandingEdit } from './types.js'
+import { castOutstandingEdit, castBufferEdit, castUpdateEdit } from './types.js'
 import { OTHelper } from './ot_helper.js'
 import type { Operation } from '../ot/types.js'
 
@@ -110,6 +111,20 @@ export class ClientController<S> {
     return this.outstandingEdit.startIndex
   }
 
+  _sendOutstandingEdits(): ?ClientUpdatePacket {
+    const updateEdit = castUpdateEdit(this.outstandingEdit)
+    if (updateEdit == null) {
+      return undefined
+    }
+
+    return {
+      kind: 'ClientUpdatePacket',
+      edit: updateEdit,
+      sourceUid: this.uid,
+      docId: this.docId,
+    }
+  }
+
   _flushBuffer(): ?ClientUpdatePacket {
     // if there's no buffer, skip
     if (this.bufferEdit.operation == null) {
@@ -137,30 +152,105 @@ export class ClientController<S> {
 
     this._checkInvariants()
 
-    return {
-      kind: 'ClientUpdatePacket',
-      edit: castOutstandingEdit(this.outstandingEdit),
-      sourceUid: this.uid,
-      docId: this.docId,
+    // send the newly outstanding buffer!
+    let update = this._sendOutstandingEdits()
+    if (update == null) {
+      throw new Error(`wat, there should be outstanding edits: ${JSON.stringify(this)}, ${JSON.stringify(update)}`)
     }
+
+    return update
   }
 
-  handleUpdate(serverUpdate: ServerUpdatePacket)
-  : ?(ClientUpdatePacket | ClientResetRequest) {
+  _shouldIgnoreUpdate(serverUpdate: ServerUpdatePacket) {
+    let sourceUid = serverUpdate.sourceUid
+
+    if (serverUpdate.opts.ignoreAtSource && sourceUid === this.uid) {
+      return true
+    }
+
+    if (serverUpdate.opts.ignoreIfNotAtSource && sourceUid != null && sourceUid !== this.uid) {
+      return true
+    }
+
+    return false
+  }
+
+  establishConnection(): ClientConnectionRequest {
+    let updateEdit: ?UpdateEdit = castUpdateEdit(this.outstandingEdit)
+
+    let request: ClientConnectionRequest = {
+      kind: 'ClientConnectionRequest',
+      nextIndex: this._nextIndex(),
+      sourceUid: this.uid,
+      docId: this.docId,
+      edit: updateEdit
+    }
+
+    return request
+  }
+
+  handleConnection(serverResetResponse: ServerConnectionResponse)
+  : (ClientUpdatePacket | ClientConnectionRequest)[] {
+    let docId: string = serverResetResponse.docId
+
+    if (docId !== this.docId) {
+      throw new Error('wat, different doc id', docId, this.docId)
+    }
+
+    // we're up to date!
+    if (serverResetResponse.edits.length === 0) {
+      return []
+    }
+
+    let startIndex = U.first(serverResetResponse.edits).startIndex
+    if (startIndex !== this._nextIndex()) {
+      // we're still out of order?
+      console.log(`received out of order... ${startIndex} != ${this._nextIndex()}
+                  ${JSON.stringify(this)}`)
+      return [this.establishConnection()]
+    }
+
+    // apply all the updates
+    let responses = []
+    for (let edit of serverResetResponse.edits) {
+      let response = this.handleUpdate({
+        kind: 'ServerUpdatePacket',
+        docId: docId,
+        edit: edit,
+        opts: {}
+      })
+      if (response != null) {
+        responses.push(response)
+      }
+    }
+
+    if (responses.length > 1) {
+      throw new Error('there should only be one response...')
+    }
+
+    return responses
+  }
+
+  handleUpdate(serverUpdate: ServerUpdatePacket, _opts?: { enforceOrdering: boolean })
+  : ?(ClientUpdatePacket | ClientConnectionRequest) {
+    let opts = U.fillDefaults(_opts, { enforceOrdering: false })
+
     let op: ServerEdit = serverUpdate.edit
     let docId: string = serverUpdate.docId
+
+    if (this._shouldIgnoreUpdate(serverUpdate)) {
+      return undefined
+    }
 
     if (docId !== this.docId) {
       throw new Error('wat, different doc id', docId, this.docId)
     }
 
     if (op.startIndex > this._nextIndex()) { // raise on future edits
-      return {
-        kind: 'ClientResetRequest',
-        outstandingEdit: this.outstandingEdit,
-        sourceUid: this.uid,
-        docId: this.docId,
-      }
+      console.log(`received out of order edits:
+                   client: ${JSON.stringify(this)}
+                   server-update: ${JSON.stringify(serverUpdate)}`)
+      return this.establishConnection()
     } else if (op.startIndex < this._nextIndex()) { // ignore old edits
       return undefined
     }
@@ -173,6 +263,10 @@ export class ClientController<S> {
     let op: ServerEdit = serverUpdate.edit
     let docId: string = serverUpdate.docId
 
+    if (this._shouldIgnoreUpdate(serverUpdate)) {
+      return undefined
+    }
+
     if (docId !== this.docId) {
       throw new Error('wat, different doc id', docId, this.docId)
     }
@@ -181,9 +275,16 @@ export class ClientController<S> {
       throw new Error(`Expected server update #${this._nextIndex()} instead of ${op.startIndex}.`)
     }
 
+    // if ((op.id === this.outstandingEdit.id) !==
+    //     (op.sourceUid === this.uid)) {
+    //   throw new Error(`How is the id the same if the source uid is different..?`)
+    // }
+
     if (this.outstandingEdit != null && op.id === this.outstandingEdit.id) {
-      if (serverUpdate.sourceUid !== this.uid) {
-        throw new Error('wat, different source')
+      if (serverUpdate.sourceUid != null && serverUpdate.sourceUid !== this.uid) {
+        throw new Error(`wat, different source
+          ${JSON.stringify(serverUpdate, null, 2)}
+          ${JSON.stringify(this, null, 2)}`)
       }
 
       // clear the outstanding out
@@ -240,10 +341,10 @@ export class ClientController<S> {
       this.state = newState
 
       // append applied undo to buffer
-      this.bufferEdit = this.helper.compose([
+      this.bufferEdit = castBufferEdit(this.helper.compose([
         this.bufferEdit,
         { operation: undo, childHash: newHash }
-      ])
+      ]))
 
       // update undos
       this.undos.parentHash = newHash
@@ -279,10 +380,10 @@ export class ClientController<S> {
       this.state = newState
 
       // append applied redo to buffer
-      this.bufferEdit = this.helper.compose([
+      this.bufferEdit = castBufferEdit(this.helper.compose([
         this.bufferEdit,
         { operation: redo, childHash: newHash }
-      ])
+      ]))
 
       // update undos
       this.undos.operationsStack.push(undo)
@@ -295,15 +396,11 @@ export class ClientController<S> {
     }
   }
 
-  performNullableEdit(edit: ?Operation): ?ClientUpdatePacket {
-    if (edit == null) {
+  performEdit(edit: Operation): ?ClientUpdatePacket {
+    if (edit.length === 0) {
       return undefined
     }
 
-    return this.performEdit(edit)
-  }
-
-  performEdit(edit: Operation): ?ClientUpdatePacket {
     // apply the operation
     let [newState, undo] = this.helper.apply(this.state, edit)
     this.state = newState
@@ -322,10 +419,10 @@ export class ClientController<S> {
     }
 
     // append operation to buffer (& thus bridge)
-    this.bufferEdit = this.helper.compose([
+    this.bufferEdit = castBufferEdit(this.helper.compose([
       this.bufferEdit,
       op
-    ])
+    ]))
 
     // append operation to undo stack
     this.undos.operationsStack.push(undo)
@@ -336,5 +433,9 @@ export class ClientController<S> {
     this.redos.parentHash = currentHash
 
     return this._flushBuffer()
+  }
+
+  resendEdits(): ?ClientUpdatePacket {
+    return this._sendOutstandingEdits()
   }
 }

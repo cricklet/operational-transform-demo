@@ -160,7 +160,7 @@ describe('combinatorial', () => {
 describe('inferOperations() & performOperations()', () => {
   it ('handles no-ops', () => {
     assert.deepEqual(
-      undefined,
+      [],
       Inferrer.inferOperation(
         'mary had a little lamb',
         'mary had a little lamb'))

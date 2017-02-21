@@ -7,11 +7,11 @@ import * as U from '../helpers/utils.js'
 
 
 export let inferOperation = function(oldText: string, newText: string)
-: ?OpComponent[] {
+: OpComponent[] {
   if (oldText.length === newText.length) {
     // we have a no-op
     if (oldText === newText) {
-      return undefined;
+      return [];
     }
   }
 

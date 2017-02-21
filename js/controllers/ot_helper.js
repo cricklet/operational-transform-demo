@@ -11,20 +11,33 @@ import type {
   OutstandingEdit,
   BufferEdit,
   ServerEdit,
-  AppliedEdit,
   EditsStack
 } from './types.js'
 
 import {
   castOutstandingEdit,
   castBufferEdit,
-  castAppliedEdit
 } from './types.js'
 
 export interface IApplier<S> {
   initial(): S,
   stateHash(s: S): string,
   apply(state: S, operation: Operation): [S, Operation],
+}
+
+
+type AppliedEdit = {|
+  operation: Operation,
+  parentHash: string,
+  childHash: string,
+|}
+
+export function castAppliedEdit(op: Edit, opts?: Object): AppliedEdit {
+  op = U.merge(op, opts)
+  if (!('operation' in op) || op.childHash == null || op.parentHash == null) {
+    throw new Error('applied contains keys: ' + Object.keys(op).join(', '))
+  }
+  return op
 }
 
 export class OTHelper<S> {
@@ -88,9 +101,11 @@ export class OTHelper<S> {
 
     let firstEdit = U.first(edits)
     if (firstEdit.parentHash != null) { edit.parentHash = firstEdit.parentHash }
+    if (firstEdit.startIndex != null) { edit.startIndex = firstEdit.startIndex }
 
     let lastEdit = U.last(edits)
     if (lastEdit.childHash != null) { edit.childHash = lastEdit.childHash }
+    if (lastEdit.nextIndex != null) { edit.nextIndex = lastEdit.nextIndex }
 
     return edit
   }
