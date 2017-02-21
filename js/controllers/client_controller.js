@@ -74,7 +74,7 @@ export class ClientController<S> {
       startIndex: 0,
       parentHash: hash,
       operation: undefined,
-      id: U.genUid()
+      id: this._generateEditId()
     }
     this.undos = {
       operationsStack: [],
@@ -84,6 +84,16 @@ export class ClientController<S> {
       operationsStack: [],
       parentHash: hash
     }
+  }
+
+  _editCounter: number
+
+  _generateEditId() {
+    if (this._editCounter == null) {
+      this._editCounter = 0
+    }
+    this._editCounter += 1
+    return `${this.uid}:${this._editCounter}`
   }
 
   _checkInvariants () {
@@ -139,7 +149,7 @@ export class ClientController<S> {
     // outstanding is now the buffer
     this.outstandingEdit = {
       operation: this.bufferEdit.operation,
-      id: U.genUid(),
+      id: this._generateEditId(),
       parentHash: this.outstandingEdit.parentHash,
       startIndex: this.outstandingEdit.startIndex
     }
@@ -290,7 +300,7 @@ export class ClientController<S> {
       // clear the outstanding out
       this.outstandingEdit = {
         operation: undefined,
-        id: U.genUid(),
+        id: this._generateEditId(),
         parentHash: op.childHash,
         startIndex: op.nextIndex
       }

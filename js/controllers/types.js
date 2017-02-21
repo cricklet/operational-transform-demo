@@ -138,7 +138,9 @@ export function castClientUpdatePacket(obj: Object): ?ClientUpdatePacket {
 export function castClientConnectionRequest(obj: Object): ?ClientConnectionRequest {
   if (obj.kind !== 'ClientConnectionRequest') { return undefined }
   if (obj.sourceUid == null || obj.docId == null) { throw new Error('bad reset') }
-  castOutstandingEdit(obj.edit)
+  if ('edit' in obj) {
+    castOutstandingEdit(obj.edit)
+  }
   /* @flow-ignore */
   return obj
 }
@@ -147,6 +149,16 @@ export function castServerUpdatePacket(obj: Object): ?ServerUpdatePacket {
   if (obj.kind !== 'ServerUpdatePacket') { return undefined }
   if (obj.docId == null) { throw new Error('bad update') }
   castServerEdit(obj.edit)
+  /* @flow-ignore */
+  return obj
+}
+
+export function castServerConnectionResponse(obj: Object): ?ServerConnectionResponse {
+  if (obj.kind !== 'ServerConnectionResponse') { return undefined }
+  if (obj.docId == null || obj.edits == null || !Array.isArray(obj.edits)) { throw new Error('bad update') }
+  for (let edit of obj.edits) {
+    castServerEdit(edit)
+  }
   /* @flow-ignore */
   return obj
 }

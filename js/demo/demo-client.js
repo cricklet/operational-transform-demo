@@ -40,6 +40,20 @@ $(document).ready(() => {
     clientController,
     console.log)
 
+  $('#undo').click(() => {
+    let update = clientController.performUndo()
+    if (update != null) {
+      clientConnection.update(update)
+    }
+  })
+
+  $('#redo').click(() => {
+    let update = clientController.performRedo()
+    if (update != null) {
+      clientConnection.update(update)
+    }
+  })
+
   observeObject(clientController,
     (_, key) => {}, // added
     (_, key) => {}, // deleted

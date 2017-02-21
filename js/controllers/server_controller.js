@@ -161,6 +161,8 @@ export class ServerController {
 
     // this was already applied!
     if (doc.editIds.has(editId)) {
+      console.log(editId)
+
       const serverEdit = this._retrieveEdit(doc, editId)
       if (serverEdit == null) {
         throw new Error(`wat, server edit should exist: ${editId}`)
