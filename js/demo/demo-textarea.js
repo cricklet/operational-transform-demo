@@ -13,7 +13,6 @@ import * as Transformer from '../ot/transformer.js'
 import type { ClientUpdateEvent, ServerUpdateEvent } from '../controllers/types.js'
 import { OTClientHelper } from '../controllers/ot_client_helper.js'
 import { OTServerHelper } from '../controllers/ot_server_helper.js'
-import { OTHelper } from '../controllers/ot_helper.js'
 
 import { SimulatedConnection } from '../network/simulated_connection.js'
 
@@ -295,10 +294,6 @@ function generateLogger($log) {
 $(document).ready(() => {
   let DOC_ID = 'asdf1234'
 
-  // stuff to dependency inject
-  let DocumentOTHelper = new OTHelper(DocumentApplier)
-  let TextOTHelper = new OTHelper(TextApplier)
-
   let $serverContainer = $('#server')
   let $clientContainer = $('#clients')
 
@@ -309,7 +304,7 @@ $(document).ready(() => {
   let clients: OTClientHelper<*>[] = []
   let clientConnections = []
 
-  let server = new OTServerHelper(TextOTHelper)
+  let server = new OTServerHelper()
   let serverConnection: SimulatedConnection<ServerUpdateEvent, ClientUpdateEvent> = new SimulatedConnection(chaos, serverLogger)
   serverConnection.listen((clientUpdate: ClientUpdateEvent) => {
     let serverUpdate: ServerUpdateEvent = server.handleUpdate(clientUpdate)
@@ -332,7 +327,7 @@ $(document).ready(() => {
     $client.insertBefore($clientPlaceholder)
     clientId ++
 
-    let client = new OTClientHelper(DOC_ID, DocumentOTHelper)
+    let client = new OTClientHelper(DOC_ID, DocumentApplier)
     let clientConnection: SimulatedConnection<ClientUpdateEvent, ServerUpdateEvent> = new SimulatedConnection(chaos)
     clientConnection.listen((serverUpdate: ServerUpdateEvent) => {
       let update = client.handleOrderedUpdate(serverUpdate)

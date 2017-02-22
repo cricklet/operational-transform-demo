@@ -7,7 +7,6 @@ import * as Inferrer from '../ot/inferrer.js'
 import * as Transformer from '../ot/transformer.js'
 
 import { OTClientHelper } from '../controllers/ot_client_helper.js'
-import { OTHelper } from '../controllers/ot_helper.js'
 
 import { observeObject } from '../helpers/observe'
 
@@ -33,7 +32,7 @@ $(document).ready(() => {
 
   let docId = location.hash || 'default'
 
-  let client = new OTClientHelper(docId, new OTHelper(DocumentApplier))
+  let client = new OTClientHelper(docId, DocumentApplier)
   let clientConnection: ClientConnection = setupClientConnection(
     'http://localhost:8123',
     docId,

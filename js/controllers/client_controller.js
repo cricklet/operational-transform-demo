@@ -9,16 +9,17 @@ import type {
   RedoAction,
   EditAction
 } from './types.js'
-import { OTHelper } from './ot_helper.js'
+import * as OTHelper from './ot_helper.js'
+import type { IApplier } from './ot_helper.js'
 import { OTClientHelper } from './ot_client_helper.js'
 
 class ClientController<S> extends EventEmitter {
 
   clientHelper: OTClientHelper<S>
 
-  constructor (docId: string, otHelper: OTHelper<S>) {
+  constructor (docId: string, applier: IApplier<S>) {
     super()
-    this.clientHelper = new OTClientHelper(docId, otHelper)
+    this.clientHelper = new OTClientHelper(docId, applier)
 
     this.on('server-event', (event) => this.handleServerEvent(event))
     this.on('view-action', (event) => this.handleViewAction(event))

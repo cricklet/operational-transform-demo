@@ -13,9 +13,10 @@ import type {
   UpdateEdit
 } from './types.js'
 
-import {
-  OTHelper,
-} from './ot_helper.js'
+import * as OTHelper from './ot_helper.js'
+import { TextApplier } from '../ot/applier.js'
+import type { IApplier } from './ot_helper.js'
+import type { Operation } from '../ot/types.js'
 
 import {
   castServerEdit
@@ -33,15 +34,12 @@ export interface IDocument {
 }
 
 export class InMemoryDocument {
-  helper: OTHelper<string>
-
   text: string
   editLog: Array<ServerEdit>
   editIds: Set<string>
 
-  constructor(helper: OTHelper<string>) {
+  constructor() {
     (this: IDocument)
-    this.helper = helper
 
     this.editLog = []
     this.editIds = new Set()
@@ -90,7 +88,7 @@ export class InMemoryDocument {
       throw new Error(`no edits found for range: ${JSON.stringify(range)}`)
     }
 
-    let composedEdit = this.helper.compose(edits)
+    let composedEdit = OTHelper.compose(edits)
     return castServerEdit(composedEdit)
   }
 
@@ -131,7 +129,7 @@ export class OTServerHelper {
   // should be sent to the client (i.e. ServerUpdateEvent), and applies
   // remote updates (i.e. ClientUpdateEvent) to the server state.
 
-  // class ServerClient {
+  // class OTServerHelper {
   //   handleUpdate(clientUpdate: ClientUpdateEvent): ?ServerUpdateEvent
   // }
 
@@ -146,19 +144,13 @@ export class OTServerHelper {
   //   connection.broadcast(serverUpdate) // SEND applied changes
   // })
 
-  helper: OTHelper<string>
   store: OTDocumentStore
 
-  constructor(
-    helper: OTHelper<string>,
-    store?: OTDocumentStore
-  ) {
-    this.helper = helper
-
+  constructor(store?: OTDocumentStore) {
     if (store) {
       this.store = store
     } else {
-      this.store = new OTDocumentStore(() => new InMemoryDocument(helper))
+      this.store = new OTDocumentStore(() => new InMemoryDocument())
     }
   }
 
@@ -209,7 +201,7 @@ export class OTServerHelper {
     let historyEdit: Edit = doc.getEditRange(clientEdit.startIndex)
 
     let [a, b] = [clientEdit, historyEdit]
-    let [aP, bP, undo, newState] = this.helper.transformAndApplyToServer(a, b, doc.text)
+    let [aP, bP, undo, newState] = OTHelper.transformAndApplyToServer(TextApplier, a, b, doc.text)
 
     aP.startIndex = doc.getNextIndex()
     aP.nextIndex = aP.startIndex + 1

@@ -15,7 +15,8 @@ import type {
 } from './types.js'
 
 import { castOutstandingEdit, castBufferEdit, castUpdateEdit } from './types.js'
-import { OTHelper } from './ot_helper.js'
+import * as OTHelper from './ot_helper.js'
+import type { IApplier } from './ot_helper.js'
 import type { Operation } from '../ot/types.js'
 
 export class OTClientHelper<S> {
@@ -55,16 +56,16 @@ export class OTClientHelper<S> {
   undos: EditsStack
   redos: EditsStack
 
-  helper: OTHelper<S>
+  applier: IApplier<S>
 
-  constructor(docId: string, helper: OTHelper<S>) {
-    this.helper = helper
+  constructor(docId: string, applier: IApplier<S>) {
+    this.applier = applier
 
     this.uid = U.genUid()
     this.docId = docId
-    this.state = this.helper.initial()
+    this.state = this.applier.initial()
 
-    let hash = this.helper.hash(this.state)
+    let hash = this.applier.stateHash(this.state)
 
     this.bufferEdit = {
       operation: undefined,
@@ -97,7 +98,7 @@ export class OTClientHelper<S> {
   }
 
   _checkInvariants () {
-    let hash = this.helper.hash(this.state)
+    let hash = this.applier.stateHash(this.state)
 
     if (this.bufferEdit.childHash !== hash) {
       throw new Error('buffer should point to current state')
@@ -311,11 +312,11 @@ export class OTClientHelper<S> {
     } else {
       // transform the outstanding & buffer & op
       let [newOutstandingEdit, newBufferEdit, appliedEdit, newState]
-          = this.helper.transformAndApplyBuffers(this.outstandingEdit, this.bufferEdit, op, this.state)
+          = OTHelper.transformAndApplyBuffers(this.applier, this.outstandingEdit, this.bufferEdit, op, this.state)
 
       // update undo
-      this.undos = this.helper.transformEditsStack(appliedEdit, this.undos)
-      this.redos = this.helper.transformEditsStack(appliedEdit, this.redos)
+      this.undos = OTHelper.transformEditsStack(appliedEdit, this.undos)
+      this.redos = OTHelper.transformEditsStack(appliedEdit, this.redos)
 
       // apply the operation
       this.state = newState
@@ -329,7 +330,7 @@ export class OTClientHelper<S> {
   }
 
   performUndo(): ?ClientUpdateEvent {
-    let currentHash = this.helper.hash(this.state)
+    let currentHash = this.applier.stateHash(this.state)
     let undoHash = this.undos.parentHash
 
     if (undoHash !== currentHash) {
@@ -345,13 +346,13 @@ export class OTClientHelper<S> {
       }
 
       // apply the operation
-      let [newState, redo] = this.helper.apply(this.state, undo)
-      let newHash = this.helper.hash(newState)
+      let [newState, redo] = this.applier.apply(this.state, undo)
+      let newHash = this.applier.stateHash(newState)
 
       this.state = newState
 
       // append applied undo to buffer
-      this.bufferEdit = castBufferEdit(this.helper.compose([
+      this.bufferEdit = castBufferEdit(OTHelper.compose([
         this.bufferEdit,
         { operation: undo, childHash: newHash }
       ]))
@@ -368,7 +369,7 @@ export class OTClientHelper<S> {
   }
 
   performRedo(): ?ClientUpdateEvent {
-    let currentHash = this.helper.hash(this.state)
+    let currentHash = this.applier.stateHash(this.state)
     let redoHash = this.redos.parentHash
 
     if (redoHash !== currentHash) {
@@ -384,13 +385,13 @@ export class OTClientHelper<S> {
       }
 
       // apply the operation
-      let [newState, undo] = this.helper.apply(this.state, redo)
-      let newHash = this.helper.hash(newState)
+      let [newState, undo] = this.applier.apply(this.state, redo)
+      let newHash = this.applier.stateHash(newState)
 
       this.state = newState
 
       // append applied redo to buffer
-      this.bufferEdit = castBufferEdit(this.helper.compose([
+      this.bufferEdit = castBufferEdit(OTHelper.compose([
         this.bufferEdit,
         { operation: redo, childHash: newHash }
       ]))
@@ -412,10 +413,10 @@ export class OTClientHelper<S> {
     }
 
     // apply the operation
-    let [newState, undo] = this.helper.apply(this.state, edit)
+    let [newState, undo] = this.applier.apply(this.state, edit)
     this.state = newState
 
-    let newHash = this.helper.hash(this.state)
+    let newHash = this.applier.stateHash(this.state)
 
     // the op we just applied!
     let op: BufferEdit = {
@@ -424,7 +425,7 @@ export class OTClientHelper<S> {
     }
 
     // append operation to buffer (& thus bridge)
-    this.bufferEdit = castBufferEdit(this.helper.compose([
+    this.bufferEdit = castBufferEdit(OTHelper.compose([
       this.bufferEdit,
       op
     ]))

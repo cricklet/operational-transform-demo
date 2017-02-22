@@ -9,7 +9,6 @@ import SocketClient from 'socket.io-client'
 import type { ClientUpdateEvent, ServerUpdateEvent } from './js/controllers/types.js'
 import { OTClientHelper } from './js/controllers/ot_client_helper.js'
 import { OTServerHelper } from './js/controllers/ot_server_helper.js'
-import { OTHelper } from './js/controllers/ot_helper.js'
 
 import { TextApplier } from './js/ot/applier.js'
 import * as Inferrer from './js/ot/inferrer.js'
@@ -22,12 +21,10 @@ import { find } from 'wu'
 let PORT = 9643
 let URL = `http://localhost:${PORT}`
 
-let TextOTHelper = new OTHelper(TextApplier)
-
 let docId = '1234'
 
 let socketServer = SocketServer();
-let server = new OTServerHelper(TextOTHelper)
+let server = new OTServerHelper()
 
 function serverHandler(docId: string, clientUpdate: ClientUpdateEvent): ?ServerUpdateEvent {
   return server.handleUpdate(clientUpdate)
@@ -71,7 +68,7 @@ function createClient(clientId, docId) {
   let client = SocketClient(URL)
   client.emit('open document', docId)
 
-  let otClient = new OTClientHelper(docId, TextOTHelper)
+  let otClient = new OTClientHelper(docId, TextApplier)
 
   client.on('server update', (json) => {
     let serverUpdate = deserializeServerUpdateEvent(json)
