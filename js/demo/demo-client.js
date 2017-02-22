@@ -1,7 +1,6 @@
-/* @flow */
+/* @flowx */
 
-import type { DocumentState } from '../ot/applier.js'
-import { DocumentApplier } from '../ot/applier.js'
+import { TextDocument, Document } from '../ot/document.js'
 
 import * as Inferrer from '../ot/inferrer.js'
 import * as Transformer from '../ot/transformer.js'
@@ -32,7 +31,7 @@ $(document).ready(() => {
 
   let docId = location.hash || 'default'
 
-  let client = new OTClientHelper(docId, DocumentApplier)
+  let client = new OTClientHelper(docId, new Document())
   let clientConnection: ClientConnection = setupClientConnection(
     'http://localhost:8123',
     docId,

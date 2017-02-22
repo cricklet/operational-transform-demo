@@ -7,7 +7,7 @@ import { spy } from 'sinon'
 import { assert } from 'chai'
 
 import type { OpComponent, Operation } from './types.js'
-import { TextApplier } from './applier.js'
+import { TextDocument } from './document.js'
 import * as Inferrer from './inferrer.js'
 import * as Transformer from './transformer.js'
 import { generateInsertion, generateDeletion } from './Components.js'

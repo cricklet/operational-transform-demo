@@ -6,13 +6,14 @@ import type { Insert, Remove, Retain, OpComponent, Operation } from './types.js'
 import * as U from '../helpers/utils.js'
 
 export interface IDocument {
-  hash(): string,
-  text(): string,
+  getHash(): string,
+  getText(): string,
   apply(operation: Operation): Operation // undo
 }
 
-class TextDocument {
+export class TextDocument {
   text: string
+
   constructor(initial?: string) {
     if (initial == null) {
       this.text = ''
@@ -21,7 +22,11 @@ class TextDocument {
     }
   }
 
-  hash(): string {
+  getText(): string {
+    return this.text
+  }
+
+  getHash(): string {
     return this.text
   }
 
@@ -89,8 +94,11 @@ export class Document {
     this.cursor = { start: 0, end: 0 }
     this.textDocument = new TextDocument()
   }
-  hash(): string {
-    return this.textDocument.hash()
+  getText(): string {
+    return this.textDocument.getText()
+  }
+  getHash(): string {
+    return this.textDocument.getHash()
   }
   apply(operation: Operation): Operation {
     let undo = this.textDocument.apply(operation)

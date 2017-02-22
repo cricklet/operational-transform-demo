@@ -1,11 +1,10 @@
-/* @flow */
+/* @flowx */
 
 import { merge, Less, Greater, Equal, reverse, push, findIndex, findLastIndex, subarray, asyncWait, insert, allEqual, remove } from '../helpers/utils.js'
 import { count, zip, filter, find, takeWhile, take, map } from 'wu'
 import { observeArray, observeObject } from '../helpers/observe'
 
-import type { DocumentState } from '../ot/applier.js'
-import { TextApplier, DocumentApplier } from '../ot/applier.js'
+import { TextDocument, Document } from '../ot/document.js'
 
 import * as Inferrer from '../ot/inferrer.js'
 import * as Transformer from '../ot/transformer.js'

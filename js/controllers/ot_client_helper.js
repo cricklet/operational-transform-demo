@@ -16,10 +16,10 @@ import type {
 
 import { castOutstandingEdit, castBufferEdit, castUpdateEdit } from './types.js'
 import * as OTHelper from './ot_helper.js'
-import type { IApplier } from './ot_helper.js'
+import type { IDocument } from '../ot/document.js'
 import type { Operation } from '../ot/types.js'
 
-export class OTClientHelper<S> {
+export class OTClientHelper<S: IDocument> {
   // This class maintains the state of the client, computes what updates
   // should be sent to the server (i.e. ClientUpdateEvent), and applies
   // remote updates (i.e. ServerUpdateEvent) to the local state.
@@ -45,7 +45,7 @@ export class OTClientHelper<S> {
 
   docId: string
 
-  state: S
+  doc: S
 
   bufferEdit: BufferEdit
   // the client ops not yet sent to the server.
@@ -56,16 +56,12 @@ export class OTClientHelper<S> {
   undos: EditsStack
   redos: EditsStack
 
-  applier: IApplier<S>
-
-  constructor(docId: string, applier: IApplier<S>) {
-    this.applier = applier
-
+  constructor(docId: string, doc: S) {
     this.uid = U.genUid()
     this.docId = docId
-    this.state = this.applier.initial()
+    this.doc = doc
 
-    let hash = this.applier.stateHash(this.state)
+    let hash = this.doc.getHash()
 
     this.bufferEdit = {
       operation: undefined,
@@ -98,7 +94,7 @@ export class OTClientHelper<S> {
   }
 
   _checkInvariants () {
-    let hash = this.applier.stateHash(this.state)
+    let hash = this.doc.getHash()
 
     if (this.bufferEdit.childHash !== hash) {
       throw new Error('buffer should point to current state')
@@ -311,15 +307,12 @@ export class OTClientHelper<S> {
 
     } else {
       // transform the outstanding & buffer & op
-      let [newOutstandingEdit, newBufferEdit, appliedEdit, newState]
-          = OTHelper.transformAndApplyBuffers(this.applier, this.outstandingEdit, this.bufferEdit, op, this.state)
+      let [newOutstandingEdit, newBufferEdit, appliedEdit]
+          = OTHelper.transformAndApplyBuffers(this.outstandingEdit, this.bufferEdit, op, this.doc)
 
       // update undo
       this.undos = OTHelper.transformEditsStack(appliedEdit, this.undos)
       this.redos = OTHelper.transformEditsStack(appliedEdit, this.redos)
-
-      // apply the operation
-      this.state = newState
 
       // update outstanding & buffer
       this.outstandingEdit = newOutstandingEdit
@@ -330,7 +323,7 @@ export class OTClientHelper<S> {
   }
 
   performUndo(): ?ClientUpdateEvent {
-    let currentHash = this.applier.stateHash(this.state)
+    let currentHash = this.doc.getHash()
     let undoHash = this.undos.parentHash
 
     if (undoHash !== currentHash) {
@@ -346,10 +339,8 @@ export class OTClientHelper<S> {
       }
 
       // apply the operation
-      let [newState, redo] = this.applier.apply(this.state, undo)
-      let newHash = this.applier.stateHash(newState)
-
-      this.state = newState
+      let redo = this.doc.apply(undo)
+      let newHash = this.doc.getHash()
 
       // append applied undo to buffer
       this.bufferEdit = castBufferEdit(OTHelper.compose([
@@ -369,7 +360,7 @@ export class OTClientHelper<S> {
   }
 
   performRedo(): ?ClientUpdateEvent {
-    let currentHash = this.applier.stateHash(this.state)
+    let currentHash = this.doc.getHash()
     let redoHash = this.redos.parentHash
 
     if (redoHash !== currentHash) {
@@ -385,10 +376,8 @@ export class OTClientHelper<S> {
       }
 
       // apply the operation
-      let [newState, undo] = this.applier.apply(this.state, redo)
-      let newHash = this.applier.stateHash(newState)
-
-      this.state = newState
+      let undo = this.doc.apply(redo)
+      let newHash = this.doc.getHash()
 
       // append applied redo to buffer
       this.bufferEdit = castBufferEdit(OTHelper.compose([
@@ -413,10 +402,8 @@ export class OTClientHelper<S> {
     }
 
     // apply the operation
-    let [newState, undo] = this.applier.apply(this.state, edit)
-    this.state = newState
-
-    let newHash = this.applier.stateHash(this.state)
+    let undo = this.doc.apply(edit)
+    let newHash = this.doc.getHash()
 
     // the op we just applied!
     let op: BufferEdit = {

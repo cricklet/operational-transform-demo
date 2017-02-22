@@ -19,12 +19,7 @@ import {
   castBufferEdit,
 } from './types.js'
 
-export interface IApplier<S> {
-  initial(): S,
-  stateHash(s: S): string,
-  apply(state: S, operation: Operation): [S, Operation],
-}
-
+import type { IDocument } from '../ot/document.js'
 
 type AppliedEdit = {|
   operation: Operation,
@@ -135,35 +130,28 @@ export function transformEditsStack(
   return { operationsStack: transformedOps, parentHash: childHash }
 }
 
-function _applyNullable<S>(applier: IApplier<S>, state: S, o: ?Operation)
-: [S, ?Operation] {
-  if (o == null) {
-    return [state, undefined]
-  } else {
-    let [newState, undo] = applier.apply(state, o)
-    return [newState, undo]
+export function transformAndApplyToClient(
+  clientEdit: Edit,
+  serverEdit: Edit,
+  clientState: IDocument
+): [Edit, Edit, Edit] {
+  // returns [aP, bP, undo, newState]
+
+  //   a /\ b
+  //    /  \
+  // bP \  / aP
+  //     \/
+
+  let [a, b] = [clientEdit, serverEdit]
+
+  let [aT, bT] = transform(a, b)
+
+  let newUndo = undefined
+  if (bT.operation != null) {
+    clientState.apply(bT.operation)
   }
-}
 
-export function transformAndApplyToClient<S>(
-  applier: IApplier<S>,
-  clientEdit: Edit,
-  serverEdit: Edit,
-  clientState: S
-): [Edit, Edit, Edit, S] {
-  // returns [aP, bP, undo, newState]
-
-  //   a /\ b
-  //    /  \
-  // bP \  / aP
-  //     \/
-
-  let [a, b] = [clientEdit, serverEdit]
-
-  let [aT, bT] = transform(a, b)
-
-  let [newState, newUndo] = _applyNullable(applier, clientState, bT.operation)
-  let newHash = applier.stateHash(newState)
+  let newHash = clientState.getHash()
 
   aT.childHash = newHash
   bT.childHash = newHash
@@ -171,50 +159,17 @@ export function transformAndApplyToClient<S>(
   return [
     aT,
     bT,
-    { operation: newUndo },
-    newState
+    { operation: newUndo }
   ]
 }
 
-export function transformAndApplyToServer<S>(
-  applier: IApplier<S>,
-  clientEdit: Edit,
-  serverEdit: Edit,
-  serverState: S
-): [Edit, Edit, Edit, S] {
-  // returns [aP, bP, undo, newState]
-
-  //   a /\ b
-  //    /  \
-  // bP \  / aP
-  //     \/
-
-  let [a, b] = [clientEdit, serverEdit]
-
-  let [aT, bT] = transform(a, b)
-
-  let [newState, newUndo] = _applyNullable(applier, serverState, aT.operation)
-  let newHash = applier.stateHash(newState)
-
-  aT.childHash = newHash
-  bT.childHash = newHash
-
-  return [
-    aT,
-    bT,
-    { operation: newUndo },
-    newState
-  ]
-}
-
-export function transformAndApplyBuffers<S>(
-  applier: IApplier<S>,
+export function transformAndApplyBuffers(
   outstandingEdit: OutstandingEdit,
   bufferEdit: BufferEdit,
   serverEdit: ServerEdit,
-  clientState: S
-): [OutstandingEdit, BufferEdit, AppliedEdit, S] {
-  // returns [newOutstanding, newBuffer, appliedEdit, newState]
+  clientState: IDocument
+): [OutstandingEdit, BufferEdit, AppliedEdit] {
+  // returns [newOutstanding, newBuffer, appliedEdit]
 
   if (outstandingEdit.parentHash !== serverEdit.parentHash ||
       outstandingEdit.startIndex !== serverEdit.startIndex) {
@@ -240,9 +195,9 @@ export function transformAndApplyBuffers<S>(
   let [a, c, b] = [outstandingEdit, bufferEdit, serverEdit]
 
   let [aP, bP] = transform(a, b)
-  let [cP, bPP, undo, newState] = transformAndApplyToClient(applier, c, bP, clientState)
+  let [cP, bPP, undo] = transformAndApplyToClient(c, bP, clientState)
 
-  let newHash = applier.stateHash(newState)
+  let newHash = clientState.getHash()
   cP.childHash = newHash
   bPP.childHash = newHash
 
@@ -252,7 +207,7 @@ export function transformAndApplyBuffers<S>(
     castAppliedEdit(bPP)
   ]
 
-  return [newOutstandingEdit, newBufferEdit, appliedEdit, newState]
+  return [newOutstandingEdit, newBufferEdit, appliedEdit]
 }
 export function transform(
   clientEdit: Edit,
