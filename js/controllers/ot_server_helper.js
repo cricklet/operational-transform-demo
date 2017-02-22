@@ -21,27 +21,105 @@ import {
   castServerEdit
 } from './types.js'
 
-export type OTDocument = {
-  docId: string,
-  state: string,
-  editLog: Array<ServerEdit>,
-  editIds: Set<string>,
+export interface IDocument {
+  text: string,
+  update(newText: string, newEdit: ServerEdit): void,
+  getEditRange(start?: number, stop?: number): ServerEdit,
+  getEdit(editId: string): ServerEdit,
+  getEditAt(index: number): ServerEdit,
+  getNextIndex(): number,
+  indexOfEdit(editId: string): ?number,
+  hasEdit(editId: string): boolean,
+}
+
+export class InMemoryDocument {
+  helper: OTHelper<string>
+
+  text: string
+  editLog: Array<ServerEdit>
+  editIds: Set<string>
+
+  constructor(helper: OTHelper<string>) {
+    (this: IDocument)
+    this.helper = helper
+
+    this.editLog = []
+    this.editIds = new Set()
+  }
+
+  update(newText: string, newEdit: ServerEdit): void {
+    this.text = newText
+    this.editLog.push(newEdit)
+    if (newEdit.id == null) { throw new Error(`wat, id is null`) }
+    this.editIds.add(newEdit.id)
+  }
+
+  hasEdit(editId: string): boolean {
+    return this.editIds.has(editId)
+  }
+
+  getEditAt(index: number): ServerEdit {
+    if (index > this.editLog.length) {
+      throw new Error(`can't find edit at ${index} in log w/ ${this.editLog.length} edits`)
+    }
+    return this.editLog[index]
+  }
+
+  getNextIndex(): number{
+    return this.editLog.length
+  }
+
+  getEditRange(start?: number, stop?: number): ServerEdit {
+    let range = {
+      start: start == null ? 0 : start,
+      stop: stop == null ? this.editLog.length : stop
+    }
+
+    if (range.start === range.stop) {
+      return {
+        operation: undefined,
+        parentHash: this.text,
+        childHash: this.text,
+        startIndex: range.start,
+        nextIndex: range.stop
+      }
+    }
+
+    let edits: Edit[] = U.array(U.subarray(this.editLog, range))
+    if (edits.length === 0) {
+      throw new Error(`no edits found for range: ${JSON.stringify(range)}`)
+    }
+
+    let composedEdit = this.helper.compose(edits)
+    return castServerEdit(composedEdit)
+  }
+
+  getEdit(editId: string): ServerEdit {
+    let editIndex = this.indexOfEdit(editId)
+    if (editIndex == null) {
+      throw new Error(`edit not found ${editId}`)
+    } else {
+      return this.editLog[editIndex]
+    }
+  }
+
+  indexOfEdit(editId: string): ?number {
+    // find the index within the history of the outstanding edit
+    return U.findIndex(edit => edit.id === editId, this.editLog)
+  }
+
 }
 
 export class OTDocumentStore {
-  documents: {[docId: string]: OTDocument}
+  factory: (docId: string) => IDocument
+  documents: {[docId: string]: IDocument}
 
-  constructor() {
+  constructor(factory: (() => IDocument)) {
     this.documents = {}
   }
   getDocument(docId: string) {
     if (!(docId in this.documents)) {
-      this.documents[docId] = {
-        docId: docId,
-        state: '',
-        editLog: [],
-        editIds: new Set()
-      }
+      this.documents[docId] = this.factory(docId)
     }
 
     return this.documents[docId]
@@ -80,59 +158,12 @@ export class OTServerHelper {
     if (store) {
       this.store = store
     } else {
-      this.store = new OTDocumentStore()
+      this.store = new OTDocumentStore(() => new InMemoryDocument(helper))
     }
-  }
-
-  _historicalEdit(doc: OTDocument, start?: number, stop?: number): ServerEdit {
-    let range = {
-      start: start == null ? 0 : start,
-      stop: stop == null ? doc.editLog.length : stop
-    }
-
-    if (range.start === range.stop) {
-      return {
-        operation: undefined,
-        parentHash: this._hash(doc),
-        childHash: this._hash(doc),
-        startIndex: range.start,
-        nextIndex: range.stop
-      }
-    }
-
-    let edits: Edit[] = U.array(U.subarray(doc.editLog, range))
-    if (edits.length === 0) {
-      throw new Error(`no edits found for range: ${JSON.stringify(range)}`)
-    }
-
-    let composedEdit = this.helper.compose(edits)
-    return castServerEdit(composedEdit)
-  }
-
-  _retrieveEdit(doc: OTDocument, editId: string): ?ServerEdit {
-    let editIndex = this._indexOfEdit(doc, editId)
-    if (editIndex == null) {
-      return undefined
-    } else {
-      return doc.editLog[editIndex]
-    }
-  }
-
-  _indexOfEdit(doc: OTDocument, editId: string): ?number {
-    // find the index within the history of the outstanding edit
-    return U.findIndex(edit => edit.id === editId, doc.editLog)
-  }
-
-  _hash(doc: OTDocument): string {
-    return this.helper.hash(doc.state)
-  }
-
-  _nextIndex(doc: OTDocument): number {
-    return doc.editLog.length
   }
 
   state(docId: string): string {
-    return this.store.getDocument(docId).state
+    return this.store.getDocument(docId).text
   }
 
   handleUpdate(clientUpdate: ClientUpdateEvent)
@@ -153,15 +184,15 @@ export class OTServerHelper {
     let docId: string = clientUpdate.docId
     let sourceUid: string = clientUpdate.sourceUid
 
-    let doc: OTDocument = this.store.getDocument(docId)
+    let doc: IDocument = this.store.getDocument(docId)
 
     let editId = clientEdit.id
 
     // this was already applied!
-    if (doc.editIds.has(editId)) {
+    if (doc.hasEdit(editId)) {
       console.log(editId)
 
-      const serverEdit = this._retrieveEdit(doc, editId)
+      const serverEdit = doc.getEdit(editId)
       if (serverEdit == null) {
         throw new Error(`wat, server edit should exist: ${editId}`)
       }
@@ -175,17 +206,15 @@ export class OTServerHelper {
     }
 
     // apply the new update now
-    let historyEdit: Edit = this._historicalEdit(doc, clientEdit.startIndex)
+    let historyEdit: Edit = doc.getEditRange(clientEdit.startIndex)
 
     let [a, b] = [clientEdit, historyEdit]
-    let [aP, bP, undo, newState] = this.helper.transformAndApplyToServer(a, b, doc.state)
+    let [aP, bP, undo, newState] = this.helper.transformAndApplyToServer(a, b, doc.text)
 
-    aP.startIndex = this._nextIndex(doc)
+    aP.startIndex = doc.getNextIndex()
     aP.nextIndex = aP.startIndex + 1
 
-    doc.state = newState
-    doc.editLog.push(castServerEdit(aP))
-    doc.editIds.add(aP.id)
+    doc.update(newState, castServerEdit(aP))
 
     return {
       kind: 'ServerUpdateEvent',
@@ -202,7 +231,7 @@ export class OTServerHelper {
     let docId: string = clientResetRequest.docId
     let sourceUid: string = clientResetRequest.sourceUid
 
-    let doc: OTDocument = this.store.getDocument(docId)
+    let doc: IDocument = this.store.getDocument(docId)
 
     // the first unknown index on the client
     let startIndex: number = clientResetRequest.nextIndex
@@ -221,19 +250,19 @@ export class OTServerHelper {
       serverUpdate.opts.ignoreAtSource = true
 
       // find the index within the history of the outstanding edit
-      const outstandingIndex = this._indexOfEdit(doc, updateEdit.id)
+      const outstandingIndex = doc.indexOfEdit(updateEdit.id)
       if (outstandingIndex == null) {
         throw new Error(
           `wat, how is this edit not in the history?
            edit: ${JSON.stringify(updateEdit)}
            clientRequest: ${JSON.stringify(clientResetRequest)}
-           history: ${JSON.stringify(doc.editLog)}`)
+           history: ${JSON.stringify(doc)}`)
       }
 
       // coalesce the historical edits to get the client back up to speed
-      let beforeEdit = this._historicalEdit(doc, startIndex, outstandingIndex)
-      let ackEdit = doc.editLog[outstandingIndex]
-      let afterEdit = this._historicalEdit(doc, outstandingIndex + 1)
+      let beforeEdit = doc.getEditRange(startIndex, outstandingIndex)
+      let ackEdit = doc.getEditAt(outstandingIndex)
+      let afterEdit = doc.getEditRange(outstandingIndex + 1)
 
       let serverResponse: ServerFinishSetupEvent = {
         kind: 'ServerFinishSetupEvent',
@@ -251,7 +280,7 @@ export class OTServerHelper {
       let serverResponse: ServerFinishSetupEvent = {
         kind: 'ServerFinishSetupEvent',
         docId: docId,
-        edits: [this._historicalEdit(doc, startIndex)]
+        edits: [doc.getEditRange(startIndex)]
       }
       return [
         serverResponse,
