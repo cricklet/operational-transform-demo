@@ -199,20 +199,20 @@ export class ClientController<S> {
     return request
   }
 
-  handleConnection(serverResetResponse: ServerConnectionResponse)
+  handleConnection(connectionResponse: ServerConnectionResponse)
   : (ClientUpdatePacket | ClientConnectionRequest)[] {
-    let docId: string = serverResetResponse.docId
+    let docId: string = connectionResponse.docId
 
     if (docId !== this.docId) {
       throw new Error('wat, different doc id', docId, this.docId)
     }
 
     // we're up to date!
-    if (serverResetResponse.edits.length === 0) {
+    if (connectionResponse.edits.length === 0) {
       return []
     }
 
-    let startIndex = U.first(serverResetResponse.edits).startIndex
+    let startIndex = U.first(connectionResponse.edits).startIndex
     if (startIndex !== this._nextIndex()) {
       // we're still out of order?
       console.log(`received out of order... ${startIndex} != ${this._nextIndex()}
@@ -222,7 +222,7 @@ export class ClientController<S> {
 
     // apply all the updates
     let responses = []
-    for (let edit of serverResetResponse.edits) {
+    for (let edit of connectionResponse.edits) {
       let response = this.handleUpdate({
         kind: 'ServerUpdatePacket',
         docId: docId,
@@ -415,17 +415,12 @@ export class ClientController<S> {
     let [newState, undo] = this.helper.apply(this.state, edit)
     this.state = newState
 
-    return this.handleAppliedEdit(edit, undo)
-  }
-
-  handleAppliedEdit(edit: Operation, undo: Operation)
-  : ?ClientUpdatePacket { // return client op to broadcast
-    let currentHash = this.helper.hash(this.state)
+    let newHash = this.helper.hash(this.state)
 
     // the op we just applied!
     let op: BufferEdit = {
       operation: edit,
-      childHash: currentHash
+      childHash: newHash
     }
 
     // append operation to buffer (& thus bridge)
@@ -436,11 +431,11 @@ export class ClientController<S> {
 
     // append operation to undo stack
     this.undos.operationsStack.push(undo)
-    this.undos.parentHash = currentHash
+    this.undos.parentHash = newHash
 
     // clear the redo stack
     this.redos.operationsStack = []
-    this.redos.parentHash = currentHash
+    this.redos.parentHash = newHash
 
     return this._flushBuffer()
   }
