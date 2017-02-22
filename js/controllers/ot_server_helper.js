@@ -5,10 +5,10 @@ import * as U from '../helpers/utils.js'
 import type {
   Edit,
   OutstandingEdit,
-  ClientUpdatePacket,
-  ClientConnectionRequest,
-  ServerUpdatePacket,
-  ServerConnectionResponse,
+  ClientUpdateEvent,
+  ClientRequestSetupEvent,
+  ServerUpdateEvent,
+  ServerFinishSetupEvent,
   ServerEdit,
   UpdateEdit
 } from './types.js'
@@ -50,11 +50,11 @@ export class OTDocumentStore {
 
 export class OTServerHelper {
   // This class maintains the state of the server, computes what updates
-  // should be sent to the client (i.e. ServerUpdatePacket), and applies
-  // remote updates (i.e. ClientUpdatePacket) to the server state.
+  // should be sent to the client (i.e. ServerUpdateEvent), and applies
+  // remote updates (i.e. ClientUpdateEvent) to the server state.
 
   // class ServerClient {
-  //   handleUpdate(clientUpdate: ClientUpdatePacket): ?ServerUpdatePacket
+  //   handleUpdate(clientUpdate: ClientUpdateEvent): ?ServerUpdateEvent
   // }
 
   // USAGE: (w/ an imaginary 'connection' object)
@@ -135,8 +135,8 @@ export class OTServerHelper {
     return this.store.getDocument(docId).state
   }
 
-  handleUpdate(clientUpdate: ClientUpdatePacket)
-  : ServerUpdatePacket {
+  handleUpdate(clientUpdate: ClientUpdateEvent)
+  : ServerUpdateEvent {
     // update the server state & return the update to broadcast to the clients
 
     // a = clientUpdate
@@ -166,7 +166,7 @@ export class OTServerHelper {
         throw new Error(`wat, server edit should exist: ${editId}`)
       }
       return {
-        kind: 'ServerUpdatePacket',
+        kind: 'ServerUpdateEvent',
         sourceUid: sourceUid,
         docId: docId,
         edit: serverEdit,
@@ -188,7 +188,7 @@ export class OTServerHelper {
     doc.editIds.add(aP.id)
 
     return {
-      kind: 'ServerUpdatePacket',
+      kind: 'ServerUpdateEvent',
       sourceUid: sourceUid,
       docId: docId,
       edit: castServerEdit(aP),
@@ -196,8 +196,8 @@ export class OTServerHelper {
     }
   }
 
-  handleConnection(clientResetRequest: ClientConnectionRequest)
-  : [ServerConnectionResponse, ?ServerUpdatePacket] {
+  handleConnection(clientResetRequest: ClientRequestSetupEvent)
+  : [ServerFinishSetupEvent, ?ServerUpdateEvent] {
     const updateEdit: ?UpdateEdit = clientResetRequest.edit
     let docId: string = clientResetRequest.docId
     let sourceUid: string = clientResetRequest.sourceUid
@@ -210,14 +210,14 @@ export class OTServerHelper {
     // handle the update if it's still outstanding
     if (updateEdit != null) {
       let serverUpdate = this.handleUpdate({
-        kind: 'ClientUpdatePacket',
+        kind: 'ClientUpdateEvent',
         sourceUid: sourceUid,
         docId: docId,
         edit: updateEdit
       })
 
       // DON'T send this back to the source!
-      // They'll receive this via the ServerConnectionResponse
+      // They'll receive this via the ServerFinishSetupEvent
       serverUpdate.opts.ignoreAtSource = true
 
       // find the index within the history of the outstanding edit
@@ -235,8 +235,8 @@ export class OTServerHelper {
       let ackEdit = doc.editLog[outstandingIndex]
       let afterEdit = this._historicalEdit(doc, outstandingIndex + 1)
 
-      let serverResponse: ServerConnectionResponse = {
-        kind: 'ServerConnectionResponse',
+      let serverResponse: ServerFinishSetupEvent = {
+        kind: 'ServerFinishSetupEvent',
         docId: docId,
         edits: [
           beforeEdit,
@@ -248,8 +248,8 @@ export class OTServerHelper {
       return [ serverResponse, serverUpdate ]
 
     } else {
-      let serverResponse: ServerConnectionResponse = {
-        kind: 'ServerConnectionResponse',
+      let serverResponse: ServerFinishSetupEvent = {
+        kind: 'ServerFinishSetupEvent',
         docId: docId,
         edits: [this._historicalEdit(doc, startIndex)]
       }

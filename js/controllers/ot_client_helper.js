@@ -6,10 +6,10 @@ import type {
   BufferEdit,
   OutstandingEdit,
   EditsStack,
-  ClientUpdatePacket,
-  ClientConnectionRequest,
-  ServerUpdatePacket,
-  ServerConnectionResponse,
+  ClientUpdateEvent,
+  ClientRequestSetupEvent,
+  ServerUpdateEvent,
+  ServerFinishSetupEvent,
   ServerEdit,
   UpdateEdit
 } from './types.js'
@@ -20,12 +20,12 @@ import type { Operation } from '../ot/types.js'
 
 export class OTClientHelper<S> {
   // This class maintains the state of the client, computes what updates
-  // should be sent to the server (i.e. ClientUpdatePacket), and applies
-  // remote updates (i.e. ServerUpdatePacket) to the local state.
+  // should be sent to the server (i.e. ClientUpdateEvent), and applies
+  // remote updates (i.e. ServerUpdateEvent) to the local state.
 
   // OTClientHelper {
-  //   performEdit(edit: Operation): ?ClientUpdatePacket
-  //   handleUpdate(serverUpdate: ServerUpdatePacket): ?ServerUpdatePacket
+  //   performEdit(edit: Operation): ?ClientUpdateEvent
+  //   handleUpdate(serverUpdate: ServerUpdateEvent): ?ServerUpdateEvent
   // }
 
   // USAGE:
@@ -121,21 +121,21 @@ export class OTClientHelper<S> {
     return this.outstandingEdit.startIndex
   }
 
-  _sendOutstandingEdits(): ?ClientUpdatePacket {
+  _sendOutstandingEdits(): ?ClientUpdateEvent {
     const updateEdit = castUpdateEdit(this.outstandingEdit)
     if (updateEdit == null) {
       return undefined
     }
 
     return {
-      kind: 'ClientUpdatePacket',
+      kind: 'ClientUpdateEvent',
       edit: updateEdit,
       sourceUid: this.uid,
       docId: this.docId,
     }
   }
 
-  _flushBuffer(): ?ClientUpdatePacket {
+  _flushBuffer(): ?ClientUpdateEvent {
     // if there's no buffer, skip
     if (this.bufferEdit.operation == null) {
       return undefined
@@ -171,7 +171,7 @@ export class OTClientHelper<S> {
     return update
   }
 
-  _shouldIgnoreUpdate(serverUpdate: ServerUpdatePacket) {
+  _shouldIgnoreUpdate(serverUpdate: ServerUpdateEvent) {
     let sourceUid = serverUpdate.sourceUid
 
     if (serverUpdate.opts.ignoreAtSource && sourceUid === this.uid) {
@@ -185,11 +185,11 @@ export class OTClientHelper<S> {
     return false
   }
 
-  establishConnection(): ClientConnectionRequest {
+  establishConnection(): ClientRequestSetupEvent {
     let updateEdit: ?UpdateEdit = castUpdateEdit(this.outstandingEdit)
 
-    let request: ClientConnectionRequest = {
-      kind: 'ClientConnectionRequest',
+    let request: ClientRequestSetupEvent = {
+      kind: 'ClientRequestSetupEvent',
       nextIndex: this._nextIndex(),
       sourceUid: this.uid,
       docId: this.docId,
@@ -199,8 +199,8 @@ export class OTClientHelper<S> {
     return request
   }
 
-  handleConnection(connectionResponse: ServerConnectionResponse)
-  : (ClientUpdatePacket | ClientConnectionRequest)[] {
+  handleConnection(connectionResponse: ServerFinishSetupEvent)
+  : (ClientUpdateEvent | ClientRequestSetupEvent)[] {
     let docId: string = connectionResponse.docId
 
     if (docId !== this.docId) {
@@ -224,7 +224,7 @@ export class OTClientHelper<S> {
     let responses = []
     for (let edit of connectionResponse.edits) {
       let response = this.handleUpdate({
-        kind: 'ServerUpdatePacket',
+        kind: 'ServerUpdateEvent',
         docId: docId,
         edit: edit,
         opts: {}
@@ -241,8 +241,8 @@ export class OTClientHelper<S> {
     return responses
   }
 
-  handleUpdate(serverUpdate: ServerUpdatePacket, _opts?: { enforceOrdering: boolean })
-  : ?(ClientUpdatePacket | ClientConnectionRequest) {
+  handleUpdate(serverUpdate: ServerUpdateEvent, _opts?: { enforceOrdering: boolean })
+  : ?(ClientUpdateEvent | ClientRequestSetupEvent) {
     let opts = U.fillDefaults(_opts, { enforceOrdering: false })
 
     let op: ServerEdit = serverUpdate.edit
@@ -268,8 +268,8 @@ export class OTClientHelper<S> {
     return this.handleOrderedUpdate(serverUpdate)
   }
 
-  handleOrderedUpdate(serverUpdate: ServerUpdatePacket)
-  : ?ClientUpdatePacket {
+  handleOrderedUpdate(serverUpdate: ServerUpdateEvent)
+  : ?ClientUpdateEvent {
     let op: ServerEdit = serverUpdate.edit
     let docId: string = serverUpdate.docId
 
@@ -328,7 +328,7 @@ export class OTClientHelper<S> {
     }
   }
 
-  performUndo(): ?ClientUpdatePacket {
+  performUndo(): ?ClientUpdateEvent {
     let currentHash = this.helper.hash(this.state)
     let undoHash = this.undos.parentHash
 
@@ -367,7 +367,7 @@ export class OTClientHelper<S> {
     }
   }
 
-  performRedo(): ?ClientUpdatePacket {
+  performRedo(): ?ClientUpdateEvent {
     let currentHash = this.helper.hash(this.state)
     let redoHash = this.redos.parentHash
 
@@ -406,7 +406,7 @@ export class OTClientHelper<S> {
     }
   }
 
-  performEdit(edit: Operation): ?ClientUpdatePacket {
+  performEdit(edit: Operation): ?ClientUpdateEvent {
     if (edit.length === 0) {
       return undefined
     }
@@ -440,7 +440,7 @@ export class OTClientHelper<S> {
     return this._flushBuffer()
   }
 
-  resendEdits(): ?ClientUpdatePacket {
+  resendEdits(): ?ClientUpdateEvent {
     return this._sendOutstandingEdits()
   }
 }

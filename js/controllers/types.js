@@ -4,8 +4,15 @@ import * as U from '../helpers/utils.js'
 
 import type { Operation } from '../ot/types.js'
 
-export type ServerUpdatePacket = {|
-  kind: 'ServerUpdatePacket',
+export type ClientUpdateEvent = {|
+  kind: 'ClientUpdateEvent',
+  sourceUid: string,
+  docId: string,
+  edit: UpdateEdit
+|}
+
+export type ServerUpdateEvent = {|
+  kind: 'ServerUpdateEvent',
   sourceUid?: string,
   docId: string,
   edit: ServerEdit,
@@ -16,25 +23,31 @@ export type ServerUpdatePacket = {|
   }
 |}
 
-export type ServerConnectionResponse = {|
-  kind: 'ServerConnectionResponse',
-  docId: string,
-  edits: ServerEdit[]
-|}
-
-export type ClientUpdatePacket = {|
-  kind: 'ClientUpdatePacket',
-  sourceUid: string,
-  docId: string,
-  edit: UpdateEdit
-|}
-
-export type ClientConnectionRequest = {|
-  kind: 'ClientConnectionRequest',
+export type ClientRequestSetupEvent = {|
+  kind: 'ClientRequestSetupEvent',
   sourceUid: string,
   docId: string,
   nextIndex: number,
   edit: ?UpdateEdit,
+|}
+
+export type ServerFinishSetupEvent = {|
+  kind: 'ServerFinishSetupEvent',
+  docId: string,
+  edits: ServerEdit[]
+|}
+
+export type UndoAction = {|
+  kind: 'UndoAction'
+|}
+
+export type RedoAction = {|
+  kind: 'RedoAction'
+|}
+
+export type EditAction = {|
+  kind: 'RedoAction',
+  operation: Operation
 |}
 
 export type Edit = $Shape<{
@@ -127,16 +140,16 @@ export function castUpdateEdit(op: Edit, opts?: Object): ?UpdateEdit {
   return op
 }
 
-export function castClientUpdatePacket(obj: Object): ?ClientUpdatePacket {
-  if (obj.kind !== 'ClientUpdatePacket') { return undefined }
+export function castClientUpdateEvent(obj: Object): ?ClientUpdateEvent {
+  if (obj.kind !== 'ClientUpdateEvent') { return undefined }
   if (obj.sourceUid == null || obj.docId == null) { throw new Error('bad update') }
   castOutstandingEdit(obj.edit)
   /* @flow-ignore */
   return obj
 }
 
-export function castClientConnectionRequest(obj: Object): ?ClientConnectionRequest {
-  if (obj.kind !== 'ClientConnectionRequest') { return undefined }
+export function castClientRequestSetupEvent(obj: Object): ?ClientRequestSetupEvent {
+  if (obj.kind !== 'ClientRequestSetupEvent') { return undefined }
   if (obj.sourceUid == null || obj.docId == null) { throw new Error('bad reset') }
   if ('edit' in obj) {
     castOutstandingEdit(obj.edit)
@@ -145,16 +158,16 @@ export function castClientConnectionRequest(obj: Object): ?ClientConnectionReque
   return obj
 }
 
-export function castServerUpdatePacket(obj: Object): ?ServerUpdatePacket {
-  if (obj.kind !== 'ServerUpdatePacket') { return undefined }
+export function castServerUpdateEvent(obj: Object): ?ServerUpdateEvent {
+  if (obj.kind !== 'ServerUpdateEvent') { return undefined }
   if (obj.docId == null) { throw new Error('bad update') }
   castServerEdit(obj.edit)
   /* @flow-ignore */
   return obj
 }
 
-export function castServerConnectionResponse(obj: Object): ?ServerConnectionResponse {
-  if (obj.kind !== 'ServerConnectionResponse') { return undefined }
+export function castServerFinishSetupEvent(obj: Object): ?ServerFinishSetupEvent {
+  if (obj.kind !== 'ServerFinishSetupEvent') { return undefined }
   if (obj.docId == null || obj.edits == null || !Array.isArray(obj.edits)) { throw new Error('bad update') }
   for (let edit of obj.edits) {
     castServerEdit(edit)
