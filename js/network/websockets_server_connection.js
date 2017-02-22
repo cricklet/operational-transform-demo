@@ -3,24 +3,24 @@
 
 import SocketServer from 'socket.io'
 
-import { ServerController } from '../controllers/server_controller.js'
+import { OTServerHelper } from '../controllers/ot_server_helper.js'
 import { castClientUpdatePacket, castClientConnectionRequest } from '../controllers/types.js'
 import type { ClientUpdatePacket, ClientConnectionRequest, ServerUpdatePacket, ServerConnectionResponse } from '../controllers/types.js'
 
 export function setupServerConnection(
   port: number,
-  serverController: ServerController,
+  server: OTServerHelper,
   logger: (s: string) => void
 ): void {
-  let server = new SocketServer()
+  let socketServer = new SocketServer()
 
-  server.on('connection', (socket) => {
+  socketServer.on('connection', (socket) => {
     function sendUpdate (serverUpdate: ServerUpdatePacket) {
       let docId = serverUpdate.docId
 
       let serverUpdateJSON = JSON.stringify(serverUpdate)
       logger(`sending update: ${serverUpdateJSON}`)
-      server.sockets.in(docId).emit('server-update', serverUpdateJSON)
+      socketServer.sockets.in(docId).emit('server-update', serverUpdateJSON)
     }
 
     function setupConnection (connectionResponse: ServerConnectionResponse) {
@@ -28,7 +28,7 @@ export function setupServerConnection(
 
       let connectionResponseJSON = JSON.stringify(connectionResponse)
       logger(`sending connection response: ${connectionResponseJSON}`)
-      server.sockets.in(docId).emit('server-connect', connectionResponseJSON)
+      socketServer.sockets.in(docId).emit('server-connect', connectionResponseJSON)
     }
 
     // Client sent an edit
@@ -42,7 +42,7 @@ export function setupServerConnection(
       }
 
       // apply client update & compute response
-      let serverUpdate = serverController.handleUpdate(clientUpdate)
+      let serverUpdate = server.handleUpdate(clientUpdate)
       if (serverUpdate != null) {
         sendUpdate(serverUpdate)
       }
@@ -60,7 +60,7 @@ export function setupServerConnection(
 
       // Apply client update & compute response
       let [connectionResponse: ServerConnectionResponse, serverUpdate: ?ServerUpdatePacket]
-          = serverController.handleConnection(connectionRequest)
+          = server.handleConnection(connectionRequest)
 
       if (serverUpdate != null) {
         sendUpdate(serverUpdate)
@@ -71,5 +71,5 @@ export function setupServerConnection(
 
   })
 
-  server.listen(port)
+  socketServer.listen(port)
 }

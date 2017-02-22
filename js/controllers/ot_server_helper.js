@@ -48,7 +48,7 @@ export class OTDocumentStore {
   }
 }
 
-export class ServerController {
+export class OTServerHelper {
   // This class maintains the state of the server, computes what updates
   // should be sent to the client (i.e. ServerUpdatePacket), and applies
   // remote updates (i.e. ClientUpdatePacket) to the server state.
@@ -59,7 +59,7 @@ export class ServerController {
 
   // USAGE: (w/ an imaginary 'connection' object)
 
-  // let server = new ServerController(...)
+  // let server = new OTServerHelper(...)
   // let serverDocs = {...}
   //
   // connection.on('update', (clientUpdate) => { // LISTEN for remote changes

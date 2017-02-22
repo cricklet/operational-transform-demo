@@ -7,8 +7,8 @@ import SocketServer from 'socket.io'
 import SocketClient from 'socket.io-client'
 
 import type { ClientUpdatePacket, ServerUpdatePacket } from './js/controllers/types.js'
-import { ClientController } from './js/controllers/client_controller.js'
-import { ServerController } from './js/controllers/server_controller.js'
+import { OTClientHelper } from './js/controllers/ot_client_helper.js'
+import { OTServerHelper } from './js/controllers/ot_server_helper.js'
 import { OTHelper } from './js/controllers/ot_helper.js'
 
 import { TextApplier } from './js/ot/applier.js'
@@ -26,11 +26,11 @@ let TextOTHelper = new OTHelper(TextApplier)
 
 let docId = '1234'
 
-let server = SocketServer();
-let serverController = new ServerController(TextOTHelper)
+let socketServer = SocketServer();
+let server = new OTServerHelper(TextOTHelper)
 
 function serverHandler(docId: string, clientUpdate: ClientUpdatePacket): ?ServerUpdatePacket {
-  return serverController.handleUpdate(clientUpdate)
+  return server.handleUpdate(clientUpdate)
 }
 
 function serializeServerUpdate(serverUpdate: ServerUpdatePacket): string {
@@ -50,7 +50,7 @@ function deserializeClientUpdate(json: string): [string, ClientUpdatePacket] {
   return [ packet.docId, packet ]
 }
 
-server.on('connection', (socket) => {
+socketServer.on('connection', (socket) => {
   socket.on('open document', (docId) => {
     // request room at index
     socket.join(docId)
@@ -61,17 +61,17 @@ server.on('connection', (socket) => {
     if (serverUpdate == null) { return }
     let serverUpdateJSON = serializeServerUpdate(serverUpdate)
 
-    server.sockets.in(docId).emit('server update', serverUpdateJSON)
+    socketServer.sockets.in(docId).emit('server update', serverUpdateJSON)
   })
 })
 
-server.listen(PORT)
+socketServer.listen(PORT)
 
 function createClient(clientId, docId) {
   let client = SocketClient(URL)
   client.emit('open document', docId)
 
-  let otClient = new ClientController(docId, TextOTHelper)
+  let otClient = new OTClientHelper(docId, TextOTHelper)
 
   client.on('server update', (json) => {
     let serverUpdate = deserializeServerUpdate(json)

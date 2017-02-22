@@ -11,8 +11,8 @@ import * as Inferrer from '../ot/inferrer.js'
 import * as Transformer from '../ot/transformer.js'
 
 import type { ClientUpdatePacket, ServerUpdatePacket } from '../controllers/types.js'
-import { ClientController } from '../controllers/client_controller.js'
-import { ServerController } from '../controllers/server_controller.js'
+import { OTClientHelper } from '../controllers/ot_client_helper.js'
+import { OTServerHelper } from '../controllers/ot_server_helper.js'
 import { OTHelper } from '../controllers/ot_helper.js'
 
 import { SimulatedConnection } from '../network/simulated_connection.js'
@@ -39,7 +39,7 @@ function updateDOMTextbox($text, state: DocumentState): void {
 }
 
 function setupClient(
-  client: ClientController<*>,
+  client: OTClientHelper<*>,
   connection: SimulatedConnection<*,*>,
   $text: any,
 ) {
@@ -306,10 +306,10 @@ $(document).ready(() => {
   let serverLogger = generateLogger($('#server-log'))
   $serverContainer.append($server)
 
-  let clients: ClientController<*>[] = []
+  let clients: OTClientHelper<*>[] = []
   let clientConnections = []
 
-  let server = new ServerController(TextOTHelper)
+  let server = new OTServerHelper(TextOTHelper)
   let serverConnection: SimulatedConnection<ServerUpdatePacket, ClientUpdatePacket> = new SimulatedConnection(chaos, serverLogger)
   serverConnection.listen((clientUpdate: ClientUpdatePacket) => {
     let serverUpdate: ServerUpdatePacket = server.handleUpdate(clientUpdate)
@@ -332,7 +332,7 @@ $(document).ready(() => {
     $client.insertBefore($clientPlaceholder)
     clientId ++
 
-    let client = new ClientController(DOC_ID, DocumentOTHelper)
+    let client = new OTClientHelper(DOC_ID, DocumentOTHelper)
     let clientConnection: SimulatedConnection<ClientUpdatePacket, ServerUpdatePacket> = new SimulatedConnection(chaos)
     clientConnection.listen((serverUpdate: ServerUpdatePacket) => {
       let update = client.handleOrderedUpdate(serverUpdate)
