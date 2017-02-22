@@ -17,7 +17,7 @@ import { inferOperation } from '../ot/inferrer.js'
 import { generateInsertion, generateDeletion } from '../ot/components.js'
 
 import { ClientController } from './client_controller.js'
-import { ServerController, OTDocuments } from './server_controller.js'
+import { ServerController } from './server_controller.js'
 
 import type { ClientUpdatePacket, ServerUpdatePacket, ClientConnectionRequest, ServerConnectionResponse } from './types.js'
 import { OTHelper } from './ot_helper.js'

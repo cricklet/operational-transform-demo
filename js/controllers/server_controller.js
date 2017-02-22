@@ -28,19 +28,17 @@ export type OTDocument = {
   editIds: Set<string>,
 }
 
-export class OTDocuments {
+export class OTDocumentStore {
   documents: {[docId: string]: OTDocument}
-  helper: OTHelper<string>
 
-  constructor(helper: OTHelper<string>) {
-    this.helper = helper
+  constructor() {
     this.documents = {}
   }
   getDocument(docId: string) {
     if (!(docId in this.documents)) {
       this.documents[docId] = {
         docId: docId,
-        state: this.helper.initial(),
+        state: '',
         editLog: [],
         editIds: new Set()
       }
@@ -71,18 +69,18 @@ export class ServerController {
   // })
 
   helper: OTHelper<string>
-  store: OTDocuments
+  store: OTDocumentStore
 
   constructor(
     helper: OTHelper<string>,
-    store?: OTDocuments
+    store?: OTDocumentStore
   ) {
     this.helper = helper
 
     if (store) {
       this.store = store
     } else {
-      this.store = new OTDocuments(helper)
+      this.store = new OTDocumentStore()
     }
   }
 
