@@ -1,5 +1,6 @@
 /* @flow */
 
+import { TextApplier } from '../ot/applier.js'
 import { OTServerHelper } from '../controllers/ot_server_helper.js'
 import { setupServerConnection } from '../network/websockets_server_connection.js'
 

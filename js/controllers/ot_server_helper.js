@@ -14,17 +14,17 @@ import type {
 } from './types.js'
 
 import * as OTHelper from './ot_helper.js'
+import { TextApplier } from '../ot/applier.js'
+import type { IApplier } from './ot_helper.js'
 import type { Operation } from '../ot/types.js'
-
-import { TextDocument } from '../ot/document.js'
 
 import {
   castServerEdit
 } from './types.js'
 
-export interface IServerModel {
-  doc: TextDocument,
-  performEdit(newEdit: Edit): void,
+export interface IDocument {
+  text: string,
+  update(newText: string, newEdit: ServerEdit): void,
   getEditRange(start?: number, stop?: number): ServerEdit,
   getEdit(editId: string): ServerEdit,
   getEditAt(index: number): ServerEdit,
@@ -33,38 +33,24 @@ export interface IServerModel {
   hasEdit(editId: string): boolean,
 }
 
-export class InMemoryServerModel {
-  doc: TextDocument
-
+export class InMemoryDocument {
+  text: string
   editLog: Array<ServerEdit>
   editIds: Set<string>
 
   constructor() {
-    (this: IServerModel)
+    (this: IDocument)
 
-    this.doc = new TextDocument()
+    this.text = ''
     this.editLog = []
     this.editIds = new Set()
   }
 
-  getText(): string {
-    return this.doc.getText()
-  }
-
-  performEdit(edit: Edit): void {
-    // apply
-    if (edit.operation != null) {
-      this.doc.apply(edit.operation)
-    }
-
-    edit.startIndex = this.getNextIndex()
-    edit.nextIndex = edit.startIndex + 1
-    edit.childHash = this.doc.getHash()
-
-    // record
-    this.editLog.push(castServerEdit(edit))
-    if (edit.id == null) { throw new Error(`wat, id is null`) }
-    this.editIds.add(edit.id)
+  update(newText: string, newEdit: ServerEdit): void {
+    this.text = newText
+    this.editLog.push(newEdit)
+    if (newEdit.id == null) { throw new Error(`wat, id is null`) }
+    this.editIds.add(newEdit.id)
   }
 
   hasEdit(editId: string): boolean {
@@ -89,13 +75,10 @@ export class InMemoryServerModel {
     }
 
     if (range.start === range.stop) {
-      if (range.start !== this.editLog.length - 1) {
-        throw new Error('no edits found for range')
-      }
       return {
         operation: undefined,
-        parentHash: this.doc.getHash(), // INCORRECT, fixme!
-        childHash: this.doc.getHash(),
+        parentHash: this.text,
+        childHash: this.text,
         startIndex: range.start,
         nextIndex: range.stop
       }
@@ -126,15 +109,15 @@ export class InMemoryServerModel {
 
 }
 
-export class ServerModels {
-  factory: (docId: string) => IServerModel
-  documents: {[docId: string]: IServerModel}
+export class OTDocumentStore {
+  factory: (docId: string) => IDocument
+  documents: {[docId: string]: IDocument}
 
-  constructor(factory: (() => IServerModel)) {
+  constructor(factory: (() => IDocument)) {
     this.documents = {}
     this.factory = factory
   }
-  getModel(docId: string) {
+  getDocument(docId: string) {
     if (!(docId in this.documents)) {
       this.documents[docId] = this.factory(docId)
     }
@@ -163,15 +146,18 @@ export class OTServerHelper {
   //   connection.broadcast(serverUpdate) // SEND applied changes
   // })
 
-  models: ServerModels
+  store: OTDocumentStore
 
-  constructor() {
-    this.models = new ServerModels(() => new InMemoryServerModel())
+  constructor(store?: OTDocumentStore) {
+    if (store) {
+      this.store = store
+    } else {
+      this.store = new OTDocumentStore(() => new InMemoryDocument())
+    }
   }
 
   state(docId: string): string {
-    let model = this.models.getModel(docId)
-    return model.doc.getText()
+    return this.store.getDocument(docId).text
   }
 
   handleUpdate(clientUpdate: ClientUpdateEvent)
@@ -192,15 +178,15 @@ export class OTServerHelper {
     let docId: string = clientUpdate.docId
     let sourceUid: string = clientUpdate.sourceUid
 
-    let model: IServerModel = this.models.getModel(docId)
+    let doc: IDocument = this.store.getDocument(docId)
 
     let editId = clientEdit.id
 
     // this was already applied!
-    if (model.hasEdit(editId)) {
+    if (doc.hasEdit(editId)) {
       console.log(editId)
 
-      const serverEdit = model.getEdit(editId)
+      const serverEdit = doc.getEdit(editId)
       if (serverEdit == null) {
         throw new Error(`wat, server edit should exist: ${editId}`)
       }
@@ -213,14 +199,16 @@ export class OTServerHelper {
       }
     }
 
-    // transform the new update
-    let historyEdit: Edit = model.getEditRange(clientEdit.startIndex)
+    // apply the new update now
+    let historyEdit: Edit = doc.getEditRange(clientEdit.startIndex)
 
     let [a, b] = [clientEdit, historyEdit]
-    let [aP, bP] = OTHelper.transform(a, b)
+    let [aP, bP, undo, newState] = OTHelper.transformAndApplyToServer(TextApplier, a, b, doc.text)
 
-    // apply the update
-    model.performEdit(aP)
+    aP.startIndex = doc.getNextIndex()
+    aP.nextIndex = aP.startIndex + 1
+
+    doc.update(newState, castServerEdit(aP))
 
     return {
       kind: 'ServerUpdateEvent',
@@ -237,7 +225,7 @@ export class OTServerHelper {
     let docId: string = clientResetRequest.docId
     let sourceUid: string = clientResetRequest.sourceUid
 
-    let model: IServerModel = this.models.getModel(docId)
+    let doc: IDocument = this.store.getDocument(docId)
 
     // the first unknown index on the client
     let startIndex: number = clientResetRequest.nextIndex
@@ -256,19 +244,19 @@ export class OTServerHelper {
       serverUpdate.opts.ignoreAtSource = true
 
       // find the index within the history of the outstanding edit
-      const outstandingIndex = model.indexOfEdit(updateEdit.id)
+      const outstandingIndex = doc.indexOfEdit(updateEdit.id)
       if (outstandingIndex == null) {
         throw new Error(
           `wat, how is this edit not in the history?
            edit: ${JSON.stringify(updateEdit)}
            clientRequest: ${JSON.stringify(clientResetRequest)}
-           history: ${JSON.stringify(model)}`)
+           history: ${JSON.stringify(doc)}`)
       }
 
       // coalesce the historical edits to get the client back up to speed
-      let beforeEdit = model.getEditRange(startIndex, outstandingIndex)
-      let ackEdit = model.getEditAt(outstandingIndex)
-      let afterEdit = model.getEditRange(outstandingIndex + 1)
+      let beforeEdit = doc.getEditRange(startIndex, outstandingIndex)
+      let ackEdit = doc.getEditAt(outstandingIndex)
+      let afterEdit = doc.getEditRange(outstandingIndex + 1)
 
       let serverResponse: ServerFinishSetupEvent = {
         kind: 'ServerFinishSetupEvent',
@@ -286,7 +274,7 @@ export class OTServerHelper {
       let serverResponse: ServerFinishSetupEvent = {
         kind: 'ServerFinishSetupEvent',
         docId: docId,
-        edits: [model.getEditRange(startIndex)]
+        edits: [doc.getEditRange(startIndex)]
       }
       return [
         serverResponse,
