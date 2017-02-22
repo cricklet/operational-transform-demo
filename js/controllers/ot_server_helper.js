@@ -41,6 +41,7 @@ export class InMemoryDocument {
   constructor() {
     (this: IDocument)
 
+    this.text = ''
     this.editLog = []
     this.editIds = new Set()
   }
@@ -114,6 +115,7 @@ export class OTDocumentStore {
 
   constructor(factory: (() => IDocument)) {
     this.documents = {}
+    this.factory = factory
   }
   getDocument(docId: string) {
     if (!(docId in this.documents)) {
