@@ -68,7 +68,7 @@ function createClient(clientId, docId) {
   let client = SocketClient(URL)
   client.emit('open document', docId)
 
-  let otClient = new OTClientHelper(docId, TextApplier)
+  let otClient = new OTClientHelper(TextApplier)
 
   client.on('server update', (json) => {
     let serverUpdate = deserializeServerUpdateEvent(json)

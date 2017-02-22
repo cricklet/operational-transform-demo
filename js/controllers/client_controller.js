@@ -15,27 +15,29 @@ import { OTClientHelper } from './ot_client_helper.js'
 
 class ClientController<S> extends EventEmitter {
 
+  roomId: string
   clientHelper: OTClientHelper<S>
 
-  constructor (docId: string, applier: IApplier<S>) {
+  constructor (roomId: string, applier: IApplier<S>) {
     super()
-    this.clientHelper = new OTClientHelper(docId, applier)
+    this.clientHelper = new OTClientHelper(applier)
+    this.roomId = roomId
 
-    this.on('server-event', (event) => this.handleServerEvent(event))
-    this.on('view-action', (event) => this.handleViewAction(event))
+    this.on('server-event', (roomId, event) => this.handleServerEvent(event))
+    this.on('view-action', (roomId, event) => this.handleViewAction(event))
   }
 
   handleServerEvent (event: ServerFinishSetupEvent | ServerUpdateEvent) {
     if (event.kind === 'ServerFinishSetupEvent') {
       let responses = this.clientHelper.handleConnection(event)
       for (let response of responses) {
-        this.emit('client-event', response)
+        this.emit('client-event', this.roomId, response)
       }
 
     } else if (event.kind === 'ServerUpdateEvent') {
       let response = this.clientHelper.handleUpdate(event)
       if (response != null) {
-        this.emit('client-event', response)
+        this.emit('client-event', this.roomId, response)
       }
 
     } else {
@@ -47,19 +49,19 @@ class ClientController<S> extends EventEmitter {
     if (event.kind === 'UndoAction') {
       let response = this.clientHelper.performUndo()
       if (response != null) {
-        this.emit('client-event', response)
+        this.emit('client-event', this.roomId, response)
       }
 
     } else if (event.kind === 'RedoAction') {
       let response = this.clientHelper.performRedo()
       if (response != null) {
-        this.emit('client-event', response)
+        this.emit('client-event', this.roomId, response)
       }
 
     } else if (event.kind === 'EditAction') {
       let response = this.clientHelper.performEdit(event.operation)
       if (response != null) {
-        this.emit('client-event', response)
+        this.emit('client-event', this.roomId, response)
       }
 
     } else {

@@ -7,6 +7,8 @@ import { OTServerHelper } from '../controllers/ot_server_helper.js'
 import { castClientUpdateEvent, castClientRequestSetupEvent } from '../controllers/types.js'
 import type { ClientUpdateEvent, ClientRequestSetupEvent, ServerUpdateEvent, ServerFinishSetupEvent } from '../controllers/types.js'
 
+let DOC_ID = 'asdf'
+
 export function setupServerConnection(
   port: number,
   server: OTServerHelper,
@@ -16,19 +18,15 @@ export function setupServerConnection(
 
   socketServer.on('connection', (socket) => {
     function sendUpdate (serverUpdate: ServerUpdateEvent) {
-      let docId = serverUpdate.docId
-
       let serverUpdateJSON = JSON.stringify(serverUpdate)
       logger(`sending update: ${serverUpdateJSON}`)
-      socketServer.sockets.in(docId).emit('server-update', serverUpdateJSON)
+      socketServer.sockets.in(DOC_ID).emit('server-update', serverUpdateJSON)
     }
 
     function setupConnection (connectionResponse: ServerFinishSetupEvent) {
-      let docId = connectionResponse.docId
-
       let connectionResponseJSON = JSON.stringify(connectionResponse)
       logger(`sending connection response: ${connectionResponseJSON}`)
-      socketServer.sockets.in(docId).emit('server-connect', connectionResponseJSON)
+      socketServer.sockets.in(DOC_ID).emit('server-connect', connectionResponseJSON)
     }
 
     // Client sent an edit
@@ -55,8 +53,7 @@ export function setupServerConnection(
       if (connectionRequest == null) { throw new Error('un-parseable client connection request: ' + json) }
 
       // Join the room associated with this document
-      let docId = connectionRequest.docId
-      socket.join(docId)
+      socket.join(DOC_ID)
 
       // Apply client update & compute response
       let [connectionResponse: ServerFinishSetupEvent, serverUpdate: ?ServerUpdateEvent]

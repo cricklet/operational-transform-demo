@@ -106,24 +106,6 @@ export class InMemoryDocument {
     // find the index within the history of the outstanding edit
     return U.findIndex(edit => edit.id === editId, this.editLog)
   }
-
-}
-
-export class OTDocumentStore {
-  factory: (docId: string) => IDocument
-  documents: {[docId: string]: IDocument}
-
-  constructor(factory: (() => IDocument)) {
-    this.documents = {}
-    this.factory = factory
-  }
-  getDocument(docId: string) {
-    if (!(docId in this.documents)) {
-      this.documents[docId] = this.factory(docId)
-    }
-
-    return this.documents[docId]
-  }
 }
 
 export class OTServerHelper {
@@ -146,18 +128,18 @@ export class OTServerHelper {
   //   connection.broadcast(serverUpdate) // SEND applied changes
   // })
 
-  store: OTDocumentStore
+  doc: IDocument
 
-  constructor(store?: OTDocumentStore) {
-    if (store) {
-      this.store = store
+  constructor(doc?: IDocument) {
+    if (doc) {
+      this.doc = doc
     } else {
-      this.store = new OTDocumentStore(() => new InMemoryDocument())
+      this.doc = new InMemoryDocument()
     }
   }
 
-  state(docId: string): string {
-    return this.store.getDocument(docId).text
+  state(): string {
+    return this.doc.text
   }
 
   handleUpdate(clientUpdate: ClientUpdateEvent)
@@ -175,45 +157,40 @@ export class OTServerHelper {
     //     \/
 
     let clientEdit: UpdateEdit = clientUpdate.edit
-    let docId: string = clientUpdate.docId
     let sourceUid: string = clientUpdate.sourceUid
-
-    let doc: IDocument = this.store.getDocument(docId)
 
     let editId = clientEdit.id
 
     // this was already applied!
-    if (doc.hasEdit(editId)) {
+    if (this.doc.hasEdit(editId)) {
       console.log(editId)
 
-      const serverEdit = doc.getEdit(editId)
+      const serverEdit = this.doc.getEdit(editId)
       if (serverEdit == null) {
         throw new Error(`wat, server edit should exist: ${editId}`)
       }
       return {
         kind: 'ServerUpdateEvent',
         sourceUid: sourceUid,
-        docId: docId,
         edit: serverEdit,
         opts: { ignoreIfNotAtSource: true } // only send this back to the source
       }
     }
 
     // apply the new update now
-    let historyEdit: Edit = doc.getEditRange(clientEdit.startIndex)
+    let historyEdit: Edit = this.doc.getEditRange(clientEdit.startIndex)
 
     let [a, b] = [clientEdit, historyEdit]
-    let [aP, bP, undo, newState] = OTHelper.transformAndApplyToServer(TextApplier, a, b, doc.text)
+    let [aP, bP, undo, newState] = OTHelper.transformAndApplyToServer(TextApplier, a, b, this.doc.text)
 
-    aP.startIndex = doc.getNextIndex()
+    aP.startIndex = this.doc.getNextIndex()
     aP.nextIndex = aP.startIndex + 1
 
-    doc.update(newState, castServerEdit(aP))
+    this.doc.update(newState, castServerEdit(aP))
 
     return {
       kind: 'ServerUpdateEvent',
       sourceUid: sourceUid,
-      docId: docId,
       edit: castServerEdit(aP),
       opts: {}
     }
@@ -222,10 +199,7 @@ export class OTServerHelper {
   handleConnection(clientResetRequest: ClientRequestSetupEvent)
   : [ServerFinishSetupEvent, ?ServerUpdateEvent] {
     const updateEdit: ?UpdateEdit = clientResetRequest.edit
-    let docId: string = clientResetRequest.docId
     let sourceUid: string = clientResetRequest.sourceUid
-
-    let doc: IDocument = this.store.getDocument(docId)
 
     // the first unknown index on the client
     let startIndex: number = clientResetRequest.nextIndex
@@ -235,7 +209,6 @@ export class OTServerHelper {
       let serverUpdate = this.handleUpdate({
         kind: 'ClientUpdateEvent',
         sourceUid: sourceUid,
-        docId: docId,
         edit: updateEdit
       })
 
@@ -244,23 +217,22 @@ export class OTServerHelper {
       serverUpdate.opts.ignoreAtSource = true
 
       // find the index within the history of the outstanding edit
-      const outstandingIndex = doc.indexOfEdit(updateEdit.id)
+      const outstandingIndex = this.doc.indexOfEdit(updateEdit.id)
       if (outstandingIndex == null) {
         throw new Error(
           `wat, how is this edit not in the history?
            edit: ${JSON.stringify(updateEdit)}
            clientRequest: ${JSON.stringify(clientResetRequest)}
-           history: ${JSON.stringify(doc)}`)
+           history: ${JSON.stringify(this.doc)}`)
       }
 
       // coalesce the historical edits to get the client back up to speed
-      let beforeEdit = doc.getEditRange(startIndex, outstandingIndex)
-      let ackEdit = doc.getEditAt(outstandingIndex)
-      let afterEdit = doc.getEditRange(outstandingIndex + 1)
+      let beforeEdit = this.doc.getEditRange(startIndex, outstandingIndex)
+      let ackEdit = this.doc.getEditAt(outstandingIndex)
+      let afterEdit = this.doc.getEditRange(outstandingIndex + 1)
 
       let serverResponse: ServerFinishSetupEvent = {
         kind: 'ServerFinishSetupEvent',
-        docId: docId,
         edits: [
           beforeEdit,
           ackEdit,
@@ -273,8 +245,7 @@ export class OTServerHelper {
     } else {
       let serverResponse: ServerFinishSetupEvent = {
         kind: 'ServerFinishSetupEvent',
-        docId: docId,
-        edits: [doc.getEditRange(startIndex)]
+        edits: [this.doc.getEditRange(startIndex)]
       }
       return [
         serverResponse,

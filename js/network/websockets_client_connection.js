@@ -55,7 +55,7 @@ export function setupClientConnection(
   }
 
   // Join the document
-  requestConnection(client.establishConnection())
+  requestConnection(client.startConnecting())
 
   // Receive an edit from the server
   socket.on('server-update', (json) => {

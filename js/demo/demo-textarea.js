@@ -327,7 +327,7 @@ $(document).ready(() => {
     $client.insertBefore($clientPlaceholder)
     clientId ++
 
-    let client = new OTClientHelper(DOC_ID, DocumentApplier)
+    let client = new OTClientHelper(DocumentApplier)
     let clientConnection: SimulatedConnection<ClientUpdateEvent, ServerUpdateEvent> = new SimulatedConnection(chaos)
     clientConnection.listen((serverUpdate: ServerUpdateEvent) => {
       let update = client.handleOrderedUpdate(serverUpdate)

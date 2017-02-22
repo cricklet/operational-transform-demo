@@ -32,7 +32,7 @@ $(document).ready(() => {
 
   let docId = location.hash || 'default'
 
-  let client = new OTClientHelper(docId, DocumentApplier)
+  let client = new OTClientHelper(DocumentApplier)
   let clientConnection: ClientConnection = setupClientConnection(
     'http://localhost:8123',
     docId,

@@ -43,8 +43,6 @@ export class OTClientHelper<S> {
 
   uid: string
 
-  docId: string
-
   state: S
 
   bufferEdit: BufferEdit
@@ -58,11 +56,10 @@ export class OTClientHelper<S> {
 
   applier: IApplier<S>
 
-  constructor(docId: string, applier: IApplier<S>) {
+  constructor(applier: IApplier<S>) {
     this.applier = applier
 
     this.uid = U.genUid()
-    this.docId = docId
     this.state = this.applier.initial()
 
     let hash = this.applier.stateHash(this.state)
@@ -132,7 +129,6 @@ export class OTClientHelper<S> {
       kind: 'ClientUpdateEvent',
       edit: updateEdit,
       sourceUid: this.uid,
-      docId: this.docId,
     }
   }
 
@@ -186,14 +182,13 @@ export class OTClientHelper<S> {
     return false
   }
 
-  establishConnection(): ClientRequestSetupEvent {
+  startConnecting(): ClientRequestSetupEvent {
     let updateEdit: ?UpdateEdit = castUpdateEdit(this.outstandingEdit)
 
     let request: ClientRequestSetupEvent = {
       kind: 'ClientRequestSetupEvent',
       nextIndex: this._nextIndex(),
       sourceUid: this.uid,
-      docId: this.docId,
       edit: updateEdit
     }
 
@@ -202,12 +197,6 @@ export class OTClientHelper<S> {
 
   handleConnection(connectionResponse: ServerFinishSetupEvent)
   : (ClientUpdateEvent | ClientRequestSetupEvent)[] {
-    let docId: string = connectionResponse.docId
-
-    if (docId !== this.docId) {
-      throw new Error('wat, different doc id', docId, this.docId)
-    }
-
     // we're up to date!
     if (connectionResponse.edits.length === 0) {
       return []
@@ -218,7 +207,7 @@ export class OTClientHelper<S> {
       // we're still out of order?
       console.log(`received out of order... ${startIndex} != ${this._nextIndex()}
                   ${JSON.stringify(this)}`)
-      return [this.establishConnection()]
+      return [this.startConnecting()]
     }
 
     // apply all the updates
@@ -226,7 +215,6 @@ export class OTClientHelper<S> {
     for (let edit of connectionResponse.edits) {
       let response = this.handleUpdate({
         kind: 'ServerUpdateEvent',
-        docId: docId,
         edit: edit,
         opts: {}
       })
@@ -247,21 +235,15 @@ export class OTClientHelper<S> {
     let opts = U.fillDefaults(_opts, { enforceOrdering: false })
 
     let op: ServerEdit = serverUpdate.edit
-    let docId: string = serverUpdate.docId
-
     if (this._shouldIgnoreUpdate(serverUpdate)) {
       return undefined
-    }
-
-    if (docId !== this.docId) {
-      throw new Error('wat, different doc id', docId, this.docId)
     }
 
     if (op.startIndex > this._nextIndex()) { // raise on future edits
       console.log(`received out of order edits:
                    client: ${JSON.stringify(this)}
                    server-update: ${JSON.stringify(serverUpdate)}`)
-      return this.establishConnection()
+      return this.startConnecting()
     } else if (op.startIndex < this._nextIndex()) { // ignore old edits
       return undefined
     }
@@ -272,14 +254,9 @@ export class OTClientHelper<S> {
   handleOrderedUpdate(serverUpdate: ServerUpdateEvent)
   : ?ClientUpdateEvent {
     let op: ServerEdit = serverUpdate.edit
-    let docId: string = serverUpdate.docId
 
     if (this._shouldIgnoreUpdate(serverUpdate)) {
       return undefined
-    }
-
-    if (docId !== this.docId) {
-      throw new Error('wat, different doc id', docId, this.docId)
     }
 
     if (op.startIndex !== this._nextIndex()) {

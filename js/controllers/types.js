@@ -7,14 +7,12 @@ import type { Operation } from '../ot/types.js'
 export type ClientUpdateEvent = {|
   kind: 'ClientUpdateEvent',
   sourceUid: string,
-  docId: string,
   edit: UpdateEdit
 |}
 
 export type ServerUpdateEvent = {|
   kind: 'ServerUpdateEvent',
   sourceUid?: string,
-  docId: string,
   edit: ServerEdit,
 
   opts: {
@@ -26,14 +24,12 @@ export type ServerUpdateEvent = {|
 export type ClientRequestSetupEvent = {|
   kind: 'ClientRequestSetupEvent',
   sourceUid: string,
-  docId: string,
   nextIndex: number,
   edit: ?UpdateEdit,
 |}
 
 export type ServerFinishSetupEvent = {|
   kind: 'ServerFinishSetupEvent',
-  docId: string,
   edits: ServerEdit[]
 |}
 

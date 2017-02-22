@@ -97,7 +97,7 @@ function generatePropogator (
     },
     connect: (client: OTClientHelper<*>) => {
       clients.push(client)
-      connectToServer(client.establishConnection())
+      connectToServer(client.startConnecting())
     },
     disconnect: (client: OTClientHelper<*>) => {
       let poppedClient = U.pop(clients, c => c === client)
@@ -108,21 +108,19 @@ function generatePropogator (
   }
 }
 
-let DOC_ID = '12345'
-
 describe('Client & Server', () => {
   it('initialize', () => {
     let server = new OTServerHelper()
-    let client = new OTClientHelper(DOC_ID, TextApplier)
+    let client = new OTClientHelper(TextApplier)
   })
   it('one client updates', () => {
-    let client = new OTClientHelper(DOC_ID, TextApplier)
+    let client = new OTClientHelper(TextApplier)
     client.performEdit(generateInsertion(0, 'hello!'), [])
     assert.equal('hello!', client.state)
   })
   it('one client updates server', () => {
     let server = new OTServerHelper()
-    let client = new OTClientHelper(DOC_ID, TextApplier)
+    let client = new OTClientHelper(TextApplier)
 
     let propogate = generatePropogator(server, [client]).send
 
@@ -130,11 +128,11 @@ describe('Client & Server', () => {
     propogate(update)
 
     assert.equal('hello!', client.state)
-    assert.equal('hello!', server.state(DOC_ID))
+    assert.equal('hello!', server.state())
   })
   it('duplicate updates are can be handled idempotently', () => {
     let server = new OTServerHelper()
-    let client = new OTClientHelper(DOC_ID, TextApplier)
+    let client = new OTClientHelper(TextApplier)
 
     let propogate = generatePropogator(server, [client], { allowUnordered: true }).send
 
@@ -143,15 +141,15 @@ describe('Client & Server', () => {
 
     propogate(update)
     assert.equal('hello!', client.state)
-    assert.equal('hello!', server.state(DOC_ID))
+    assert.equal('hello!', server.state())
 
     propogate(update)
     assert.equal('hello!', client.state)
-    assert.equal('hello!', server.state(DOC_ID))
+    assert.equal('hello!', server.state())
   })
   it('duplicate updates are rejected if we enforce ordering', () => {
     let server = new OTServerHelper()
-    let client = new OTClientHelper(DOC_ID, TextApplier)
+    let client = new OTClientHelper(TextApplier)
 
     let propogate = generatePropogator(server, [client], { allowUnordered: false }).send
 
@@ -163,8 +161,8 @@ describe('Client & Server', () => {
   })
   it ('two clients are handled', () => {
     let server = new OTServerHelper()
-    let client0 = new OTClientHelper(DOC_ID, TextApplier)
-    let client1 = new OTClientHelper(DOC_ID, TextApplier)
+    let client0 = new OTClientHelper(TextApplier)
+    let client1 = new OTClientHelper(TextApplier)
 
     let propogate = generatePropogator(server, [client0, client1]).send
 
@@ -174,12 +172,12 @@ describe('Client & Server', () => {
 
     assert.equal('world', client0.state)
     assert.equal('world', client1.state)
-    assert.equal('world', server.state(DOC_ID))
+    assert.equal('world', server.state())
   })
   it ('two clients conflicts are handled', () => {
     let server = new OTServerHelper()
-    let client0 = new OTClientHelper(DOC_ID, TextApplier)
-    let client1 = new OTClientHelper(DOC_ID, TextApplier)
+    let client0 = new OTClientHelper(TextApplier)
+    let client1 = new OTClientHelper(TextApplier)
 
     let propogate = generatePropogator(server, [client0, client1]).send
 
@@ -191,12 +189,12 @@ describe('Client & Server', () => {
 
     assert.equal('helloworld', client0.state)
     assert.equal('helloworld', client1.state)
-    assert.equal('helloworld', server.state(DOC_ID))
+    assert.equal('helloworld', server.state())
   })
   it ('two clients out of order', () => {
     let server = new OTServerHelper()
-    let client0 = new OTClientHelper(DOC_ID, TextApplier)
-    let client1 = new OTClientHelper(DOC_ID, TextApplier)
+    let client0 = new OTClientHelper(TextApplier)
+    let client1 = new OTClientHelper(TextApplier)
 
     let propogate = generatePropogator(server, [client0, client1]).send
 
@@ -210,12 +208,12 @@ describe('Client & Server', () => {
 
     assert.equal('01234', client0.state)
     assert.equal('01234', client1.state)
-    assert.equal('01234', server.state(DOC_ID))
+    assert.equal('01234', server.state())
   })
   it ('multiple clients with interleaved requests', () => {
-    let client0 = new OTClientHelper(DOC_ID, TextApplier)
-    let client1 = new OTClientHelper(DOC_ID, TextApplier)
-    let client2 = new OTClientHelper(DOC_ID, TextApplier)
+    let client0 = new OTClientHelper(TextApplier)
+    let client1 = new OTClientHelper(TextApplier)
+    let client2 = new OTClientHelper(TextApplier)
 
     let clients = [client0, client1, client2]
     let server = new OTServerHelper()
@@ -237,7 +235,7 @@ describe('Client & Server', () => {
     assert.equal('he', client0.state)
     assert.equal('god', client1.state)
     assert.equal('le sigh', client2.state)
-    assert.equal('', server.state(DOC_ID))
+    assert.equal('', server.state())
 
     propogate(request0)
     propogate(request2)
@@ -252,13 +250,13 @@ describe('Client & Server', () => {
     assert.equal('le sighgodhe', client0.state)
     assert.equal('le sighgodhe', client1.state)
     assert.equal('le sighgodhe', client2.state)
-    assert.equal('le sighgodhe', server.state(DOC_ID))
+    assert.equal('le sighgodhe', server.state())
   })
 })
 
 describe('connection', () => {
   it('clients can be connected late', () => {
-    let client = new OTClientHelper(DOC_ID, TextApplier)
+    let client = new OTClientHelper(TextApplier)
 
     let server = new OTServerHelper()
     let propogator = generatePropogator(server, [], { allowUnordered: true })
@@ -268,15 +266,15 @@ describe('connection', () => {
     client.performEdit(inferOperation(client.state, 'hello banana world'))
     client.performEdit(inferOperation(client.state, 'hello banana'))
 
-    assert.equal('', server.state(DOC_ID))
+    assert.equal('', server.state())
 
     propogator.connect(client)
     assert.equal('hello banana', client.state)
-    assert.equal('hello banana', server.state(DOC_ID))
+    assert.equal('hello banana', server.state())
   })
   it('multiple clients can be connected late', () => {
-    let client0 = new OTClientHelper(DOC_ID, TextApplier)
-    let client1 = new OTClientHelper(DOC_ID, TextApplier)
+    let client0 = new OTClientHelper(TextApplier)
+    let client1 = new OTClientHelper(TextApplier)
 
     let server = new OTServerHelper()
     let propogator = generatePropogator(server, [], { allowUnordered: true })
@@ -290,20 +288,20 @@ describe('connection', () => {
     client1.performEdit(inferOperation(client1.state, 'wat is'))
     client1.performEdit(inferOperation(client1.state, 'wat is love'))
 
-    assert.equal('', server.state(DOC_ID))
+    assert.equal('', server.state())
 
     propogator.connect(client0)
     assert.equal('hello banana', client0.state)
-    assert.equal('hello banana', server.state(DOC_ID))
+    assert.equal('hello banana', server.state())
 
     propogator.connect(client1)
     assert.equal('wat is lovehello banana', client0.state)
     assert.equal('wat is lovehello banana', client1.state)
-    assert.equal('wat is lovehello banana', server.state(DOC_ID))
+    assert.equal('wat is lovehello banana', server.state())
   })
   it('clients can be disconnected', () => {
-    let client0 = new OTClientHelper(DOC_ID, TextApplier)
-    let client1 = new OTClientHelper(DOC_ID, TextApplier)
+    let client0 = new OTClientHelper(TextApplier)
+    let client1 = new OTClientHelper(TextApplier)
 
     let server = new OTServerHelper()
     let propogator = generatePropogator(server, [], { allowUnordered: true })
@@ -315,18 +313,18 @@ describe('connection', () => {
     client1.performEdit(inferOperation(client1.state, 'wat is '))
     client1.performEdit(inferOperation(client1.state, 'wat is love '))
 
-    assert.equal('', server.state(DOC_ID))
+    assert.equal('', server.state())
 
     // Connect the clients
 
     propogator.connect(client0)
     assert.equal('hello world', client0.state)
-    assert.equal('hello world', server.state(DOC_ID))
+    assert.equal('hello world', server.state())
 
     propogator.connect(client1)
     assert.equal('wat is love hello world', client0.state)
     assert.equal('wat is love hello world', client1.state)
-    assert.equal('wat is love hello world', server.state(DOC_ID))
+    assert.equal('wat is love hello world', server.state())
 
     // Disconnect one client
 
@@ -344,7 +342,7 @@ describe('connection', () => {
 
     assert.equal('wat is apple hello banana', client0.state)
     assert.equal('wat is love baby dont hurt me ', client1.state) // diverged!
-    assert.equal('wat is apple hello banana', server.state(DOC_ID))
+    assert.equal('wat is apple hello banana', server.state())
 
     // Reconnect
 
@@ -352,15 +350,15 @@ describe('connection', () => {
 
     assert.equal('wat is apple baby dont hurt me banana', client0.state)
     assert.equal('wat is apple baby dont hurt me banana', client1.state)
-    assert.equal('wat is apple baby dont hurt me banana', server.state(DOC_ID))
+    assert.equal('wat is apple baby dont hurt me banana', server.state())
   })
 })
 
 describe('resend', () => {
   it('dropped updates can be re-sent', () => {
-    let client0 = new OTClientHelper(DOC_ID, TextApplier)
-    let client1 = new OTClientHelper(DOC_ID, TextApplier)
-    let client2 = new OTClientHelper(DOC_ID, TextApplier)
+    let client0 = new OTClientHelper(TextApplier)
+    let client1 = new OTClientHelper(TextApplier)
+    let client2 = new OTClientHelper(TextApplier)
 
     let server = new OTServerHelper()
     let propogator = generatePropogator(server, [], { allowUnordered: true })
@@ -406,8 +404,8 @@ describe('resend', () => {
     assert.equal('hi world cranberryapple ', client2.state)
   })
   it('resend is idempotent', () => {
-    let client0 = new OTClientHelper(DOC_ID, TextApplier)
-    let client1 = new OTClientHelper(DOC_ID, TextApplier)
+    let client0 = new OTClientHelper(TextApplier)
+    let client1 = new OTClientHelper(TextApplier)
 
     let server = new OTServerHelper()
     let propogator = generatePropogator(server, [], { allowUnordered: true })
@@ -444,7 +442,7 @@ describe('resend', () => {
 
 describe('undo & redo', () => {
   it('undo works for one client', () => {
-    let client = new OTClientHelper(DOC_ID, TextApplier)
+    let client = new OTClientHelper(TextApplier)
 
     client.performEdit(inferOperation(client.state, 'hello'))
     assert.equal(client.state, 'hello')
@@ -463,7 +461,7 @@ describe('undo & redo', () => {
   })
 
   it('undo redo for one client', () => {
-    let client = new OTClientHelper(DOC_ID, TextApplier)
+    let client = new OTClientHelper(TextApplier)
 
     client.performEdit(inferOperation(client.state, 'hello'))
     assert.equal(client.state, 'hello')
@@ -485,7 +483,7 @@ describe('undo & redo', () => {
   })
 
   it('redo is reset on edit', () => {
-    let client = new OTClientHelper(DOC_ID, TextApplier)
+    let client = new OTClientHelper(TextApplier)
 
     client.performEdit(inferOperation(client.state, 'hello'))
     assert.equal(client.state, 'hello')
@@ -508,7 +506,7 @@ describe('undo & redo', () => {
   })
 
   it('undo/redo extra times for one client', () => {
-    let client = new OTClientHelper(DOC_ID, TextApplier)
+    let client = new OTClientHelper(TextApplier)
 
     client.performEdit(inferOperation(client.state, 'hello'))
     assert.equal(client.state, 'hello')
@@ -550,8 +548,8 @@ describe('undo & redo', () => {
   })
 
   it('undo works for two clients', () => { // tested on dropbox paper!
-    let client0 = new OTClientHelper(DOC_ID, TextApplier)
-    let client1 = new OTClientHelper(DOC_ID, TextApplier)
+    let client0 = new OTClientHelper(TextApplier)
+    let client1 = new OTClientHelper(TextApplier)
     let server = new OTServerHelper()
 
     let propogate = generatePropogator(server, [client0, client1]).send
@@ -577,8 +575,8 @@ describe('undo & redo', () => {
   })
 
   it('redo works for two clients', () => { // tested on dropbox paper!
-    let client0 = new OTClientHelper(DOC_ID, TextApplier)
-    let client1 = new OTClientHelper(DOC_ID, TextApplier)
+    let client0 = new OTClientHelper(TextApplier)
+    let client1 = new OTClientHelper(TextApplier)
     let server = new OTServerHelper()
 
     let propogate = generatePropogator(server, [client0, client1]).send
