@@ -1,5 +1,6 @@
 /* @flow */
 
+import uuidV4 from 'uuid/v4'
 import * as U from '../helpers/utils.js'
 
 import type {
@@ -21,7 +22,11 @@ import * as OTHelper from './ot_helper.js'
 import type { IApplier } from './ot_helper.js'
 import type { Operation } from '../ot/types.js'
 
-export class OutOfOrderError {}
+export class OutOfOrderError extends Error{
+  constructor(msg: any) {
+    super(msg)
+  }
+}
 
 export class OTClientHelper<S> {
   // This class maintains the state of the client, computes what updates
@@ -92,14 +97,8 @@ export class OTClientHelper<S> {
     this.changeListeners = []
   }
 
-  _editCounter: number
-
   _generateEditId() {
-    if (this._editCounter == null) {
-      this._editCounter = 0
-    }
-    this._editCounter += 1
-    return `${this.uid}:${this._editCounter}`
+    return uuidV4()
   }
 
   _checkInvariants () {
@@ -211,32 +210,23 @@ export class OTClientHelper<S> {
 
   handle(serverMessage: ServerEditMessage)
   : ?ClientEditMessage {
-    let op: ServerEdit = serverMessage.edit
+    let serverEdit: ServerEdit = serverMessage.edit
 
-    if (op.startIndex < this._nextIndex()) { // ignore old updates
+    if (serverEdit.startIndex < this._nextIndex()) { // ignore old updates
       return undefined
     }
 
-    if (op.startIndex > this._nextIndex()) { // raise on future updates
-      console.log('wtf')
+    if (serverEdit.startIndex > this._nextIndex()) { // raise on future updates
       throw new OutOfOrderError()
     }
 
-    if (serverMessage.ack === true) {
-      if (this.outstandingEdit == null) {
-        throw new Error('wat, we\'re not waiting on an ack')
-      }
-
-      if (op.id !== this.outstandingEdit.id) {
-        throw new Error('wat, this isn\'t the op we\'re waiting for')
-      }
-
+    if (this.outstandingEdit != null && serverEdit.id === this.outstandingEdit.id) {
       // clear the outstanding out
       this.outstandingEdit = {
         operation: undefined,
         id: this._generateEditId(),
-        parentHash: op.childHash,
-        startIndex: op.nextIndex
+        parentHash: serverEdit.childHash,
+        startIndex: serverEdit.nextIndex
       }
 
       // undo & redo are already after the buffer
@@ -245,7 +235,7 @@ export class OTClientHelper<S> {
     } else {
       // transform the outstanding & buffer & op
       let [newOutstandingEdit, newBufferEdit, appliedEdit, newState]
-          = OTHelper.transformAndApplyBuffers(this.applier, this.outstandingEdit, this.bufferEdit, op, this.state)
+          = OTHelper.transformAndApplyBuffers(this.applier, this.outstandingEdit, this.bufferEdit, serverEdit, this.state)
 
       // update undo
       this.undos = OTHelper.transformEditsStack(appliedEdit, this.undos)
@@ -356,7 +346,7 @@ export class OTClientHelper<S> {
     let newHash = this.applier.stateHash(this.state)
 
     // the op we just applied!
-    let op: BufferEdit = {
+    let newEdit: BufferEdit = {
       operation: edit,
       childHash: newHash
     }
@@ -364,7 +354,7 @@ export class OTClientHelper<S> {
     // append operation to buffer (& thus bridge)
     this.bufferEdit = castBufferEdit(OTHelper.compose([
       this.bufferEdit,
-      op
+      newEdit
     ]))
 
     // append operation to undo stack

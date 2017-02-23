@@ -20,7 +20,6 @@ import { OTClientHelper, OutOfOrderError } from './ot_client_helper.js'
 import { OTServerHelper } from './ot_server_helper.js'
 
 import type { ClientEditMessage, ServerEditMessage, ClientConnectionRequest } from './message_types.js'
-import { BROADCAST_TO_ALL, BROADCAST_OMITTING_SOURCE, REPLY_TO_SOURCE } from './message_types.js'
 import * as OTHelper from './ot_helper.js'
 
 type Propogator = {
@@ -39,28 +38,33 @@ function generatePropogator (
       return
     }
 
-    let clientUid = clientMessage.sourceUid
+    let sourceUid = clientMessage.sourceUid
 
     let serverMessages = server.handle(clientMessage)
-    for (let serverMessage of serverMessages) {
-      let relevantClients
+    let clientResponses = []
 
-      if (serverMessage.mode === BROADCAST_TO_ALL) {
+    for (let serverMessage of serverMessages) {
+      let relevantClients = []
+
+      if (serverMessage.edit.startIndex === server.getLastIndex()) {
+        // broadcast
         relevantClients = clients
-      } else if (serverMessage.mode === BROADCAST_OMITTING_SOURCE) {
-        relevantClients = U.filter(clients, c => c.uid !== clientUid)
-      } else if (serverMessage.mode === REPLY_TO_SOURCE) {
-        relevantClients = U.filter(clients, c => c.uid === clientUid)
       } else {
-        throw new Error(`wat, unknown ${JSON.stringify(serverMessage)} mode`)
+        // just reply
+        relevantClients = U.filter(clients, c => c.uid === sourceUid)
       }
 
       for (let client of relevantClients) {
+        // each client should handle this
         let clientResponse = client.handle(serverMessage)
         if (clientResponse != null) {
-          propogate(clientResponse)
+          clientResponses.push(clientResponse)
         }
       }
+    }
+
+    for (let clientResponse of clientResponses) {
+      propogate(clientResponse)
     }
   }
 
@@ -88,7 +92,7 @@ describe('Client & Server', () => {
   })
   it('one client updates', () => {
     let client = new OTClientHelper(TextApplier)
-    client.performEdit(generateInsertion(0, 'hello!'), [])
+    client.performEdit(generateInsertion(0, 'hello!'))
     assert.equal('hello!', client.state)
   })
   it('one client updates server', () => {
@@ -97,7 +101,7 @@ describe('Client & Server', () => {
 
     let propogate = generatePropogator(server, [client]).send
 
-    let update = client.performEdit(generateInsertion(0, 'hello!'), [])
+    let update = client.performEdit(generateInsertion(0, 'hello!'))
     propogate(update)
 
     assert.equal('hello!', client.state)
@@ -109,7 +113,7 @@ describe('Client & Server', () => {
 
     let propogate = generatePropogator(server, [client]).send
 
-    const update = client.performEdit(generateInsertion(0, 'hello!'), [])
+    const update = client.performEdit(generateInsertion(0, 'hello!'))
     if (update == null) { throw new Error('wat') }
 
     propogate(update)
@@ -127,7 +131,7 @@ describe('Client & Server', () => {
 
     let propogate = generatePropogator(server, [client0, client1]).send
 
-    let update0 = client0.performEdit(generateInsertion(0, 'world'), [])
+    let update0 = client0.performEdit(generateInsertion(0, 'world'))
 
     propogate(update0)
 
@@ -142,8 +146,8 @@ describe('Client & Server', () => {
 
     let propogate = generatePropogator(server, [client0, client1]).send
 
-    let update0 = client0.performEdit(generateInsertion(0, 'world'), [])
-    let update1 = client1.performEdit(generateInsertion(0, 'hello'), [])
+    let update0 = client0.performEdit(generateInsertion(0, 'world'))
+    let update1 = client1.performEdit(generateInsertion(0, 'hello'))
 
     propogate(update0)
     propogate(update1)
@@ -159,9 +163,9 @@ describe('Client & Server', () => {
 
     let propogate = generatePropogator(server, [client0, client1]).send
 
-    let c1 = client1.performEdit(generateInsertion(0, '01234'), [])
-    let c2a = client0.performEdit(generateInsertion(0, 'abc'), [])
-    let c2b = client0.performEdit(generateDeletion(0, 3), [])
+    let c1 = client1.performEdit(generateInsertion(0, '01234'))
+    let c2a = client0.performEdit(generateInsertion(0, 'abc'))
+    let c2b = client0.performEdit(generateDeletion(0, 3))
 
     propogate(c2a)
     propogate(c2b)
@@ -181,17 +185,17 @@ describe('Client & Server', () => {
 
     let propogate = generatePropogator(server, clients).send
 
-    let request0 = client0.performEdit(generateInsertion(0, 'hello'), [])
-    let request1 = client0.performEdit(generateDeletion(2, 3), []) // he
+    let request0 = client0.performEdit(generateInsertion(0, 'hello'))
+    let request1 = client0.performEdit(generateDeletion(2, 3)) // he
 
-    let request2 = client1.performEdit(generateInsertion(0, 'dog'), [])
-    let request3 = client1.performEdit(generateDeletion(0, 1), [])
-    let request4 = client1.performEdit(generateInsertion(0, 'g'), [])
-    let request5 = client1.performEdit(generateDeletion(2, 1), [])
+    let request2 = client1.performEdit(generateInsertion(0, 'dog'))
+    let request3 = client1.performEdit(generateDeletion(0, 1))
+    let request4 = client1.performEdit(generateInsertion(0, 'g'))
+    let request5 = client1.performEdit(generateDeletion(2, 1))
 
-    let request6 = client1.performEdit(generateInsertion(2, 'd'), []) // god
-    let request7 = client2.performEdit(generateInsertion(0, 'le'), [])
-    let request8 = client2.performEdit(generateInsertion(2, ' sigh'), []) // le sigh
+    let request6 = client1.performEdit(generateInsertion(2, 'd')) // god
+    let request7 = client2.performEdit(generateInsertion(0, 'le'))
+    let request8 = client2.performEdit(generateInsertion(2, ' sigh')) // le sigh
 
     assert.equal('he', client0.state)
     assert.equal('god', client1.state)

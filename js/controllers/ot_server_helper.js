@@ -15,12 +15,6 @@ import type {
   ServerEditMessage
 } from './message_types.js'
 
-import {
-  BROADCAST_TO_ALL,
-  REPLY_TO_SOURCE,
-  BROADCAST_OMITTING_SOURCE
-} from './message_types.js'
-
 import * as OTHelper from './ot_helper.js'
 import { TextApplier } from '../ot/applier.js'
 import type { IApplier } from './ot_helper.js'
@@ -36,6 +30,7 @@ export interface IDocument {
   getEditRange(start?: number, stop?: number): ServerEdit,
   getEdit(editId: string): ServerEdit,
   getEditAt(index: number): ServerEdit,
+  getLastIndex(): number,
   getNextIndex(): number,
   indexOfEdit(editId: string): ?number,
   hasEdit(editId: string): boolean,
@@ -74,6 +69,10 @@ export class InMemoryDocument {
 
   getNextIndex(): number{
     return this.editLog.length
+  }
+
+  getLastIndex(): number{
+    return this.editLog.length - 1
   }
 
   getEditRange(start?: number, stop?: number): ServerEdit {
@@ -155,6 +154,14 @@ export class OTServerHelper {
     return this.doc.text
   }
 
+  getLastIndex(): number {
+    return this.doc.getLastIndex()
+  }
+
+  getNextIndex(): number {
+    return this.doc.getNextIndex()
+  }
+
   addChangeListener(listener: () => void) {
     this.changeListeners.push(listener)
   }
@@ -168,7 +175,7 @@ export class OTServerHelper {
   }
 
   _handleClientEdit(clientMessage: ClientEditMessage)
-  : ServerEditMessage[] {
+  : ServerEditMessage {
     // update the server state & return the update to broadcast to the clients
 
     // a = clientMessage
@@ -192,12 +199,10 @@ export class OTServerHelper {
       if (serverEdit == null) {
         throw new Error(`wat, server edit should exist: ${editId}`)
       }
-      return [{
+      return {
         kind: 'ServerEditMessage',
         edit: serverEdit,
-        ack: true,
-        mode: REPLY_TO_SOURCE
-      }]
+      }
     }
 
     // apply the new update now
@@ -214,20 +219,10 @@ export class OTServerHelper {
     this.doc.update(newState, serverEdit)
     this._notifyChangeListeners()
 
-    return [
-      {
-        kind: 'ServerEditMessage',
-        edit: serverEdit,
-        ack: false,
-        mode: BROADCAST_OMITTING_SOURCE
-      },
-      {
-        kind: 'ServerEditMessage',
-        edit: serverEdit,
-        ack: true,
-        mode: REPLY_TO_SOURCE
-      }
-    ]
+    return {
+      kind: 'ServerEditMessage',
+      edit: serverEdit,
+    }
   }
 
   _handleClientConnection(clientResetRequest: ClientConnectionRequest)
@@ -243,9 +238,7 @@ export class OTServerHelper {
       return [ // just return the missing history
         {
           kind: 'ServerEditMessage',
-          edit: this.doc.getEditRange(startIndex),
-          ack: false,
-          mode: REPLY_TO_SOURCE
+          edit: this.doc.getEditRange(startIndex)
         }
       ]
     }
@@ -269,9 +262,7 @@ export class OTServerHelper {
       if (!OTHelper.isEmpty(beforeEdit)) {
         responses.push({
           kind: 'ServerEditMessage',
-          edit: beforeEdit,
-          ack: false,
-          mode: 'REPLY_TO_SOURCE'
+          edit: beforeEdit
         })
       }
 
@@ -281,17 +272,13 @@ export class OTServerHelper {
 
       responses.push({
         kind: 'ServerEditMessage',
-        edit: ackEdit,
-        ack: true,
-        mode: 'REPLY_TO_SOURCE'
+        edit: ackEdit
       })
 
       if (!OTHelper.isEmpty(afterEdit)) {
         responses.push({
           kind: 'ServerEditMessage',
-          edit: afterEdit,
-          ack: false,
-          mode: 'REPLY_TO_SOURCE'
+          edit: afterEdit
         })
       }
 
@@ -307,20 +294,18 @@ export class OTServerHelper {
       if (!OTHelper.isEmpty(beforeEdit)) {
         responses.push({
           kind: 'ServerEditMessage',
-          edit: beforeEdit,
-          ack: false,
-          mode: 'REPLY_TO_SOURCE'
+          edit: beforeEdit
         })
       }
 
       // apply the client's update!
-      let updateResponses = this._handleClientEdit({
+      let updateResponse = this._handleClientEdit({
         kind: 'ClientEditMessage',
         sourceUid: sourceUid,
         edit: updateEdit
       })
 
-      for (let updateResponse of updateResponses) {
+      if (updateResponse != null) {
         responses.push(updateResponse)
       }
 
@@ -330,7 +315,7 @@ export class OTServerHelper {
   handle (clientMessage: ClientEditMessage | ClientConnectionRequest)
   : ServerEditMessage[] {
     if (clientMessage.kind === 'ClientEditMessage') {
-      return this._handleClientEdit(clientMessage)
+      return [ this._handleClientEdit(clientMessage) ]
     }
 
     if (clientMessage.kind === 'ClientConnectionRequest') {

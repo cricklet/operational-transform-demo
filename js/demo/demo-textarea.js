@@ -14,7 +14,6 @@ import { OTClientHelper, OutOfOrderError } from '../controllers/ot_client_helper
 import { OTServerHelper } from '../controllers/ot_server_helper.js'
 
 import type { ClientEditMessage, ServerEditMessage, ClientConnectionRequest } from '../controllers/message_types.js'
-import { BROADCAST_TO_ALL, BROADCAST_OMITTING_SOURCE, REPLY_TO_SOURCE } from '../controllers/message_types.js'
 
 type Lock = { ignoreEvents: boolean }
 
@@ -55,20 +54,8 @@ function generatePropogator (
     // handle client message
     let serverMessages = server.handle(clientMessage)
     for (let serverMessage of serverMessages) {
-      let relevantClients
-
-      if (serverMessage.mode === BROADCAST_TO_ALL) {
-        relevantClients = clients
-      } else if (serverMessage.mode === BROADCAST_OMITTING_SOURCE) {
-        relevantClients = U.filter(clients, c => c.uid !== clientUid)
-      } else if (serverMessage.mode === REPLY_TO_SOURCE) {
-        relevantClients = U.filter(clients, c => c.uid === clientUid)
-      } else {
-        throw new Error(`wat, unknown ${JSON.stringify(serverMessage)} mode`)
-      }
-
       // send responses to the clients
-      for (let client of relevantClients) {
+      for (let client of clients) {
         clientBacklogs[client.uid].push(serverMessage)
       }
     }

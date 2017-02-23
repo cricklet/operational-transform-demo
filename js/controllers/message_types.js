@@ -10,16 +10,9 @@ import {
   castUpdateEdit,
 } from './edit_types.js'
 
-export let BROADCAST_TO_ALL = 'BROADCAST_TO_ALL'
-export let REPLY_TO_SOURCE = 'REPLY_TO_SOURCE'
-export let BROADCAST_OMITTING_SOURCE = 'BROADCAST_OMITTING_SOURCE'
-
 export type ServerEditMessage = {|
   kind: 'ServerEditMessage',
   edit: ServerEdit,
-
-  ack: boolean, // are we sending this edit back to it's original author?
-  mode: 'BROADCAST_TO_ALL' | 'REPLY_TO_SOURCE' | 'BROADCAST_OMITTING_SOURCE'
 |}
 
 export type ClientEditMessage = {|
