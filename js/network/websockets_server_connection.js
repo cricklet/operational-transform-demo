@@ -57,7 +57,7 @@ export function setupServerConnection(
 
       // Apply client update & compute response
       let [connectionResponse: ServerEditsMessage, serverUpdate: ?ServerEditMessage]
-          = server.handleServerEdits(connectionRequest)
+          = server.handleClientConnection(connectionRequest)
 
       if (serverUpdate != null) {
         sendUpdate(serverUpdate)

@@ -20,6 +20,7 @@ import { OTClientHelper } from './ot_client_helper.js'
 import { OTServerHelper } from './ot_server_helper.js'
 
 import type { ClientEditMessage, ServerEditMessage, ClientConnectionRequest } from './message_types.js'
+import { BROADCAST_TO_ALL, BROADCAST_OMITTING_SOURCE, REPLY_TO_SOURCE } from './message_types.js'
 import * as OTHelper from './ot_helper.js'
 
 type Propogator = {
@@ -32,72 +33,53 @@ type Propogator = {
 function generatePropogator (
   server: OTServerHelper,
   clients: Array<OTClientHelper<*>>,
-  _opts?: {
-    allowUnordered?: boolean
-  }
+  _opts?: { allowUnordered?: boolean }
 ): Propogator {
   let opts = U.fillDefaults(_opts, { allowUnordered: false })
 
-  function broadcastToClients (serverUpdate: ServerEditMessage) {
-    let clientResponses
-    if (opts.allowUnordered) {
-      clientResponses = clients.map(client => client.handleServerEdit(serverUpdate))
-    } else {
-      clientResponses = clients.map(client => client.handleOrderedUpdate(serverUpdate))
+  function propogate(clientMessage: ?(ClientEditMessage | ClientConnectionRequest)) {
+    if (clientMessage == null) {
+      return
     }
 
-    for (const clientResponse of clientResponses) {
-      if (clientResponse == null) {
-      } else if (clientResponse.kind === 'ClientEditMessage') {
-        sendUpdateToServer(clientResponse)
-      } else if (clientResponse.kind === 'ClientConnectionRequest') {
-        connectToServer(clientResponse)
+    let clientUid = clientMessage.sourceUid
+
+    let serverMessages = server.handle(clientMessage)
+    for (let serverMessage of serverMessages) {
+      let relevantClients
+
+      if (serverMessage.mode === BROADCAST_TO_ALL) {
+        relevantClients = clients
+      } else if (serverMessage.mode === BROADCAST_OMITTING_SOURCE) {
+        relevantClients = U.filter(clients, c => c.uid !== clientUid)
+      } else if (serverMessage.mode === REPLY_TO_SOURCE) {
+        relevantClients = U.filter(clients, c => c.uid === clientUid)
+      } else {
+        throw new Error(`wat, unknown ${JSON.stringify(serverMessage)} mode`)
       }
-    }
-  }
 
-  function sendUpdateToServer (clientUpdate: ClientEditMessage) {
-    let serverUpdate = server.handleClientUpdate(clientUpdate)
-    broadcastToClients(serverUpdate)
-  }
+      for (let client of relevantClients) {
+        let clientResponse
 
-  function connectToServer (connectionRequest: ClientConnectionRequest) {
-    let clientUid = connectionRequest.sourceUid
-    let client = U.find(c => c.uid === clientUid, clients)
-
-    if (client == null) {
-      throw new Error('wat, client doesn\'t exist')
-    }
-
-    let [serverResetResponse, serverUpdate] = server.handleServerEdits(connectionRequest)
-
-    if (serverUpdate != null) {
-      broadcastToClients(serverUpdate)
-    }
-
-    const clientResponses = client.handleServerEdits(serverResetResponse)
-    for (let clientResponse of clientResponses) {
-      if (clientResponse == null) {
-      } else if (clientResponse.kind === 'ClientEditMessage') {
-        sendUpdateToServer(clientResponse)
-      } else if (clientResponse.kind === 'ClientConnectionRequest') {
-        connectToServer(clientResponse)
+        if (opts.allowUnordered) {
+          clientResponse = client.handle(serverMessage)
+        } else {
+          clientResponse = client._handleInOrderMessage(serverMessage)
+        }
+        if (clientResponse != null) {
+          propogate(clientResponse)
+        }
       }
     }
   }
 
   return {
     send: (data) => {
-      if (data == null) {
-      } else if (data.kind === 'ClientEditMessage') {
-        sendUpdateToServer(data)
-      } else if (data.kind === 'ClientConnectionRequest') {
-        connectToServer(data)
-      }
+      propogate(data)
     },
     connect: (client: OTClientHelper<*>) => {
       clients.push(client)
-      connectToServer(client.startConnecting())
+      propogate(client.startConnecting())
     },
     disconnect: (client: OTClientHelper<*>) => {
       let poppedClient = U.pop(clients, c => c === client)
@@ -395,9 +377,9 @@ describe('resend', () => {
 
     // Re-send the dropped edits... This would happen on some timeout in an actual client
 
-    propogator.send(client0.resendEdits())
-    propogator.send(client1.resendEdits())
-    propogator.send(client2.resendEdits())
+    propogator.send(client0.retry())
+    propogator.send(client1.retry())
+    propogator.send(client2.retry())
 
     assert.equal('hi world cranberryapple ', client0.state)
     assert.equal('hi world cranberryapple ', client1.state)
@@ -426,14 +408,14 @@ describe('resend', () => {
     assert.equal('hello world george ', client0.state)
     assert.equal('hello george washington ', client1.state)
 
-    /* DROP THIS */ client0.resendEdits()
-    /* DROP THIS */ client1.resendEdits()
+    /* DROP THIS */ client0.retry()
+    /* DROP THIS */ client1.retry()
 
-    /* DROP THIS */ client0.resendEdits()
-    /* DROP THIS */ client1.resendEdits()
+    /* DROP THIS */ client0.retry()
+    /* DROP THIS */ client1.retry()
 
-    propogator.send(client0.resendEdits())
-    propogator.send(client1.resendEdits())
+    propogator.send(client0.retry())
+    propogator.send(client1.retry())
 
     assert.equal('hello world george washington ', client0.state)
     assert.equal('hello world george washington ', client1.state)

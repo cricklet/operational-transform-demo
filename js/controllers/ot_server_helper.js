@@ -122,7 +122,7 @@ export class OTServerHelper {
   // remote updates (i.e. ClientEditMessage) to the server state.
 
   // class OTServerHelper {
-  //   handleClientEdit(clientMessage: ClientEditMessage): ?ServerEditMessage
+  //   handle(clientMessage): ServerEditMessage[]
   // }
 
   // USAGE: (w/ an imaginary 'connection' object)
@@ -131,9 +131,10 @@ export class OTServerHelper {
   // let serverDocs = {...}
   //
   // connection.on('update', (clientMessage) => { // LISTEN for remote changes
-  //   let serverUpdate = server.handleClientEdit(clientMessage)
+  //   let serverMessages = server.handle(clientMessage)
   //
-  //   connection.broadcast(serverUpdate) // SEND applied changes
+  //   for (let serverMessage of serverMessages)
+  //     connection.broadcast(serverMessage) // SEND applied changes
   // })
 
   doc: IDocument
@@ -150,7 +151,7 @@ export class OTServerHelper {
     return this.doc.text
   }
 
-  handleClientEdit(clientMessage: ClientEditMessage)
+  _handleClientEdit(clientMessage: ClientEditMessage)
   : ServerEditMessage[] {
     // update the server state & return the update to broadcast to the clients
 
@@ -212,7 +213,7 @@ export class OTServerHelper {
     ]
   }
 
-  handleServerEdits(clientResetRequest: ClientConnectionRequest)
+  _handleClientConnection(clientResetRequest: ClientConnectionRequest)
   : ServerEditMessage[] {
     const updateEdit: ?UpdateEdit = clientResetRequest.edit
     let sourceUid: string = clientResetRequest.sourceUid
@@ -296,7 +297,7 @@ export class OTServerHelper {
       }
 
       // apply the client's update!
-      let updateResponses = this.handleClientEdit({
+      let updateResponses = this._handleClientEdit({
         kind: 'ClientEditMessage',
         sourceUid: sourceUid,
         edit: updateEdit
@@ -309,4 +310,17 @@ export class OTServerHelper {
       return responses
     }
   }
+  handle (clientMessage: ClientEditMessage | ClientConnectionRequest)
+  : ServerEditMessage[] {
+    if (clientMessage.kind === 'ClientEditMessage') {
+      return this._handleClientEdit(clientMessage)
+    }
+
+    if (clientMessage.kind === 'ClientConnectionRequest') {
+      return this._handleClientConnection(clientMessage)
+    }
+
+    throw new Error('wat')
+  }
+
 }

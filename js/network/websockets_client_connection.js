@@ -80,7 +80,7 @@ export function setupClientConnection(
 
     // Apply changes we missed while disconnected
     let clientResponses: (ClientEditMessage | ClientConnectionRequest)[]
-        = client.handleServerEdits(connectionResponse)
+        = client.handleClientConnection(connectionResponse)
 
     for (let clientResponse of clientResponses) {
       send(clientResponse)
