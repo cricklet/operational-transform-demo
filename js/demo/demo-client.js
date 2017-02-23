@@ -1,4 +1,4 @@
-/* @flow */
+clientMessage/* @flow */
 
 import type { DocumentState } from '../ot/applier.js'
 import { DocumentApplier } from '../ot/applier.js'
@@ -40,16 +40,16 @@ $(document).ready(() => {
     console.log)
 
   $('#undo').click(() => {
-    let update = client.performUndo()
-    if (update != null) {
-      clientConnection.update(update)
+    let clientMessage = client.performUndo()
+    if (clientMessage != null) {
+      clientConnection.send(clientMessage)
     }
   })
 
   $('#redo').click(() => {
-    let update = client.performRedo()
-    if (update != null) {
-      clientConnection.update(update)
+    let clientMessage = client.performRedo()
+    if (clientMessage != null) {
+      clientConnection.send(clientMessage)
     }
   })
 
@@ -75,9 +75,9 @@ $(document).ready(() => {
     // handle new text
     let editOps = Inferrer.inferOperation(client.state.text, newText)
     if (editOps != null) {
-      let update = client.performEdit(editOps)
-      if (update != null) {
-        clientConnection.update(update)
+      let clientMessage = client.performEdit(editOps)
+      if (clientMessage != null) {
+        clientConnection.send(clientMessage)
       }
     }
 
