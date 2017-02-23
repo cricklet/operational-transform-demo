@@ -6,7 +6,7 @@ import type { Operation } from '../ot/types.js'
 
 export type Edit = $Shape<{
   id: string,
-  // keep source-uid here?
+  sourceUid: string,
 
   operation: ?Operation,
 
@@ -20,7 +20,9 @@ export type Edit = $Shape<{
 // The official edits on the server
 export type ServerEdit = {|
   id?: string,
-  operation?: Operation,
+  sourceUid?: string,
+
+  operation: Operation,
 
   parentHash: string,
   childHash: string,

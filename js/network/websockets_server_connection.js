@@ -40,7 +40,7 @@ export function setupServerConnection(
       }
 
       // apply client update & compute response
-      let serverUpdate = server.handleUpdate(clientUpdate)
+      let serverUpdate = server.handleClientEdit(clientUpdate)
       if (serverUpdate != null) {
         sendUpdate(serverUpdate)
       }
@@ -57,7 +57,7 @@ export function setupServerConnection(
 
       // Apply client update & compute response
       let [connectionResponse: ServerEditsMessage, serverUpdate: ?ServerEditMessage]
-          = server.handleConnectionResponse(connectionRequest)
+          = server.handleServerEdits(connectionRequest)
 
       if (serverUpdate != null) {
         sendUpdate(serverUpdate)

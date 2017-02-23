@@ -12,8 +12,13 @@ import type {
 import type {
   ClientEditMessage,
   ClientConnectionRequest,
-  ServerEditMessage,
-  ServerEditsMessage,
+  ServerEditMessage
+} from './message_types.js'
+
+import {
+  BROADCAST_TO_ALL,
+  REPLY_TO_SOURCE,
+  BROADCAST_OMITTING_SOURCE
 } from './message_types.js'
 
 import * as OTHelper from './ot_helper.js'
@@ -79,7 +84,7 @@ export class InMemoryDocument {
 
     if (range.start === range.stop) {
       return {
-        operation: undefined,
+        operation: [],
         parentHash: this.text,
         childHash: this.text,
         startIndex: range.start,
@@ -117,7 +122,7 @@ export class OTServerHelper {
   // remote updates (i.e. ClientEditMessage) to the server state.
 
   // class OTServerHelper {
-  //   handleUpdate(clientUpdate: ClientEditMessage): ?ServerEditMessage
+  //   handleClientEdit(clientMessage: ClientEditMessage): ?ServerEditMessage
   // }
 
   // USAGE: (w/ an imaginary 'connection' object)
@@ -125,8 +130,8 @@ export class OTServerHelper {
   // let server = new OTServerHelper(...)
   // let serverDocs = {...}
   //
-  // connection.on('update', (clientUpdate) => { // LISTEN for remote changes
-  //   let serverUpdate = server.handleUpdate(clientUpdate)
+  // connection.on('update', (clientMessage) => { // LISTEN for remote changes
+  //   let serverUpdate = server.handleClientEdit(clientMessage)
   //
   //   connection.broadcast(serverUpdate) // SEND applied changes
   // })
@@ -145,11 +150,11 @@ export class OTServerHelper {
     return this.doc.text
   }
 
-  handleUpdate(clientUpdate: ClientEditMessage)
-  : ServerEditMessage {
+  handleClientEdit(clientMessage: ClientEditMessage)
+  : ServerEditMessage[] {
     // update the server state & return the update to broadcast to the clients
 
-    // a = clientUpdate
+    // a = clientMessage
     // b = historyEdit
 
     // aP = serverUpdate to broadcast to the clients
@@ -159,25 +164,23 @@ export class OTServerHelper {
     // bP \  / aP
     //     \/
 
-    let clientEdit: UpdateEdit = clientUpdate.edit
-    let sourceUid: string = clientUpdate.sourceUid
+    let clientEdit: UpdateEdit = clientMessage.edit
+    let sourceUid: string = clientMessage.sourceUid
 
     let editId = clientEdit.id
 
     // this was already applied!
     if (this.doc.hasEdit(editId)) {
-      console.log(editId)
-
       const serverEdit = this.doc.getEdit(editId)
       if (serverEdit == null) {
         throw new Error(`wat, server edit should exist: ${editId}`)
       }
-      return {
+      return [{
         kind: 'ServerEditMessage',
-        sourceUid: sourceUid,
         edit: serverEdit,
-        opts: { ignoreIfNotAtSource: true } // only send this back to the source
-      }
+        ack: true,
+        mode: REPLY_TO_SOURCE
+      }]
     }
 
     // apply the new update now
@@ -189,71 +192,121 @@ export class OTServerHelper {
     aP.startIndex = this.doc.getNextIndex()
     aP.nextIndex = aP.startIndex + 1
 
-    this.doc.update(newState, castServerEdit(aP))
+    let serverEdit = castServerEdit(aP)
 
-    return {
-      kind: 'ServerEditMessage',
-      sourceUid: sourceUid,
-      edit: castServerEdit(aP),
-      opts: {}
-    }
+    this.doc.update(newState, serverEdit)
+
+    return [
+      {
+        kind: 'ServerEditMessage',
+        edit: serverEdit,
+        ack: false,
+        mode: BROADCAST_OMITTING_SOURCE
+      },
+      {
+        kind: 'ServerEditMessage',
+        edit: serverEdit,
+        ack: true,
+        mode: REPLY_TO_SOURCE
+      }
+    ]
   }
 
-  handleConnectionResponse(clientResetRequest: ClientConnectionRequest)
-  : [ServerEditsMessage, ?ServerEditMessage] {
+  handleServerEdits(clientResetRequest: ClientConnectionRequest)
+  : ServerEditMessage[] {
     const updateEdit: ?UpdateEdit = clientResetRequest.edit
     let sourceUid: string = clientResetRequest.sourceUid
 
     // the first unknown index on the client
     let startIndex: number = clientResetRequest.nextIndex
 
-    // handle the update if it's still outstanding
-    if (updateEdit != null) {
-      let serverUpdate = this.handleUpdate({
+    // the client has no outstanding update
+    if (updateEdit == null) {
+      return [ // just return the missing history
+        {
+          kind: 'ServerEditMessage',
+          edit: this.doc.getEditRange(startIndex),
+          ack: false,
+          mode: REPLY_TO_SOURCE
+        }
+      ]
+    }
+
+    // the client's outstanding update has already been applied
+    if (this.doc.hasEdit(updateEdit.id)) {
+
+      // when was the client's update already applied?
+      const updateIndex = this.doc.indexOfEdit(updateEdit.id)
+      if (updateIndex == null) {
+        throw new Error('wat, we just checked that the edit is in the history')
+      }
+
+      // get the edits before & after the client's update
+      let beforeEdit = this.doc.getEditRange(startIndex, updateIndex)
+      let ackEdit = this.doc.getEditAt(updateIndex)
+      let afterEdit = this.doc.getEditRange(updateIndex + 1)
+
+      let responses = []
+
+      if (!OTHelper.isEmpty(beforeEdit)) {
+        responses.push({
+          kind: 'ServerEditMessage',
+          edit: beforeEdit,
+          ack: false,
+          mode: 'REPLY_TO_SOURCE'
+        })
+      }
+
+      if (OTHelper.isEmpty(ackEdit)) {
+        throw new Error('wat, how is the ack edit empty?')
+      }
+
+      responses.push({
+        kind: 'ServerEditMessage',
+        edit: ackEdit,
+        ack: true,
+        mode: 'REPLY_TO_SOURCE'
+      })
+
+      if (!OTHelper.isEmpty(afterEdit)) {
+        responses.push({
+          kind: 'ServerEditMessage',
+          edit: afterEdit,
+          ack: false,
+          mode: 'REPLY_TO_SOURCE'
+        })
+      }
+
+      return responses
+    }
+
+    // we need to apply the client's update
+    else {
+      let responses = []
+
+      // emit the historical edits before applying the client's update
+      let beforeEdit = this.doc.getEditRange(startIndex)
+      if (!OTHelper.isEmpty(beforeEdit)) {
+        responses.push({
+          kind: 'ServerEditMessage',
+          edit: beforeEdit,
+          ack: false,
+          mode: 'REPLY_TO_SOURCE'
+        })
+      }
+
+      // apply the client's update!
+      let updateResponses = this.handleClientEdit({
         kind: 'ClientEditMessage',
         sourceUid: sourceUid,
         edit: updateEdit
       })
 
-      // DON'T send this back to the source!
-      // They'll receive this via the ServerEditsMessage
-      serverUpdate.opts.ignoreAtSource = true
-
-      // find the index within the history of the outstanding edit
-      const outstandingIndex = this.doc.indexOfEdit(updateEdit.id)
-      if (outstandingIndex == null) {
-        throw new Error(
-          `wat, how is this edit not in the history?
-           edit: ${JSON.stringify(updateEdit)}
-           clientRequest: ${JSON.stringify(clientResetRequest)}
-           history: ${JSON.stringify(this.doc)}`)
+      for (let updateResponse of updateResponses) {
+        responses.push(updateResponse)
       }
 
-      // coalesce the historical edits to get the client back up to speed
-      let beforeEdit = this.doc.getEditRange(startIndex, outstandingIndex)
-      let ackEdit = this.doc.getEditAt(outstandingIndex)
-      let afterEdit = this.doc.getEditRange(outstandingIndex + 1)
-
-      let serverResponse: ServerEditsMessage = {
-        kind: 'ServerEditsMessage',
-        edits: [
-          beforeEdit,
-          ackEdit,
-          afterEdit
-        ].filter(edit => edit.nextIndex != edit.startIndex)
-      }
-
-      return [ serverResponse, serverUpdate ]
-
-    } else {
-      let serverResponse: ServerEditsMessage = {
-        kind: 'ServerEditsMessage',
-        edits: [this.doc.getEditRange(startIndex)]
-      }
-      return [
-        serverResponse,
-        undefined
-      ]
+      return responses
     }
   }
 }

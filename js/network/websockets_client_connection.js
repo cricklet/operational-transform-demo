@@ -65,7 +65,7 @@ export function setupClientConnection(
 
     // Apply server update & compute response
     let clientResponse: ?(ClientEditMessage | ClientConnectionRequest)
-        = client.handleUpdate(serverUpdate)
+        = client.handleServerEdit(serverUpdate)
 
     if (clientResponse != null) {
       send(clientResponse)
@@ -80,7 +80,7 @@ export function setupClientConnection(
 
     // Apply changes we missed while disconnected
     let clientResponses: (ClientEditMessage | ClientConnectionRequest)[]
-        = client.handleConnectionResponse(connectionResponse)
+        = client.handleServerEdits(connectionResponse)
 
     for (let clientResponse of clientResponses) {
       send(clientResponse)

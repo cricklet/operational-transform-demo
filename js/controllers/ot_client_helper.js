@@ -13,8 +13,7 @@ import type {
 import type {
   ClientEditMessage,
   ClientConnectionRequest,
-  ServerEditMessage,
-  ServerEditsMessage,
+  ServerEditMessage
 } from './message_types.js'
 
 import { castOutstandingEdit, castBufferEdit, castUpdateEdit } from './edit_types.js'
@@ -29,7 +28,7 @@ export class OTClientHelper<S> {
 
   // OTClientHelper {
   //   performEdit(edit: Operation): ?ClientEditMessage
-  //   handleUpdate(serverUpdate: ServerEditMessage): ?ServerEditMessage
+  //   handleClientEdit(serverUpdate: ServerEditMessage): ?ServerEditMessage
   // }
 
   // USAGE:
@@ -37,7 +36,7 @@ export class OTClientHelper<S> {
   // let client = new OTClientHelper(...)
   //
   // connection.on('update', (serverUpdate) => { // LISTEN for remote changes
-  //   let clientUpdate = client.handleUpdate(serverUpdate)
+  //   let clientUpdate = client.handleClientEdit(serverUpdate)
   //   connection.send(clientUpdate)
   // })
   //
@@ -171,20 +170,6 @@ export class OTClientHelper<S> {
     return update
   }
 
-  _shouldIgnoreUpdate(serverUpdate: ServerEditMessage) {
-    let sourceUid = serverUpdate.sourceUid
-
-    if (serverUpdate.opts.ignoreAtSource && sourceUid === this.uid) {
-      return true
-    }
-
-    if (serverUpdate.opts.ignoreIfNotAtSource && sourceUid != null && sourceUid !== this.uid) {
-      return true
-    }
-
-    return false
-  }
-
   startConnecting(): ClientConnectionRequest {
     let updateEdit: ?UpdateEdit = castUpdateEdit(this.outstandingEdit)
 
@@ -198,76 +183,13 @@ export class OTClientHelper<S> {
     return request
   }
 
-  handleConnectionResponse(connectinoResponse: ServerEditsMessage)
-  : (ClientEditMessage | ClientConnectionRequest)[] {
-    // we're up to date!
-    if (connectinoResponse.edits.length === 0) {
-      return []
-    }
-
-    let startIndex = U.first(connectinoResponse.edits).startIndex
-    if (startIndex !== this._nextIndex()) {
-      // we're still out of order?
-      console.log(`received out of order... ${startIndex} != ${this._nextIndex()}
-                  ${JSON.stringify(this)}`)
-      return [this.startConnecting()]
-    }
-
-    // apply all the updates
-    let responses = []
-    for (let edit of connectinoResponse.edits) {
-      let response = this.handleUpdate({
-        kind: 'ServerEditMessage',
-        edit: edit,
-        opts: {}
-      })
-      if (response != null) {
-        responses.push(response)
-      }
-    }
-
-    if (responses.length > 1) {
-      throw new Error('there should only be one response...')
-    }
-
-    return responses
-  }
-
-  handleUpdate(serverUpdate: ServerEditMessage)
-  : ?(ClientEditMessage | ClientConnectionRequest) {
-    let op: ServerEdit = serverUpdate.edit
-    if (this._shouldIgnoreUpdate(serverUpdate)) {
-      return undefined
-    }
-
-    if (op.startIndex > this._nextIndex()) { // raise on future edits
-      console.log(`received out of order edits:
-                   client: ${JSON.stringify(this)}
-                   server-update: ${JSON.stringify(serverUpdate)}`)
-      return this.startConnecting()
-    } else if (op.startIndex < this._nextIndex()) { // ignore old edits
-      return undefined
-    }
-
-    return this.handleOrderedUpdate(serverUpdate)
-  }
-
-  handleOrderedUpdate(serverUpdate: ServerEditMessage)
+  _handleOrderedServerEdit(serverUpdate: ServerEditMessage)
   : ?ClientEditMessage {
     let op: ServerEdit = serverUpdate.edit
-
-    if (this._shouldIgnoreUpdate(serverUpdate)) {
-      return undefined
-    }
 
     if (op.startIndex !== this._nextIndex()) {
       throw new Error(`Expected server update #${this._nextIndex()} instead of ${op.startIndex}.`)
     }
-
-    // if ((op.id === this.outstandingEdit.id) !==
-    //     (op.sourceUid === this.uid)) {
-    //   throw new Error(`How is the id the same if the source uid is different..?`)
-    // }
 
     if (this.outstandingEdit != null && op.id === this.outstandingEdit.id) {
       if (serverUpdate.sourceUid != null && serverUpdate.sourceUid !== this.uid) {
@@ -305,6 +227,23 @@ export class OTClientHelper<S> {
 
       return undefined
     }
+  }
+
+  handleServerEdit(serverUpdate: ServerEditMessage)
+  : ?(ClientEditMessage | ClientConnectionRequest) {
+    let op: ServerEdit = serverUpdate.edit
+
+    if (op.startIndex > this._nextIndex()) {
+      // we're not ready for this edit yet... reconnect
+      console.log(`received out of order edits: ${JSON.stringify(this)}, ${JSON.stringify(serverUpdate)}`)
+      return this.startConnecting()
+
+    } else if (op.startIndex < this._nextIndex()) {
+      // we already handled this edit... ignore
+      return undefined
+    }
+
+    return this._handleOrderedServerEdit(serverUpdate)
   }
 
   performUndo(): ?ClientEditMessage {

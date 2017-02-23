@@ -19,7 +19,7 @@ import { generateInsertion, generateDeletion } from '../ot/components.js'
 import { OTClientHelper } from './ot_client_helper.js'
 import { OTServerHelper } from './ot_server_helper.js'
 
-import type { ClientEditMessage, ServerEditMessage, ClientConnectionRequest, ServerEditsMessage } from './message_types.js'
+import type { ClientEditMessage, ServerEditMessage, ClientConnectionRequest } from './message_types.js'
 import * as OTHelper from './ot_helper.js'
 
 type Propogator = {
@@ -41,7 +41,7 @@ function generatePropogator (
   function broadcastToClients (serverUpdate: ServerEditMessage) {
     let clientResponses
     if (opts.allowUnordered) {
-      clientResponses = clients.map(client => client.handleUpdate(serverUpdate))
+      clientResponses = clients.map(client => client.handleServerEdit(serverUpdate))
     } else {
       clientResponses = clients.map(client => client.handleOrderedUpdate(serverUpdate))
     }
@@ -57,7 +57,7 @@ function generatePropogator (
   }
 
   function sendUpdateToServer (clientUpdate: ClientEditMessage) {
-    let serverUpdate = server.handleUpdate(clientUpdate)
+    let serverUpdate = server.handleClientUpdate(clientUpdate)
     broadcastToClients(serverUpdate)
   }
 
@@ -69,13 +69,13 @@ function generatePropogator (
       throw new Error('wat, client doesn\'t exist')
     }
 
-    let [serverResetResponse, serverUpdate] = server.handleConnectionResponse(connectionRequest)
+    let [serverResetResponse, serverUpdate] = server.handleServerEdits(connectionRequest)
 
     if (serverUpdate != null) {
       broadcastToClients(serverUpdate)
     }
 
-    const clientResponses = client.handleConnectionResponse(serverResetResponse)
+    const clientResponses = client.handleServerEdits(serverResetResponse)
     for (let clientResponse of clientResponses) {
       if (clientResponse == null) {
       } else if (clientResponse.kind === 'ClientEditMessage') {

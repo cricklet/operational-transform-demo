@@ -10,20 +10,16 @@ import {
   castUpdateEdit,
 } from './edit_types.js'
 
+export let BROADCAST_TO_ALL = 'BROADCAST_TO_ALL'
+export let REPLY_TO_SOURCE = 'REPLY_TO_SOURCE'
+export let BROADCAST_OMITTING_SOURCE = 'BROADCAST_OMITTING_SOURCE'
+
 export type ServerEditMessage = {|
   kind: 'ServerEditMessage',
-  sourceUid?: string,
   edit: ServerEdit,
 
-  opts: {
-    ignoreAtSource?: boolean,
-    ignoreIfNotAtSource?: boolean
-  }
-|}
-
-export type ServerEditsMessage = {|
-  kind: 'ServerEditsMessage',
-  edits: ServerEdit[]
+  ack: boolean, // are we sending this edit back to it's original author?
+  mode: 'BROADCAST_TO_ALL' | 'REPLY_TO_SOURCE' | 'BROADCAST_OMITTING_SOURCE'
 |}
 
 export type ClientEditMessage = {|
@@ -61,16 +57,6 @@ export function castServerEditMessage(obj: Object): ?ServerEditMessage {
   if (obj.kind !== 'ServerEditMessage') { return undefined }
   if (obj.docId == null) { throw new Error('bad update') }
   castServerEdit(obj.edit)
-  /* @flow-ignore */
-  return obj
-}
-
-export function castServerEditsMessage(obj: Object): ?ServerEditsMessage {
-  if (obj.kind !== 'ServerEditsMessage') { return undefined }
-  if (obj.docId == null || obj.edits == null || !Array.isArray(obj.edits)) { throw new Error('bad update') }
-  for (let edit of obj.edits) {
-    castServerEdit(edit)
-  }
   /* @flow-ignore */
   return obj
 }

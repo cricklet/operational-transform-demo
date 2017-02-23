@@ -307,7 +307,7 @@ $(document).ready(() => {
   let server = new OTServerHelper()
   let serverConnection: SimulatedConnection<ServerEditMessage, ClientEditMessage> = new SimulatedConnection(chaos, serverLogger)
   serverConnection.listen((clientUpdate: ClientEditMessage) => {
-    let serverUpdate: ServerEditMessage = server.handleUpdate(clientUpdate)
+    let serverUpdate: ServerEditMessage = server.handleClientEdit(clientUpdate)
     serverConnection.send(serverUpdate)
   })
 

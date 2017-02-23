@@ -27,7 +27,7 @@ let socketServer = SocketServer();
 let server = new OTServerHelper()
 
 function serverHandler(docId: string, clientUpdate: ClientEditMessage): ?ServerEditMessage {
-  return server.handleUpdate(clientUpdate)
+  return server.handleClientEdit(clientUpdate)
 }
 
 function serializeServerEditMessage(serverUpdate: ServerEditMessage): string {

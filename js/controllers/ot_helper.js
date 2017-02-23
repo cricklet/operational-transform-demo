@@ -281,3 +281,9 @@ export function transform(
 
   return [aEditP, bEditP]
 }
+
+export function isEmpty(
+  edit: ServerEdit
+): boolean {
+  return edit.startIndex === edit.nextIndex
+}
