@@ -12,12 +12,12 @@ import type {
   BufferEdit,
   ServerEdit,
   EditsStack
-} from './types.js'
+} from './edit_types.js'
 
 import {
   castOutstandingEdit,
   castBufferEdit,
-} from './types.js'
+} from './edit_types.js'
 
 export interface IApplier<S> {
   initial(): S,

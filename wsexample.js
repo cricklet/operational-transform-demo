@@ -6,7 +6,7 @@ import * as process from 'process'
 import SocketServer from 'socket.io'
 import SocketClient from 'socket.io-client'
 
-import type { ClientUpdateEvent, ServerUpdateEvent } from './js/controllers/types.js'
+import type { ClientEditMessage, ServerEditMessage } from './js/controllers/message_types.js'
 import { OTClientHelper } from './js/controllers/ot_client_helper.js'
 import { OTServerHelper } from './js/controllers/ot_server_helper.js'
 
@@ -26,23 +26,23 @@ let docId = '1234'
 let socketServer = SocketServer();
 let server = new OTServerHelper()
 
-function serverHandler(docId: string, clientUpdate: ClientUpdateEvent): ?ServerUpdateEvent {
+function serverHandler(docId: string, clientUpdate: ClientEditMessage): ?ServerEditMessage {
   return server.handleUpdate(clientUpdate)
 }
 
-function serializeServerUpdateEvent(serverUpdate: ServerUpdateEvent): string {
+function serializeServerEditMessage(serverUpdate: ServerEditMessage): string {
   return JSON.stringify(serverUpdate)
 }
 
-function deserializeServerUpdateEvent(json: string): ServerUpdateEvent {
+function deserializeServerEditMessage(json: string): ServerEditMessage {
   return JSON.parse(json)
 }
 
-function serializeClientUpdateEvent(clientUpdate: ClientUpdateEvent): string {
+function serializeClientEditMessage(clientUpdate: ClientEditMessage): string {
   return JSON.stringify(clientUpdate)
 }
 
-function deserializeClientUpdateEvent(json: string): [string, ClientUpdateEvent] {
+function deserializeClientEditMessage(json: string): [string, ClientEditMessage] {
   let packet = JSON.parse(json)
   return [ packet.docId, packet ]
 }
@@ -53,10 +53,10 @@ socketServer.on('connection', (socket) => {
     socket.join(docId)
   })
   socket.on('client update', (json) => {
-    let [docId, clientUpdate] = deserializeClientUpdateEvent(json)
+    let [docId, clientUpdate] = deserializeClientEditMessage(json)
     let serverUpdate = serverHandler(docId, clientUpdate)
     if (serverUpdate == null) { return }
-    let serverUpdateJSON = serializeServerUpdateEvent(serverUpdate)
+    let serverUpdateJSON = serializeServerEditMessage(serverUpdate)
 
     socketServer.sockets.in(docId).emit('server update', serverUpdateJSON)
   })
@@ -71,13 +71,13 @@ function createClient(clientId, docId) {
   let otClient = new OTClientHelper(TextApplier)
 
   client.on('server update', (json) => {
-    let serverUpdate = deserializeServerUpdateEvent(json)
+    let serverUpdate = deserializeServerEditMessage(json)
 
     let clientUpdate = otClient.handleOrderedUpdate(serverUpdate)
     printAll()
 
     if (clientUpdate != null) {
-      let clientUpdateJSON = serializeClientUpdateEvent(clientUpdate)
+      let clientUpdateJSON = serializeClientEditMessage(clientUpdate)
       client.emit('client update', clientUpdateJSON)
     }
   })
@@ -92,7 +92,7 @@ function createClient(clientId, docId) {
       let clientUpdate = otClient.performEdit(ops)
 
       if (clientUpdate != null) {
-        let clientUpdateJSON = serializeClientUpdateEvent(clientUpdate)
+        let clientUpdateJSON = serializeClientEditMessage(clientUpdate)
         client.emit('client update', clientUpdateJSON)
       }
     },

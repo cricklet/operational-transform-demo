@@ -19,11 +19,11 @@ import { generateInsertion, generateDeletion } from '../ot/components.js'
 import { OTClientHelper } from './ot_client_helper.js'
 import { OTServerHelper } from './ot_server_helper.js'
 
-import type { ClientUpdateEvent, ServerUpdateEvent, ClientRequestSetupEvent, ServerFinishSetupEvent } from './types.js'
+import type { ClientEditMessage, ServerEditMessage, ClientConnectionRequest, ServerEditsMessage } from './message_types.js'
 import * as OTHelper from './ot_helper.js'
 
 type Propogator = {
-  send: (packet: ?(ClientUpdateEvent | ClientRequestSetupEvent)) => void,
+  send: (packet: ?(ClientEditMessage | ClientConnectionRequest)) => void,
   connect: (client: OTClientHelper<*>) => void,
   disconnect: (client: OTClientHelper<*>) => void,
 }
@@ -38,7 +38,7 @@ function generatePropogator (
 ): Propogator {
   let opts = U.fillDefaults(_opts, { allowUnordered: false })
 
-  function broadcastToClients (serverUpdate: ServerUpdateEvent) {
+  function broadcastToClients (serverUpdate: ServerEditMessage) {
     let clientResponses
     if (opts.allowUnordered) {
       clientResponses = clients.map(client => client.handleUpdate(serverUpdate))
@@ -48,20 +48,20 @@ function generatePropogator (
 
     for (const clientResponse of clientResponses) {
       if (clientResponse == null) {
-      } else if (clientResponse.kind === 'ClientUpdateEvent') {
+      } else if (clientResponse.kind === 'ClientEditMessage') {
         sendUpdateToServer(clientResponse)
-      } else if (clientResponse.kind === 'ClientRequestSetupEvent') {
+      } else if (clientResponse.kind === 'ClientConnectionRequest') {
         connectToServer(clientResponse)
       }
     }
   }
 
-  function sendUpdateToServer (clientUpdate: ClientUpdateEvent) {
+  function sendUpdateToServer (clientUpdate: ClientEditMessage) {
     let serverUpdate = server.handleUpdate(clientUpdate)
     broadcastToClients(serverUpdate)
   }
 
-  function connectToServer (connectionRequest: ClientRequestSetupEvent) {
+  function connectToServer (connectionRequest: ClientConnectionRequest) {
     let clientUid = connectionRequest.sourceUid
     let client = U.find(c => c.uid === clientUid, clients)
 
@@ -69,18 +69,18 @@ function generatePropogator (
       throw new Error('wat, client doesn\'t exist')
     }
 
-    let [serverResetResponse, serverUpdate] = server.handleConnection(connectionRequest)
+    let [serverResetResponse, serverUpdate] = server.handleConnectionResponse(connectionRequest)
 
     if (serverUpdate != null) {
       broadcastToClients(serverUpdate)
     }
 
-    const clientResponses = client.handleConnection(serverResetResponse)
+    const clientResponses = client.handleConnectionResponse(serverResetResponse)
     for (let clientResponse of clientResponses) {
       if (clientResponse == null) {
-      } else if (clientResponse.kind === 'ClientUpdateEvent') {
+      } else if (clientResponse.kind === 'ClientEditMessage') {
         sendUpdateToServer(clientResponse)
-      } else if (clientResponse.kind === 'ClientRequestSetupEvent') {
+      } else if (clientResponse.kind === 'ClientConnectionRequest') {
         connectToServer(clientResponse)
       }
     }
@@ -89,9 +89,9 @@ function generatePropogator (
   return {
     send: (data) => {
       if (data == null) {
-      } else if (data.kind === 'ClientUpdateEvent') {
+      } else if (data.kind === 'ClientEditMessage') {
         sendUpdateToServer(data)
-      } else if (data.kind === 'ClientRequestSetupEvent') {
+      } else if (data.kind === 'ClientConnectionRequest') {
         connectToServer(data)
       }
     },

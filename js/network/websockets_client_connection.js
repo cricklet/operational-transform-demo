@@ -4,11 +4,11 @@ import SocketClient from 'socket.io-client'
 
 import * as U from '../helpers/utils.js'
 import { OTClientHelper } from '../controllers/ot_client_helper.js'
-import { castServerUpdateEvent, castServerFinishSetupEvent } from '../controllers/types.js'
-import type { ServerUpdateEvent, ClientUpdateEvent, ClientRequestSetupEvent, ServerFinishSetupEvent } from '../controllers/types.js'
+import { castServerEditMessage, castServerEditsMessage } from '../controllers/message_types.js'
+import type { ServerEditMessage, ClientEditMessage, ClientConnectionRequest, ServerEditsMessage } from '../controllers/message_types.js'
 
 export type ClientConnection = {
-  update: (clientUpdate: ClientUpdateEvent) => void
+  update: (clientUpdate: ClientEditMessage) => void
 }
 
 export function setupClientConnection(
@@ -33,7 +33,7 @@ export function setupClientConnection(
     resendTimeout = setTimeout(resendIfNoAck, 4000)
   }
 
-  function sendUpdate (clientUpdate: ClientUpdateEvent) {
+  function sendUpdate (clientUpdate: ClientEditMessage) {
     let clientUpdateJSON = JSON.stringify(clientUpdate)
     socket.emit('client-update', clientUpdateJSON)
 
@@ -41,15 +41,15 @@ export function setupClientConnection(
     resendTimeout = setTimeout(resendIfNoAck, 4000)
   }
 
-  function requestConnection (connectionRequest: ClientRequestSetupEvent) {
+  function requestConnection (connectionRequest: ClientConnectionRequest) {
     let connectionRequestJSON = JSON.stringify(connectionRequest)
     socket.emit('client-connect', connectionRequestJSON)
   }
 
-  function send(data: ClientUpdateEvent | ClientRequestSetupEvent) {
-    if (data.kind === 'ClientUpdateEvent') {
+  function send(data: ClientEditMessage | ClientConnectionRequest) {
+    if (data.kind === 'ClientEditMessage') {
       sendUpdate(data)
-    } else if (data.kind === 'ClientRequestSetupEvent') {
+    } else if (data.kind === 'ClientConnectionRequest') {
       requestConnection(data)
     }
   }
@@ -60,11 +60,11 @@ export function setupClientConnection(
   // Receive an edit from the server
   socket.on('server-update', (json) => {
     logger(`server sent update: ${json}`)
-    let serverUpdate: ?ServerUpdateEvent = castServerUpdateEvent(JSON.parse(json))
+    let serverUpdate: ?ServerEditMessage = castServerEditMessage(JSON.parse(json))
     if (serverUpdate == null) { throw new Error('un-parseable server update: ' + json) }
 
     // Apply server update & compute response
-    let clientResponse: ?(ClientUpdateEvent | ClientRequestSetupEvent)
+    let clientResponse: ?(ClientEditMessage | ClientConnectionRequest)
         = client.handleUpdate(serverUpdate)
 
     if (clientResponse != null) {
@@ -75,12 +75,12 @@ export function setupClientConnection(
   // Received a connection from the server
   socket.on('server-connect', (json) => {
     logger(`server sent connection: ${json}`)
-    let connectionResponse: ?ServerFinishSetupEvent = castServerFinishSetupEvent(JSON.parse(json))
+    let connectionResponse: ?ServerEditsMessage = castServerEditsMessage(JSON.parse(json))
     if (connectionResponse == null) { throw new Error('un-parseable server update: ' + json) }
 
     // Apply changes we missed while disconnected
-    let clientResponses: (ClientUpdateEvent | ClientRequestSetupEvent)[]
-        = client.handleConnection(connectionResponse)
+    let clientResponses: (ClientEditMessage | ClientConnectionRequest)[]
+        = client.handleConnectionResponse(connectionResponse)
 
     for (let clientResponse of clientResponses) {
       send(clientResponse)

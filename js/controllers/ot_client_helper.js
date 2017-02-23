@@ -6,27 +6,30 @@ import type {
   BufferEdit,
   OutstandingEdit,
   EditsStack,
-  ClientUpdateEvent,
-  ClientRequestSetupEvent,
-  ServerUpdateEvent,
-  ServerFinishSetupEvent,
   ServerEdit,
   UpdateEdit
-} from './types.js'
+} from './edit_types.js'
 
-import { castOutstandingEdit, castBufferEdit, castUpdateEdit } from './types.js'
+import type {
+  ClientEditMessage,
+  ClientConnectionRequest,
+  ServerEditMessage,
+  ServerEditsMessage,
+} from './message_types.js'
+
+import { castOutstandingEdit, castBufferEdit, castUpdateEdit } from './edit_types.js'
 import * as OTHelper from './ot_helper.js'
 import type { IApplier } from './ot_helper.js'
 import type { Operation } from '../ot/types.js'
 
 export class OTClientHelper<S> {
   // This class maintains the state of the client, computes what updates
-  // should be sent to the server (i.e. ClientUpdateEvent), and applies
-  // remote updates (i.e. ServerUpdateEvent) to the local state.
+  // should be sent to the server (i.e. ClientEditMessage), and applies
+  // remote updates (i.e. ServerEditMessage) to the local state.
 
   // OTClientHelper {
-  //   performEdit(edit: Operation): ?ClientUpdateEvent
-  //   handleUpdate(serverUpdate: ServerUpdateEvent): ?ServerUpdateEvent
+  //   performEdit(edit: Operation): ?ClientEditMessage
+  //   handleUpdate(serverUpdate: ServerEditMessage): ?ServerEditMessage
   // }
 
   // USAGE:
@@ -119,20 +122,20 @@ export class OTClientHelper<S> {
     return this.outstandingEdit.startIndex
   }
 
-  _sendOutstandingEdits(): ?ClientUpdateEvent {
+  _sendOutstandingEdits(): ?ClientEditMessage {
     const updateEdit = castUpdateEdit(this.outstandingEdit)
     if (updateEdit == null) {
       return undefined
     }
 
     return {
-      kind: 'ClientUpdateEvent',
+      kind: 'ClientEditMessage',
       edit: updateEdit,
       sourceUid: this.uid,
     }
   }
 
-  _flushBuffer(): ?ClientUpdateEvent {
+  _flushBuffer(): ?ClientEditMessage {
     // if there's no buffer, skip
     if (this.bufferEdit.operation == null) {
       return undefined
@@ -168,7 +171,7 @@ export class OTClientHelper<S> {
     return update
   }
 
-  _shouldIgnoreUpdate(serverUpdate: ServerUpdateEvent) {
+  _shouldIgnoreUpdate(serverUpdate: ServerEditMessage) {
     let sourceUid = serverUpdate.sourceUid
 
     if (serverUpdate.opts.ignoreAtSource && sourceUid === this.uid) {
@@ -182,11 +185,11 @@ export class OTClientHelper<S> {
     return false
   }
 
-  startConnecting(): ClientRequestSetupEvent {
+  startConnecting(): ClientConnectionRequest {
     let updateEdit: ?UpdateEdit = castUpdateEdit(this.outstandingEdit)
 
-    let request: ClientRequestSetupEvent = {
-      kind: 'ClientRequestSetupEvent',
+    let request: ClientConnectionRequest = {
+      kind: 'ClientConnectionRequest',
       nextIndex: this._nextIndex(),
       sourceUid: this.uid,
       edit: updateEdit
@@ -195,14 +198,14 @@ export class OTClientHelper<S> {
     return request
   }
 
-  handleConnection(connectionResponse: ServerFinishSetupEvent)
-  : (ClientUpdateEvent | ClientRequestSetupEvent)[] {
+  handleConnectionResponse(connectinoResponse: ServerEditsMessage)
+  : (ClientEditMessage | ClientConnectionRequest)[] {
     // we're up to date!
-    if (connectionResponse.edits.length === 0) {
+    if (connectinoResponse.edits.length === 0) {
       return []
     }
 
-    let startIndex = U.first(connectionResponse.edits).startIndex
+    let startIndex = U.first(connectinoResponse.edits).startIndex
     if (startIndex !== this._nextIndex()) {
       // we're still out of order?
       console.log(`received out of order... ${startIndex} != ${this._nextIndex()}
@@ -212,9 +215,9 @@ export class OTClientHelper<S> {
 
     // apply all the updates
     let responses = []
-    for (let edit of connectionResponse.edits) {
+    for (let edit of connectinoResponse.edits) {
       let response = this.handleUpdate({
-        kind: 'ServerUpdateEvent',
+        kind: 'ServerEditMessage',
         edit: edit,
         opts: {}
       })
@@ -230,8 +233,8 @@ export class OTClientHelper<S> {
     return responses
   }
 
-  handleUpdate(serverUpdate: ServerUpdateEvent)
-  : ?(ClientUpdateEvent | ClientRequestSetupEvent) {
+  handleUpdate(serverUpdate: ServerEditMessage)
+  : ?(ClientEditMessage | ClientConnectionRequest) {
     let op: ServerEdit = serverUpdate.edit
     if (this._shouldIgnoreUpdate(serverUpdate)) {
       return undefined
@@ -249,8 +252,8 @@ export class OTClientHelper<S> {
     return this.handleOrderedUpdate(serverUpdate)
   }
 
-  handleOrderedUpdate(serverUpdate: ServerUpdateEvent)
-  : ?ClientUpdateEvent {
+  handleOrderedUpdate(serverUpdate: ServerEditMessage)
+  : ?ClientEditMessage {
     let op: ServerEdit = serverUpdate.edit
 
     if (this._shouldIgnoreUpdate(serverUpdate)) {
@@ -304,7 +307,7 @@ export class OTClientHelper<S> {
     }
   }
 
-  performUndo(): ?ClientUpdateEvent {
+  performUndo(): ?ClientEditMessage {
     let currentHash = this.applier.stateHash(this.state)
     let undoHash = this.undos.parentHash
 
@@ -343,7 +346,7 @@ export class OTClientHelper<S> {
     }
   }
 
-  performRedo(): ?ClientUpdateEvent {
+  performRedo(): ?ClientEditMessage {
     let currentHash = this.applier.stateHash(this.state)
     let redoHash = this.redos.parentHash
 
@@ -382,7 +385,7 @@ export class OTClientHelper<S> {
     }
   }
 
-  performEdit(edit: Operation): ?ClientUpdateEvent {
+  performEdit(edit: Operation): ?ClientEditMessage {
     if (edit.length === 0) {
       return undefined
     }
@@ -416,7 +419,7 @@ export class OTClientHelper<S> {
     return this._flushBuffer()
   }
 
-  resendEdits(): ?ClientUpdateEvent {
+  resendEdits(): ?ClientEditMessage {
     return this._sendOutstandingEdits()
   }
 }

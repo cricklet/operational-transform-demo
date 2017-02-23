@@ -10,7 +10,7 @@ import { TextApplier, DocumentApplier } from '../ot/applier.js'
 import * as Inferrer from '../ot/inferrer.js'
 import * as Transformer from '../ot/transformer.js'
 
-import type { ClientUpdateEvent, ServerUpdateEvent } from '../controllers/types.js'
+import type { ClientEditMessage, ServerEditMessage } from '../controllers/message_types.js'
 import { OTClientHelper } from '../controllers/ot_client_helper.js'
 import { OTServerHelper } from '../controllers/ot_server_helper.js'
 
@@ -305,9 +305,9 @@ $(document).ready(() => {
   let clientConnections = []
 
   let server = new OTServerHelper()
-  let serverConnection: SimulatedConnection<ServerUpdateEvent, ClientUpdateEvent> = new SimulatedConnection(chaos, serverLogger)
-  serverConnection.listen((clientUpdate: ClientUpdateEvent) => {
-    let serverUpdate: ServerUpdateEvent = server.handleUpdate(clientUpdate)
+  let serverConnection: SimulatedConnection<ServerEditMessage, ClientEditMessage> = new SimulatedConnection(chaos, serverLogger)
+  serverConnection.listen((clientUpdate: ClientEditMessage) => {
+    let serverUpdate: ServerEditMessage = server.handleUpdate(clientUpdate)
     serverConnection.send(serverUpdate)
   })
 
@@ -328,8 +328,8 @@ $(document).ready(() => {
     clientId ++
 
     let client = new OTClientHelper(DocumentApplier)
-    let clientConnection: SimulatedConnection<ClientUpdateEvent, ServerUpdateEvent> = new SimulatedConnection(chaos)
-    clientConnection.listen((serverUpdate: ServerUpdateEvent) => {
+    let clientConnection: SimulatedConnection<ClientEditMessage, ServerEditMessage> = new SimulatedConnection(chaos)
+    clientConnection.listen((serverUpdate: ServerEditMessage) => {
       let update = client.handleOrderedUpdate(serverUpdate)
       if (update == null) { return }
       clientConnection.send(update)

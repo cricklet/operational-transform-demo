@@ -4,48 +4,6 @@ import * as U from '../helpers/utils.js'
 
 import type { Operation } from '../ot/types.js'
 
-export type ClientUpdateEvent = {|
-  kind: 'ClientUpdateEvent',
-  sourceUid: string,
-  edit: UpdateEdit
-|}
-
-export type ServerUpdateEvent = {|
-  kind: 'ServerUpdateEvent',
-  sourceUid?: string,
-  edit: ServerEdit,
-
-  opts: {
-    ignoreAtSource?: boolean,
-    ignoreIfNotAtSource?: boolean
-  }
-|}
-
-export type ClientRequestSetupEvent = {|
-  kind: 'ClientRequestSetupEvent',
-  sourceUid: string,
-  nextIndex: number,
-  edit: ?UpdateEdit,
-|}
-
-export type ServerFinishSetupEvent = {|
-  kind: 'ServerFinishSetupEvent',
-  edits: ServerEdit[]
-|}
-
-export type UndoAction = {|
-  kind: 'UndoAction'
-|}
-
-export type RedoAction = {|
-  kind: 'RedoAction'
-|}
-
-export type EditAction = {|
-  kind: 'RedoAction',
-  operation: Operation
-|}
-
 export type Edit = $Shape<{
   id: string,
   // keep source-uid here?
@@ -134,40 +92,4 @@ export function castUpdateEdit(op: Edit, opts?: Object): ?UpdateEdit {
     return undefined
   }
   return op
-}
-
-export function castClientUpdateEvent(obj: Object): ?ClientUpdateEvent {
-  if (obj.kind !== 'ClientUpdateEvent') { return undefined }
-  if (obj.sourceUid == null || obj.docId == null) { throw new Error('bad update') }
-  castOutstandingEdit(obj.edit)
-  /* @flow-ignore */
-  return obj
-}
-
-export function castClientRequestSetupEvent(obj: Object): ?ClientRequestSetupEvent {
-  if (obj.kind !== 'ClientRequestSetupEvent') { return undefined }
-  if (obj.sourceUid == null || obj.docId == null) { throw new Error('bad reset') }
-  if ('edit' in obj) {
-    castOutstandingEdit(obj.edit)
-  }
-  /* @flow-ignore */
-  return obj
-}
-
-export function castServerUpdateEvent(obj: Object): ?ServerUpdateEvent {
-  if (obj.kind !== 'ServerUpdateEvent') { return undefined }
-  if (obj.docId == null) { throw new Error('bad update') }
-  castServerEdit(obj.edit)
-  /* @flow-ignore */
-  return obj
-}
-
-export function castServerFinishSetupEvent(obj: Object): ?ServerFinishSetupEvent {
-  if (obj.kind !== 'ServerFinishSetupEvent') { return undefined }
-  if (obj.docId == null || obj.edits == null || !Array.isArray(obj.edits)) { throw new Error('bad update') }
-  for (let edit of obj.edits) {
-    castServerEdit(edit)
-  }
-  /* @flow-ignore */
-  return obj
 }

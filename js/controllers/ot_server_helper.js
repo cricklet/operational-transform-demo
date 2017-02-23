@@ -5,13 +5,16 @@ import * as U from '../helpers/utils.js'
 import type {
   Edit,
   OutstandingEdit,
-  ClientUpdateEvent,
-  ClientRequestSetupEvent,
-  ServerUpdateEvent,
-  ServerFinishSetupEvent,
   ServerEdit,
   UpdateEdit
-} from './types.js'
+} from './edit_types.js'
+
+import type {
+  ClientEditMessage,
+  ClientConnectionRequest,
+  ServerEditMessage,
+  ServerEditsMessage,
+} from './message_types.js'
 
 import * as OTHelper from './ot_helper.js'
 import { TextApplier } from '../ot/applier.js'
@@ -20,7 +23,7 @@ import type { Operation } from '../ot/types.js'
 
 import {
   castServerEdit
-} from './types.js'
+} from './edit_types.js'
 
 export interface IDocument {
   text: string,
@@ -110,11 +113,11 @@ export class InMemoryDocument {
 
 export class OTServerHelper {
   // This class maintains the state of the server, computes what updates
-  // should be sent to the client (i.e. ServerUpdateEvent), and applies
-  // remote updates (i.e. ClientUpdateEvent) to the server state.
+  // should be sent to the client (i.e. ServerEditMessage), and applies
+  // remote updates (i.e. ClientEditMessage) to the server state.
 
   // class OTServerHelper {
-  //   handleUpdate(clientUpdate: ClientUpdateEvent): ?ServerUpdateEvent
+  //   handleUpdate(clientUpdate: ClientEditMessage): ?ServerEditMessage
   // }
 
   // USAGE: (w/ an imaginary 'connection' object)
@@ -142,8 +145,8 @@ export class OTServerHelper {
     return this.doc.text
   }
 
-  handleUpdate(clientUpdate: ClientUpdateEvent)
-  : ServerUpdateEvent {
+  handleUpdate(clientUpdate: ClientEditMessage)
+  : ServerEditMessage {
     // update the server state & return the update to broadcast to the clients
 
     // a = clientUpdate
@@ -170,7 +173,7 @@ export class OTServerHelper {
         throw new Error(`wat, server edit should exist: ${editId}`)
       }
       return {
-        kind: 'ServerUpdateEvent',
+        kind: 'ServerEditMessage',
         sourceUid: sourceUid,
         edit: serverEdit,
         opts: { ignoreIfNotAtSource: true } // only send this back to the source
@@ -189,15 +192,15 @@ export class OTServerHelper {
     this.doc.update(newState, castServerEdit(aP))
 
     return {
-      kind: 'ServerUpdateEvent',
+      kind: 'ServerEditMessage',
       sourceUid: sourceUid,
       edit: castServerEdit(aP),
       opts: {}
     }
   }
 
-  handleConnection(clientResetRequest: ClientRequestSetupEvent)
-  : [ServerFinishSetupEvent, ?ServerUpdateEvent] {
+  handleConnectionResponse(clientResetRequest: ClientConnectionRequest)
+  : [ServerEditsMessage, ?ServerEditMessage] {
     const updateEdit: ?UpdateEdit = clientResetRequest.edit
     let sourceUid: string = clientResetRequest.sourceUid
 
@@ -207,13 +210,13 @@ export class OTServerHelper {
     // handle the update if it's still outstanding
     if (updateEdit != null) {
       let serverUpdate = this.handleUpdate({
-        kind: 'ClientUpdateEvent',
+        kind: 'ClientEditMessage',
         sourceUid: sourceUid,
         edit: updateEdit
       })
 
       // DON'T send this back to the source!
-      // They'll receive this via the ServerFinishSetupEvent
+      // They'll receive this via the ServerEditsMessage
       serverUpdate.opts.ignoreAtSource = true
 
       // find the index within the history of the outstanding edit
@@ -231,8 +234,8 @@ export class OTServerHelper {
       let ackEdit = this.doc.getEditAt(outstandingIndex)
       let afterEdit = this.doc.getEditRange(outstandingIndex + 1)
 
-      let serverResponse: ServerFinishSetupEvent = {
-        kind: 'ServerFinishSetupEvent',
+      let serverResponse: ServerEditsMessage = {
+        kind: 'ServerEditsMessage',
         edits: [
           beforeEdit,
           ackEdit,
@@ -243,8 +246,8 @@ export class OTServerHelper {
       return [ serverResponse, serverUpdate ]
 
     } else {
-      let serverResponse: ServerFinishSetupEvent = {
-        kind: 'ServerFinishSetupEvent',
+      let serverResponse: ServerEditsMessage = {
+        kind: 'ServerEditsMessage',
         edits: [this.doc.getEditRange(startIndex)]
       }
       return [
