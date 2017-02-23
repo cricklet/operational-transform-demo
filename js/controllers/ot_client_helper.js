@@ -230,10 +230,8 @@ export class OTClientHelper<S> {
     return responses
   }
 
-  handleUpdate(serverUpdate: ServerUpdateEvent, _opts?: { enforceOrdering: boolean })
+  handleUpdate(serverUpdate: ServerUpdateEvent)
   : ?(ClientUpdateEvent | ClientRequestSetupEvent) {
-    let opts = U.fillDefaults(_opts, { enforceOrdering: false })
-
     let op: ServerEdit = serverUpdate.edit
     if (this._shouldIgnoreUpdate(serverUpdate)) {
       return undefined
