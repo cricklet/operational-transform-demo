@@ -37,7 +37,7 @@ export type ClientConnectionRequest = {|
 
 export function castClientEditMessage(obj: Object): ?ClientEditMessage {
   if (obj.kind !== 'ClientEditMessage') { return undefined }
-  if (obj.sourceUid == null || obj.docId == null) { throw new Error('bad update') }
+  if (obj.sourceUid == null) { throw new Error('bad update') }
   castUpdateEdit(obj.edit)
   /* @flow-ignore */
   return obj
@@ -45,7 +45,7 @@ export function castClientEditMessage(obj: Object): ?ClientEditMessage {
 
 export function castClientConnectionRequest(obj: Object): ?ClientConnectionRequest {
   if (obj.kind !== 'ClientConnectionRequest') { return undefined }
-  if (obj.sourceUid == null || obj.docId == null) { throw new Error('bad reset') }
+  if (obj.sourceUid == null || obj.nextIndex == null) { throw new Error('bad connection request') }
   if ('edit' in obj) {
     castUpdateEdit(obj.edit)
   }
@@ -55,7 +55,7 @@ export function castClientConnectionRequest(obj: Object): ?ClientConnectionReque
 
 export function castServerEditMessage(obj: Object): ?ServerEditMessage {
   if (obj.kind !== 'ServerEditMessage') { return undefined }
-  if (obj.docId == null) { throw new Error('bad update') }
+  if (obj.ack == null || obj.mode == null) { throw new Error('bad edit message') }
   castServerEdit(obj.edit)
   /* @flow-ignore */
   return obj

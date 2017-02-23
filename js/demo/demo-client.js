@@ -1,4 +1,4 @@
-clientMessage/* @flow */
+/* @flow */
 
 import type { DocumentState } from '../ot/applier.js'
 import { DocumentApplier } from '../ot/applier.js'

@@ -218,6 +218,7 @@ export class OTClientHelper<S> {
     }
 
     if (op.startIndex > this._nextIndex()) { // raise on future updates
+      console.log('wtf')
       throw new OutOfOrderError()
     }
 

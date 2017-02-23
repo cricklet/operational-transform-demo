@@ -25,37 +25,37 @@ export function setupServerConnection(
 
     // Client sent an edit
     socket.on('client-message', (json) => {
-      // parse the client update
+      // parse the client edit
       logger(`client sent update: ${json}`)
-      let clientMessage: ?ClientEditMessage = castClientEditMessage(JSON.parse(json))
+      let editMessage: ?ClientEditMessage = castClientEditMessage(JSON.parse(json))
 
-      if (clientMessage == null) {
+      if (editMessage == null) {
         throw new Error('un-parseable client update: ' + json)
       }
 
       // apply client update & compute response
-      let serverMessages = server.handle(clientMessage)
-      for (let serverMessage of serverMessages) {
-        sendMessage(serverMessage)
+      let serverResponses = server.handle(editMessage)
+      for (let serverResponse of serverResponses) {
+        sendMessage(serverResponse)
       }
     })
 
     // Client connected!
     socket.on('client-connect', (json) => {
       logger(`client connected: ${json}`)
-      let clientMessage: ?ClientConnectionRequest = castClientConnectionRequest(JSON.parse(json))
+      let connectionRequest: ?ClientConnectionRequest = castClientConnectionRequest(JSON.parse(json))
 
-      if (clientMessage == null) {
+      if (connectionRequest == null) {
         throw new Error('un-parseable client connection request: ' + json)
       }
 
       // Join the room associated with this document
       socket.join(DOC_ID)
 
-      // Apply client update & compute response
-      let serverMessages = server.handle(clientMessage)
-      for (let serverMessage of serverMessages) {
-        sendMessage(serverMessage)
+      // Handle connection request & stream updates
+      let serverResponses = server.handle(connectionRequest)
+      for (let serverResponse of serverResponses) {
+        sendMessage(serverResponse)
       }
     })
 

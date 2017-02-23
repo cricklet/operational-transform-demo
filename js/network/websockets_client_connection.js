@@ -43,11 +43,9 @@ export function setupClientConnection(
 
     if (data.kind === 'ClientEditMessage') {
       socket.emit('client-message', JSON.stringify(data))
-      retry()
 
     } else if (data.kind === 'ClientConnectionRequest') {
       socket.emit('client-connect', JSON.stringify(data))
-      reconnect()
     }
   }
 
@@ -68,6 +66,7 @@ export function setupClientConnection(
       let clientResponse = client.handle(serverMessage)
       if (clientResponse != null) {
         send(clientResponse)
+        retry()
       }
 
     } catch (e) {
