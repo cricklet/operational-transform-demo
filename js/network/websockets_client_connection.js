@@ -3,7 +3,7 @@
 import SocketClient from 'socket.io-client'
 
 import * as U from '../helpers/utils.js'
-import { OTClientHelper } from '../controllers/ot_client_helper.js'
+import { OTClientHelper, OutOfOrderError } from '../controllers/ot_client_helper.js'
 import { castServerEditMessage } from '../controllers/message_types.js'
 import type { ServerEditMessage, ClientEditMessage, ClientConnectionRequest } from '../controllers/message_types.js'
 
@@ -18,60 +18,68 @@ export function setupClientConnection(
 ): ClientConnection {
   let socket = new SocketClient(url)
 
-  let resendTimeout = undefined
+  let retryTimeout = undefined
+  function retry() {
+    clearTimeout(retryTimeout)
 
-  function retryUpdate() {
-    let message = client.retry()
-    if (message == null) {
-      console.log('done sending')
-      clearTimeout(resendTimeout)
+    retryTimeout = setTimeout(() => {
+      send(client.retry())
+    }, 2000)
+  }
+
+  let reconnectTimeout = undefined
+  function reconnect() {
+    clearTimeout(reconnectTimeout)
+
+    reconnectTimeout = setTimeout(() => {
+      send(client.resetConnection())
+    }, 2000)
+  }
+
+  function send(data: ?(ClientEditMessage | ClientConnectionRequest)) {
+    if (data == null) {
       return
     }
 
-    console.log('trying to send again')
-    clearTimeout(resendTimeout)
-    resendTimeout = setTimeout(retryUpdate, 4000)
-  }
-
-  function sendUpdate (clientMessage: ClientEditMessage) {
-    let clientMessageJSON = JSON.stringify(clientMessage)
-    socket.emit('client-message', clientMessageJSON)
-
-    clearTimeout(resendTimeout)
-    resendTimeout = setTimeout(retryUpdate, 4000)
-  }
-
-  function requestConnection (connectionRequest: ClientConnectionRequest) {
-    let connectionRequestJSON = JSON.stringify(connectionRequest)
-    socket.emit('client-connect', connectionRequestJSON)
-  }
-
-  function send(data: ClientEditMessage | ClientConnectionRequest) {
     if (data.kind === 'ClientEditMessage') {
-      sendUpdate(data)
+      socket.emit('client-message', JSON.stringify(data))
+      retry()
+
     } else if (data.kind === 'ClientConnectionRequest') {
-      requestConnection(data)
+      socket.emit('client-connect', JSON.stringify(data))
+      reconnect()
     }
   }
 
   // Join the document
-  requestConnection(client.startConnecting())
+  send(client.startConnecting())
 
   // Receive an edit from the server
   socket.on('server-message', (json) => {
     logger(`server sent message: ${json}`)
-    let serverUpdate: ?ServerEditMessage = castServerEditMessage(JSON.parse(json))
-    if (serverUpdate == null) { throw new Error('un-parseable server message: ' + json) }
 
-    // Apply server message & compute response
-    let clientResponse = client.handle(serverUpdate)
+    let serverMessage: ?ServerEditMessage = castServerEditMessage(JSON.parse(json))
+    if (serverMessage == null) {
+      throw new Error('un-parseable server message: ' + json)
+    }
 
-    if (clientResponse != null) {
-      send(clientResponse)
+    try {
+      // Apply server message & compute response
+      let clientResponse = client.handle(serverMessage)
+      if (clientResponse != null) {
+        send(clientResponse)
+      }
+
+    } catch (e) {
+      if (e instanceof OutOfOrderError) {
+        reconnect()
+      } else {
+        throw e
+      }
     }
   })
 
   return {
-    send: sendUpdate
+    send: send
   }
 }

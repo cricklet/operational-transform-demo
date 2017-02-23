@@ -10,7 +10,7 @@ import * as Inferrer from '../ot/inferrer.js'
 import * as Transformer from '../ot/transformer.js'
 import * as U from '../helpers/utils.js'
 
-import { OTClientHelper } from '../controllers/ot_client_helper.js'
+import { OTClientHelper, OutOfOrderError } from '../controllers/ot_client_helper.js'
 import { OTServerHelper } from '../controllers/ot_server_helper.js'
 
 import type { ClientEditMessage, ServerEditMessage, ClientConnectionRequest } from '../controllers/message_types.js'
@@ -87,9 +87,17 @@ function generatePropogator (
     console.log('client', client.uid, 'handling: ', serverMessage)
 
     // handle server message & send response back
-    let clientResponse = client.handle(serverMessage)
-    if (clientResponse != null) {
-      serverBacklog.push(clientResponse)
+    try {
+      let clientResponse = client.handle(serverMessage)
+      if (clientResponse != null) {
+        serverBacklog.push(clientResponse)
+      }
+    } catch (e) {
+      if (e instanceof OutOfOrderError) {
+        serverBacklog.push(client.resetConnection())
+      } else {
+        throw e
+      }
     }
   }
 
