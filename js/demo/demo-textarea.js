@@ -2,21 +2,145 @@
 
 import { merge, Less, Greater, Equal, reverse, push, findIndex, findLastIndex, subarray, asyncWait, insert, allEqual, remove } from '../helpers/utils.js'
 import { count, zip, filter, find, takeWhile, take, map } from 'wu'
-import { observeArray, observeObject } from '../helpers/observe'
 
 import type { DocumentState } from '../ot/applier.js'
 import { TextApplier, DocumentApplier } from '../ot/applier.js'
 
 import * as Inferrer from '../ot/inferrer.js'
 import * as Transformer from '../ot/transformer.js'
+import * as U from '../helpers/utils.js'
 
-import type { ClientEditMessage, ServerEditMessage } from '../controllers/message_types.js'
 import { OTClientHelper } from '../controllers/ot_client_helper.js'
 import { OTServerHelper } from '../controllers/ot_server_helper.js'
 
-import { SimulatedConnection } from '../network/simulated_connection.js'
+import type { ClientEditMessage, ServerEditMessage, ClientConnectionRequest } from '../controllers/message_types.js'
+import { BROADCAST_TO_ALL, BROADCAST_OMITTING_SOURCE, REPLY_TO_SOURCE } from '../controllers/message_types.js'
 
 type Lock = { ignoreEvents: boolean }
+
+type Propogator = {
+  send: (packet: ?(ClientEditMessage | ClientConnectionRequest)) => void,
+  connect: (client: OTClientHelper<*>) => void,
+  disconnect: (client: OTClientHelper<*>) => void,
+}
+
+function generatePropogator (
+  server: OTServerHelper,
+  delay: { maxDelay: number, minDelay: number }
+): Propogator {
+
+  let clients = []
+
+  let clientBacklogs = {}
+  let serverBacklog = []
+
+  function delayMS() {
+    return Math.random() * (delay.maxDelay - delay.minDelay) + delay.minDelay
+  }
+
+  function serverThink() {
+    let clientMessage
+    if (serverBacklog.length > 0) {
+      clientMessage = serverBacklog.shift()
+    }
+
+    if (clientMessage == null) {
+      return
+    }
+
+    console.log('handling: ', clientMessage)
+
+    let clientUid = clientMessage.sourceUid
+
+    // handle client message
+    let serverMessages = server.handle(clientMessage)
+    for (let serverMessage of serverMessages) {
+      let relevantClients
+
+      if (serverMessage.mode === BROADCAST_TO_ALL) {
+        relevantClients = clients
+      } else if (serverMessage.mode === BROADCAST_OMITTING_SOURCE) {
+        relevantClients = U.filter(clients, c => c.uid !== clientUid)
+      } else if (serverMessage.mode === REPLY_TO_SOURCE) {
+        relevantClients = U.filter(clients, c => c.uid === clientUid)
+      } else {
+        throw new Error(`wat, unknown ${JSON.stringify(serverMessage)} mode`)
+      }
+
+      // send responses to the clients
+      for (let client of relevantClients) {
+        clientBacklogs[client.uid].push(serverMessage)
+      }
+    }
+  }
+
+  function clientThink(client: OTClientHelper<*>) {
+    let serverMessage
+    if (clientBacklogs[client.uid].length > 0) {
+      serverMessage = clientBacklogs[client.uid].shift()
+    }
+
+    if (serverMessage == null) {
+      return
+    }
+
+    console.log('client', client.uid, 'handling: ', serverMessage)
+
+    // handle server message & send response back
+    let clientResponse = client.handle(serverMessage)
+    if (clientResponse != null) {
+      serverBacklog.push(clientResponse)
+    }
+  }
+
+  // run the server
+  ;(async () => {
+    while (true) {
+      serverThink()
+      await U.asyncSleep(delayMS())
+    }
+  })()
+
+  // run the client
+  function runClient (client: OTClientHelper<*>) {
+    ;(async () => {
+      while (true) {
+        if (!U.contains(clients, client)) {
+          break
+        }
+
+        clientThink(client)
+        await U.asyncSleep(delayMS())
+      }
+    })()
+  }
+
+  return {
+    send: (data) => {
+      serverBacklog.push(data)
+    },
+    connect: (client: OTClientHelper<*>) => {
+      if (U.contains(clients, client)) {
+        return
+      }
+
+      clientBacklogs[client.uid] = []
+      clients.push(client)
+
+      // start listening to the network
+      runClient(client)
+
+      serverBacklog.push(client.startConnecting())
+    },
+    disconnect: (client: OTClientHelper<*>) => {
+      let poppedClient = U.pop(clients, c => c === client)
+      if (poppedClient == null) {
+        throw new Error('wat')
+      }
+    }
+  }
+}
+
 
 function generateLock(): Lock {
   return { ignoreEvents: false }
@@ -39,8 +163,8 @@ function updateDOMTextbox($text, state: DocumentState): void {
 
 function setupClient(
   client: OTClientHelper<*>,
-  connection: SimulatedConnection<*,*>,
   $text: any,
+  emit: (message: ClientEditMessage | ClientConnectionRequest) => void
 ) {
   let lock = generateLock()
 
@@ -51,15 +175,7 @@ function setupClient(
     lock.ignoreEvents = false
   }
 
-  observeObject(client,
-    (_, key) => {// added
-    },
-    (_, key) => {// deleted
-    },
-    (_, key) => {// changed
-      update()
-    },
-  )
+  client.addChangeListener(() => update())
 
   $text.on('keyup mousedown mouseup', () => {
     let [newText, newCursorStart, newCursorEnd] = getValuesFromDOMTextbox($text)
@@ -80,7 +196,7 @@ function setupClient(
     if (editOps != null) {
       let update = client.performEdit(editOps)
       if (update != null) {
-        connection.send(update)
+        emit(update)
       }
     }
 
@@ -97,20 +213,13 @@ function createServerDOM(title) {
     <h4>${title}</h4>
     <textarea readonly class="text" rows="4" cols="50"></textarea>
     <div>~ <input type="number" class="delay" value="500"> ms latency</div>
-    <div>~ <input type="number" class="drop" value="0.5"> % dropped</div>
   </div>`)
 
   let $text = $server.find('.text')
   let $delay = $server.find('.delay')
   let $drop = $server.find('.drop')
 
-  let delay = createBoundDelay($delay)
-  let dropped = createBoundDrop($drop)
-
-  let chaos: { dropPercentage: number, maxDelay: number, minDelay: number }
-    = boundedMerge(delay, dropped)
-
-  return [$server, $text, chaos]
+  return [$server, $text, $delay]
 }
 
 
@@ -121,96 +230,17 @@ function createClientDOM(title, randomizeChecked) {
     <h4>${title} <span class="converging ellipses"></span></h4>
   	<textarea class="text" rows="4" cols="50"></textarea>
   	<div><input type="checkbox" ${randomizeChecked} class="randomize"> randomly edit</div>
+  	<div><input type="checkbox" checked class="online"> online</div>
   </div>`)
   let $text = $client.find('.text')
   let $randomize = $client.find('.randomize')
+  let $online = $client.find('.online')
 
   animateEllipses($client)
 
-  let shouldRandomize = createBoundObject(
-    () => {
-      return {
-        enabled: $randomize[0].checked
-      }
-    },
-    (f) => $randomize.change(f)
-  )
-
-  return [ $client, $text, shouldRandomize ]
+  return [ $client, $text, $online, $randomize ]
 }
 
-function boundedMerge(b1, b2) {
-  let b = merge(b1, b2)
-  observeObject(b1,
-      () => Object.assign(b, b1),
-      () => Object.assign(b, b1),
-      () => Object.assign(b, b1))
-  observeObject(b2,
-      () => Object.assign(b, b2),
-      () => Object.assign(b, b2),
-      () => Object.assign(b, b2))
-  return b
-}
-
-function createBoundDrop($drop): { dropPercentage: number } {
-  let drop: { dropPercentage: number } = createBoundObject(
-    () => { // generate the delay object based on $delay's value
-      return {
-        dropPercentage: parseFloat($drop.val())
-      }
-    },
-    (f) => $drop.change(f), // update the delay object when $delay changes
-  )
-  return drop
-}
-
-function createBoundDelay($delay): { minDelay: number, maxDelay: number } {
-  let delay: { minDelay: number, maxDelay: number } = createBoundObject(
-    () => { // generate the delay object based on $delay's value
-      return {
-        minDelay: Math.max(0, parseInt($delay.val()) - 500),
-        maxDelay: parseInt($delay.val())
-      }
-    },
-    (f) => $delay.change(f), // update the delay object when $delay changes
-    {
-      validate: obj => (obj.minDelay <= obj.maxDelay), // if min delay doesn't make sense
-      reset: obj => $delay.val(obj.maxDelay) // reset $delay to the previous value
-    }
-  )
-  return delay
-}
-
-function createBoundObject(
-  generate: () => Object,
-  listener: (callback: () => void) => void,
-  validator?: {
-    validate: (o: Object) => boolean,
-    reset: (o: Object) => void
-  }
-): Object {
-  // This lil function generates an object who's values are automatically
-  // updated & validated.
-
-  // In general, this is used with DOM elements:
-
-  // createBoundObject(() => {prop: $el.val()},
-  //                   (f) => $el.change(f),
-  //                   { validate: o => o.prop < 10, reset: o => $el.val(o.prop)})
-  // This creates an object {prop: ?} which always matches the value of $el.
-
-  let object = generate()
-  listener(() => {
-    let newObject = generate()
-    if (validator === undefined || validator.validate(newObject)) {
-      Object.assign(object, newObject)
-    } else {
-      validator.reset(object)
-    }
-  })
-
-  return object
-}
 
 let WORDS = [
   "lorem", "ipsum", "dolor", "sit", "amet", "consectetur", "adipiscing",
@@ -294,53 +324,54 @@ function generateLogger($log) {
 $(document).ready(() => {
   let DOC_ID = 'asdf1234'
 
+  let clients: OTClientHelper<*>[] = []
+  let server = new OTServerHelper()
+
   let $serverContainer = $('#server')
   let $clientContainer = $('#clients')
 
-  let [$server, $serverText, chaos] = createServerDOM("Server")
+  let [$server, $serverText, $delay] = createServerDOM("Server")
   let serverLogger = generateLogger($('#server-log'))
   $serverContainer.append($server)
 
-  let clients: OTClientHelper<*>[] = []
-  let clientConnections = []
+  // update the dom w/ server state
+  server.addChangeListener(() => $serverText.val(server.state()))
+  server.addChangeListener(() => console.log("NEW CHANGE", server.state()))
 
-  let server = new OTServerHelper()
-  let serverConnection: SimulatedConnection<ServerEditMessage, ClientEditMessage> = new SimulatedConnection(chaos, serverLogger)
-  serverConnection.listen((clientUpdate: ClientEditMessage) => {
-    let serverUpdate: ServerEditMessage = server.handleClientEdit(clientUpdate)
-    serverConnection.send(serverUpdate)
+  // the network
+  let networkDelay = {
+    minDelay: Math.max(0, parseInt($delay.val()) - 500),
+    maxDelay: parseInt($delay.val())
+  }
+  $delay.change(() => {
+    networkDelay.minDelay = Math.max(0, parseInt($delay.val()) - 500)
+    networkDelay.maxDelay = parseInt($delay.val())
   })
-
-  observeObject(server,
-    (_, key) => {},// added
-    (_, key) => {},// deleted
-    (_, key) => {// changed
-      $serverText.val(server.state.text)
-    },
-  )
+  let propogator = generatePropogator(server, networkDelay)
 
   let $clientPlaceholder = $('#client-placeholder')
 
   let clientId = 1
   function addClient() {
-    let [$client, $text, shouldRandomize] = createClientDOM(`Client ${clientId}`, clientId === 1, false)
+    let [$client, $text, $online, $randomize] = createClientDOM(`Client ${clientId}`, clientId === 1, false)
     $client.insertBefore($clientPlaceholder)
     clientId ++
 
     let client = new OTClientHelper(DocumentApplier)
-    let clientConnection: SimulatedConnection<ClientEditMessage, ServerEditMessage> = new SimulatedConnection(chaos)
-    clientConnection.listen((serverUpdate: ServerEditMessage) => {
-      let update = client.handleOrderedUpdate(serverUpdate)
-      if (update == null) { return }
-      clientConnection.send(update)
+    propogator.connect(client)
+
+    $online.change(() => {
+      if ($online[0].checked) {
+        propogator.connect(client)
+      } else {
+        propogator.disconnect(client)
+      }
     })
 
-    clientConnection.connect(serverConnection)
-    serverConnection.connect(clientConnection)
+    let shouldRandomize = { enabled: $randomize[0].checked }
+    $randomize.change(() => { shouldRandomize.enabled = $randomize[0].checked })
 
-    clientConnections.push(clientConnection)
-
-    setupClient(client, clientConnection, $text)
+    setupClient(client, $text, (update) => propogator.send(update))
     randomlyAdjustText($text, shouldRandomize, 500)
 
     clients.push(client);
@@ -365,7 +396,4 @@ $(document).ready(() => {
 
   window.clients = clients
   window.server = server
-
-  window.serverConnection = serverConnection
-  window.clientConnections = clientConnections
 })

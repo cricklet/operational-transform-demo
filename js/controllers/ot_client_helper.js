@@ -58,6 +58,8 @@ export class OTClientHelper<S> {
 
   applier: IApplier<S>
 
+  changeListeners: (() => void)[]
+
   constructor(applier: IApplier<S>) {
     this.applier = applier
 
@@ -84,6 +86,8 @@ export class OTClientHelper<S> {
       operationsStack: [],
       parentHash: hash
     }
+
+    this.changeListeners = []
   }
 
   _editCounter: number
@@ -207,6 +211,7 @@ export class OTClientHelper<S> {
 
       // apply the operation
       this.state = newState
+      this._notifyChangeListeners()
 
       // update outstanding & buffer
       this.outstandingEdit = newOutstandingEdit
@@ -214,6 +219,18 @@ export class OTClientHelper<S> {
 
       return undefined
     }
+  }
+
+  addChangeListener(listener: () => void) {
+    this.changeListeners.push(listener)
+  }
+
+  _notifyChangeListeners() {
+    setTimeout(() => {
+      for (let listener of this.changeListeners) {
+        listener()
+      }
+    }, 0)
   }
 
   startConnecting(): ClientConnectionRequest {
@@ -271,6 +288,7 @@ export class OTClientHelper<S> {
       let newHash = this.applier.stateHash(newState)
 
       this.state = newState
+      this._notifyChangeListeners()
 
       // append applied undo to buffer
       this.bufferEdit = castBufferEdit(OTHelper.compose([
@@ -310,6 +328,7 @@ export class OTClientHelper<S> {
       let newHash = this.applier.stateHash(newState)
 
       this.state = newState
+      this._notifyChangeListeners()
 
       // append applied redo to buffer
       this.bufferEdit = castBufferEdit(OTHelper.compose([
@@ -336,6 +355,7 @@ export class OTClientHelper<S> {
     // apply the operation
     let [newState, undo] = this.applier.apply(this.state, edit)
     this.state = newState
+    this._notifyChangeListeners()
 
     let newHash = this.applier.stateHash(this.state)
 

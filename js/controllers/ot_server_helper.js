@@ -139,16 +139,32 @@ export class OTServerHelper {
 
   doc: IDocument
 
+  changeListeners: (() => void)[]
+
   constructor(doc?: IDocument) {
     if (doc) {
       this.doc = doc
     } else {
       this.doc = new InMemoryDocument()
     }
+
+    this.changeListeners = []
   }
 
   state(): string {
     return this.doc.text
+  }
+
+  addChangeListener(listener: () => void) {
+    this.changeListeners.push(listener)
+  }
+
+  _notifyChangeListeners() {
+    setTimeout(() => {
+      for (let listener of this.changeListeners) {
+        listener()
+      }
+    }, 0)
   }
 
   _handleClientEdit(clientMessage: ClientEditMessage)
@@ -196,6 +212,7 @@ export class OTServerHelper {
     let serverEdit = castServerEdit(aP)
 
     this.doc.update(newState, serverEdit)
+    this._notifyChangeListeners()
 
     return [
       {
