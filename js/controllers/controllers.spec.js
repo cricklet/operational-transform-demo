@@ -16,7 +16,7 @@ import { TextApplier } from '../ot/applier.js'
 import { inferOperation } from '../ot/inferrer.js'
 import { generateInsertion, generateDeletion } from '../ot/components.js'
 
-import { OTClientHelper } from './ot_client_helper.js'
+import { OTClientHelper, OutOfOrderError } from './ot_client_helper.js'
 import { OTServerHelper } from './ot_server_helper.js'
 
 import type { ClientEditMessage, ServerEditMessage, ClientConnectionRequest } from './message_types.js'
@@ -32,11 +32,8 @@ type Propogator = {
 // Setup a fake network between a server & multiple clients.
 function generatePropogator (
   server: OTServerHelper,
-  clients: Array<OTClientHelper<*>>,
-  _opts?: { allowUnordered?: boolean }
+  clients: Array<OTClientHelper<*>>
 ): Propogator {
-  let opts = U.fillDefaults(_opts, { allowUnordered: false })
-
   function propogate(clientMessage: ?(ClientEditMessage | ClientConnectionRequest)) {
     if (clientMessage == null) {
       return
@@ -59,13 +56,7 @@ function generatePropogator (
       }
 
       for (let client of relevantClients) {
-        let clientResponse
-
-        if (opts.allowUnordered) {
-          clientResponse = client.handle(serverMessage)
-        } else {
-          clientResponse = client._handleInOrderMessage(serverMessage)
-        }
+        let clientResponse = client.handle(serverMessage)
         if (clientResponse != null) {
           propogate(clientResponse)
         }
@@ -116,7 +107,7 @@ describe('Client & Server', () => {
     let server = new OTServerHelper()
     let client = new OTClientHelper(TextApplier)
 
-    let propogate = generatePropogator(server, [client], { allowUnordered: true }).send
+    let propogate = generatePropogator(server, [client]).send
 
     const update = client.performEdit(generateInsertion(0, 'hello!'), [])
     if (update == null) { throw new Error('wat') }
@@ -128,18 +119,6 @@ describe('Client & Server', () => {
     propogate(update)
     assert.equal('hello!', client.state)
     assert.equal('hello!', server.state())
-  })
-  it('duplicate updates are rejected if we enforce ordering', () => {
-    let server = new OTServerHelper()
-    let client = new OTClientHelper(TextApplier)
-
-    let propogate = generatePropogator(server, [client], { allowUnordered: false }).send
-
-    const update = client.performEdit(generateInsertion(0, 'hello!'), [])
-    if (update == null) { throw new Error('wat') }
-
-    propogate(update)
-    assert.throws(() => propogate(update))
   })
   it ('two clients are handled', () => {
     let server = new OTServerHelper()

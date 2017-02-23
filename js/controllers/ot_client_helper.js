@@ -21,6 +21,8 @@ import * as OTHelper from './ot_helper.js'
 import type { IApplier } from './ot_helper.js'
 import type { Operation } from '../ot/types.js'
 
+export class OutOfOrderError extends Error {}
+
 export class OTClientHelper<S> {
   // This class maintains the state of the client, computes what updates
   // should be sent to the server (i.e. ClientEditMessage), and applies
@@ -174,19 +176,58 @@ export class OTClientHelper<S> {
     return update
   }
 
-  _handleInOrderMessage(serverMessage: ServerEditMessage)
+  addChangeListener(listener: () => void) {
+    this.changeListeners.push(listener)
+  }
+
+  _notifyChangeListeners() {
+    setTimeout(() => {
+      for (let listener of this.changeListeners) {
+        listener()
+      }
+    }, 0)
+  }
+
+  startConnecting(): ClientConnectionRequest {
+    let updateEdit: ?UpdateEdit = castUpdateEdit(this.outstandingEdit)
+
+    let request: ClientConnectionRequest = {
+      kind: 'ClientConnectionRequest',
+      nextIndex: this._nextIndex(),
+      sourceUid: this.uid,
+      edit: updateEdit
+    }
+
+    return request
+  }
+
+  resetConnection(): ClientConnectionRequest {
+    return this.startConnecting()
+  }
+
+  retry(): ?ClientEditMessage {
+    return this._sendOutstandingEdits()
+  }
+
+  handle(serverMessage: ServerEditMessage)
   : ?ClientEditMessage {
     let op: ServerEdit = serverMessage.edit
 
-    if (op.startIndex !== this._nextIndex()) {
-      throw new Error(`Expected server update #${this._nextIndex()} instead of ${op.startIndex}.`)
+    if (op.startIndex < this._nextIndex()) { // ignore old updates
+      return undefined
     }
 
-    if (this.outstandingEdit != null && op.id === this.outstandingEdit.id) {
-      if (serverMessage.sourceUid != null && serverMessage.sourceUid !== this.uid) {
-        throw new Error(`wat, different source
-          ${JSON.stringify(serverMessage, null, 2)}
-          ${JSON.stringify(this, null, 2)}`)
+    if (op.startIndex > this._nextIndex()) { // raise on future updates
+      throw new OutOfOrderError()
+    }
+
+    if (serverMessage.ack === true) {
+      if (this.outstandingEdit == null) {
+        throw new Error('wat, we\'re not waiting on an ack')
+      }
+
+      if (op.id !== this.outstandingEdit.id) {
+        throw new Error('wat, this isn\'t the op we\'re waiting for')
       }
 
       // clear the outstanding out
@@ -219,52 +260,6 @@ export class OTClientHelper<S> {
 
       return undefined
     }
-  }
-
-  addChangeListener(listener: () => void) {
-    this.changeListeners.push(listener)
-  }
-
-  _notifyChangeListeners() {
-    setTimeout(() => {
-      for (let listener of this.changeListeners) {
-        listener()
-      }
-    }, 0)
-  }
-
-  startConnecting(): ClientConnectionRequest {
-    let updateEdit: ?UpdateEdit = castUpdateEdit(this.outstandingEdit)
-
-    let request: ClientConnectionRequest = {
-      kind: 'ClientConnectionRequest',
-      nextIndex: this._nextIndex(),
-      sourceUid: this.uid,
-      edit: updateEdit
-    }
-
-    return request
-  }
-
-  retry(): ?ClientEditMessage {
-    return this._sendOutstandingEdits()
-  }
-
-  handle(serverMessage: ServerEditMessage)
-  : ?(ClientEditMessage | ClientConnectionRequest) {
-    let op: ServerEdit = serverMessage.edit
-
-    if (op.startIndex > this._nextIndex()) {
-      // we're not ready for this edit yet... reconnect
-      console.log(`received out of order edits: ${JSON.stringify(this)}, ${JSON.stringify(serverMessage)}`)
-      return this.startConnecting()
-
-    } else if (op.startIndex < this._nextIndex()) {
-      // we already handled this edit... ignore
-      return undefined
-    }
-
-    return this._handleInOrderMessage(serverMessage)
   }
 
   performUndo(): ?ClientEditMessage {
