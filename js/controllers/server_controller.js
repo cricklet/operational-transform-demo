@@ -13,7 +13,7 @@ class ServerController<S> extends EventEmitter {
 
   serverHelper: OTServerHelper
 
-  constructor (docId: string) {
+  constructor () {
     super()
     this.on('client-event', (event) => this.handleClientEvent(event))
     this.serverHelper = new OTServerHelper()
