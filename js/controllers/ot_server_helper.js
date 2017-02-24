@@ -154,10 +154,6 @@ export class OTServerHelper {
     return this.doc.text
   }
 
-  isLatestMessage(serverMessage: ServerEditMessage): boolean {
-    return serverMessage.edit.startIndex === this.doc.getLastIndex()
-  }
-
   addChangeListener(listener: () => void) {
     this.changeListeners.push(listener)
   }

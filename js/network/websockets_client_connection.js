@@ -24,26 +24,22 @@ export function setupClientConnection(
     // If one of our edits gets dropped on the way to the server, we want
     // to try and resend it.
 
-    let clientMessage = client.getOutstandingRequest()
-    if (clientMessage == null) { return }
+    let clientEditRequest = client.getOutstandingRequest()
+    if (clientEditRequest == null) { return }
 
-    if (clientMessage.edit.id !== id) {
+    if (clientEditRequest.edit.id !== id) {
       // Our edit got acknowledged successfully!
       // We're now waiting for an ack on a different edit.
       return
     }
 
-    sendToServer(clientMessage) // Resend our edit...
+    sendToServer(clientEditRequest) // Resend our edit...
     resendIfNoAck(id) // and wait for another ack.
   }, 4000)
 
   let forceResync = debounce((nextIndex: number) => {
-    // There could be edge cases where the client gets edits from the server
-    // out of order. In these cases, the client asks the server for the latest,
-    // definitive edit history.
-
-    for (let clientMessage of client.generateSetupRequests()) {
-      sendToServer(clientMessage)
+    for (let clientRequest of client.generateSetupRequests()) {
+      sendToServer(clientRequest)
     }
   }, 1000)
 
