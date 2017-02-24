@@ -7,8 +7,6 @@ import { OTServerHelper } from '../controllers/ot_server_helper.js'
 import { castClientEditMessage, castClientRequestHistory } from '../controllers/message_types.js'
 import type { ClientEditMessage, ClientRequestHistory, ServerEditMessage } from '../controllers/message_types.js'
 
-let DEFAULT_DOC_ID = 'asdf'
-
 export function setupServerConnection(
   port: number,
   server: OTServerHelper,
@@ -20,8 +18,17 @@ export function setupServerConnection(
     function send (serverMessages: ServerEditMessage[]) {
       for (let serverMessage of serverMessages) {
         let serverMessageJSON = JSON.stringify(serverMessage)
-        logger(`sending update: ${serverMessageJSON}`)
-        socketServer.sockets.in(DEFAULT_DOC_ID).emit('server-message', serverMessageJSON)
+
+        if (server.isLatestMessage(serverMessage)) {
+          // broadcast to all clients
+          logger(`replying with update: ${serverMessageJSON}`)
+          socketServer.sockets.emit('server-message', serverMessageJSON)
+
+        } else {
+          // just reply
+          logger(`replying with update: ${serverMessageJSON}`)
+          socket.emit('server-message', serverMessageJSON)
+        }
       }
     }
 
@@ -47,9 +54,6 @@ export function setupServerConnection(
       if (connectionRequest == null) {
         throw new Error('un-parseable client connection request: ' + json)
       }
-
-      // Join the room associated with this document
-      socket.join(DEFAULT_DOC_ID)
 
       // Handle connection request
       send(server.handle(connectionRequest))

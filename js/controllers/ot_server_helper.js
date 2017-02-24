@@ -154,12 +154,8 @@ export class OTServerHelper {
     return this.doc.text
   }
 
-  getLastIndex(): number {
-    return this.doc.getLastIndex()
-  }
-
-  getNextIndex(): number {
-    return this.doc.getNextIndex()
+  isLatestMessage(serverMessage: ServerEditMessage): boolean {
+    return serverMessage.edit.startIndex === this.doc.getLastIndex()
   }
 
   addChangeListener(listener: () => void) {
@@ -312,6 +308,7 @@ export class OTServerHelper {
       return responses
     }
   }
+
   handle (clientMessage: ClientEditMessage | ClientRequestHistory)
   : ServerEditMessage[] {
     if (clientMessage.kind === 'ClientEditMessage') {

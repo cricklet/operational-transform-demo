@@ -49,7 +49,7 @@ function generatePropogator (
     for (let serverResponse of serverResponses) {
       let relevantClients = []
 
-      if (serverResponse.edit.startIndex === server.getLastIndex()) {
+      if (server.isLatestMessage(serverResponse)) {
         // broadcast to all clients
         relevantClients = clients
       } else {
