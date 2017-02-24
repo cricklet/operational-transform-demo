@@ -117,7 +117,7 @@ function generatePropogator (
       // start listening to the network
       runClient(client)
 
-      serverBacklog.push(client.requestHistory())
+      serverBacklog.push(client.generateHistoryRequest())
     },
     disconnect: (client: OTClientHelper<*>) => {
       clientBacklogs[client.uid] = []

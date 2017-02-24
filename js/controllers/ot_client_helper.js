@@ -183,7 +183,7 @@ export class OTClientHelper<S> {
     }, 0)
   }
 
-  requestHistory(): ClientRequestHistory {
+  generateHistoryRequest(): ClientRequestHistory {
     let updateEdit: ?UpdateEdit = castUpdateEdit(this.outstandingEdit)
 
     let request: ClientRequestHistory = {
@@ -196,7 +196,7 @@ export class OTClientHelper<S> {
     return request
   }
 
-  getOutstandingEditMessage(): ?ClientEditMessage {
+  getOutstandingMessage(): ?ClientEditMessage {
     return this._sendOutstandingEdits()
   }
 

@@ -21,7 +21,7 @@ export function setupClientConnection(
   let socket = new SocketClient(url)
 
   let resendIfNoAck = debounce((id: string) => {
-    let clientMessage = client.getOutstandingEditMessage()
+    let clientMessage = client.getOutstandingMessage()
     if (clientMessage == null) { return }
     if (clientMessage.edit.id !== id) { return }
 
@@ -30,7 +30,7 @@ export function setupClientConnection(
   }, 4000)
 
   let forceResync = debounce(() => {
-    send(client.requestHistory())
+    send(client.generateHistoryRequest())
   })
 
   function send(data: ?(ClientEditMessage | ClientRequestHistory)) {
@@ -47,7 +47,7 @@ export function setupClientConnection(
   }
 
   // Join the document
-  send(client.requestHistory())
+  send(client.generateHistoryRequest())
 
   // Receive an edit from the server
   socket.on('server-message', (json) => {

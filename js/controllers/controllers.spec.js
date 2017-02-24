@@ -77,7 +77,7 @@ function generatePropogator (
     },
     connect: (client: OTClientHelper<*>) => {
       clients.push(client)
-      propogate(client.requestHistory())
+      propogate(client.generateHistoryRequest())
     },
     disconnect: (client: OTClientHelper<*>) => {
       let poppedClient = U.pop(clients, c => c === client)
@@ -363,9 +363,9 @@ describe('resend', () => {
 
     // Re-send the dropped edits... This would happen on some timeout in an actual client
 
-    propogator.send(client0.getOutstandingEditMessage())
-    propogator.send(client1.getOutstandingEditMessage())
-    propogator.send(client2.getOutstandingEditMessage())
+    propogator.send(client0.getOutstandingMessage())
+    propogator.send(client1.getOutstandingMessage())
+    propogator.send(client2.getOutstandingMessage())
 
     assert.equal('hi world cranberryapple ', client0.state)
     assert.equal('hi world cranberryapple ', client1.state)
@@ -394,14 +394,14 @@ describe('resend', () => {
     assert.equal('hello world george ', client0.state)
     assert.equal('hello george washington ', client1.state)
 
-    /* DROP THIS */ client0.getOutstandingEditMessage()
-    /* DROP THIS */ client1.getOutstandingEditMessage()
+    /* DROP THIS */ client0.getOutstandingMessage()
+    /* DROP THIS */ client1.getOutstandingMessage()
 
-    /* DROP THIS */ client0.getOutstandingEditMessage()
-    /* DROP THIS */ client1.getOutstandingEditMessage()
+    /* DROP THIS */ client0.getOutstandingMessage()
+    /* DROP THIS */ client1.getOutstandingMessage()
 
-    propogator.send(client0.getOutstandingEditMessage())
-    propogator.send(client1.getOutstandingEditMessage())
+    propogator.send(client0.getOutstandingMessage())
+    propogator.send(client1.getOutstandingMessage())
 
     assert.equal('hello world george washington ', client0.state)
     assert.equal('hello world george washington ', client1.state)
