@@ -74,17 +74,9 @@ function generatePropogator (
     console.log('client', client.uid, 'handling: ', serverMessage)
 
     // handle server message & send response back
-    try {
-      let clientResponse = client.handle(serverMessage)
-      if (clientResponse != null) {
-        serverBacklog.push(clientResponse)
-      }
-    } catch (e) {
-      if (e instanceof OutOfOrderError) {
-        serverBacklog.push(client.resetConnection())
-      } else {
-        throw e
-      }
+    let clientResponse = client.handle(serverMessage)
+    if (clientResponse != null) {
+      serverBacklog.push(clientResponse)
     }
   }
 
@@ -128,6 +120,7 @@ function generatePropogator (
       serverBacklog.push(client.startConnecting())
     },
     disconnect: (client: OTClientHelper<*>) => {
+      clientBacklogs[client.uid] = []
       let poppedClient = U.pop(clients, c => c === client)
       if (poppedClient == null) {
         throw new Error('wat')

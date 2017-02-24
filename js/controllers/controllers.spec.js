@@ -40,14 +40,17 @@ function generatePropogator (
 
     let sourceUid = clientMessage.sourceUid
 
-    let serverMessages = server.handle(clientMessage)
+    // server responds to this message
+    let serverResponses = server.handle(clientMessage)
+
+    // clients then respond to that server response!
     let clientResponses = []
 
-    for (let serverMessage of serverMessages) {
+    for (let serverResponse of serverResponses) {
       let relevantClients = []
 
-      if (serverMessage.edit.startIndex === server.getLastIndex()) {
-        // broadcast
+      if (serverResponse.edit.startIndex === server.getLastIndex()) {
+        // broadcast to all clients
         relevantClients = clients
       } else {
         // just reply
@@ -55,8 +58,8 @@ function generatePropogator (
       }
 
       for (let client of relevantClients) {
-        // each client should handle this
-        let clientResponse = client.handle(serverMessage)
+        // each client should handle the new server response
+        let clientResponse = client.handle(serverResponse)
         if (clientResponse != null) {
           clientResponses.push(clientResponse)
         }

@@ -22,11 +22,7 @@ import * as OTHelper from './ot_helper.js'
 import type { IApplier } from './ot_helper.js'
 import type { Operation } from '../ot/types.js'
 
-export class OutOfOrderError extends Error{
-  constructor(msg: any) {
-    super(msg)
-  }
-}
+export class OutOfOrderError {}
 
 export class OTClientHelper<S> {
   // This class maintains the state of the client, computes what updates
