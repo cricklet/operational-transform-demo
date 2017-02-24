@@ -3,21 +3,21 @@
 import SocketClient from 'socket.io-client'
 
 import * as U from '../helpers/utils.js'
-import { OTClientHelper, OutOfOrderError } from '../controllers/ot_client_helper.js'
-import { castServerEditMessage } from '../controllers/message_types.js'
-import type { ServerEditMessage, ClientEditMessage, ClientRequestHistory } from '../controllers/message_types.js'
+import { OTClientModel, OutOfOrderError } from '../models/ot_client_model.js'
+import { castServerEditMessage } from '../models/message_types.js'
+import type { ServerEditMessage, ClientEditMessage, ClientRequestHistory } from '../models/message_types.js'
 
 import { debounce } from 'lodash'
 
-export type ClientConnection = {
+export type ClientController = {
   send: (clientMessage: ClientEditMessage) => void
 }
 
-export function setupClientConnection(
+export function setupClientController(
   url: string,
-  client: OTClientHelper<*>,
+  client: OTClientModel<*>,
   logger: (s: string) => void
-): ClientConnection {
+): ClientController {
   let socket = new SocketClient(url)
 
   let resendIfNoAck = debounce((id: string) => {

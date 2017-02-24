@@ -10,21 +10,21 @@ import * as Inferrer from '../ot/inferrer.js'
 import * as Transformer from '../ot/transformer.js'
 import * as U from '../helpers/utils.js'
 
-import { OTClientHelper, OutOfOrderError } from '../controllers/ot_client_helper.js'
-import { OTServerHelper } from '../controllers/ot_server_helper.js'
+import { OTClientModel, OutOfOrderError } from '../models/ot_client_model.js'
+import { OTServerModel } from '../models/ot_server_model.js'
 
-import type { ClientEditMessage, ServerEditMessage, ClientRequestHistory } from '../controllers/message_types.js'
+import type { ClientEditMessage, ServerEditMessage, ClientRequestHistory } from '../models/message_types.js'
 
 type Lock = { ignoreEvents: boolean }
 
 type Propogator = {
   send: (packet: ?(ClientEditMessage | ClientRequestHistory)) => void,
-  connect: (client: OTClientHelper<*>) => void,
-  disconnect: (client: OTClientHelper<*>) => void,
+  connect: (client: OTClientModel<*>) => void,
+  disconnect: (client: OTClientModel<*>) => void,
 }
 
 function generatePropogator (
-  server: OTServerHelper,
+  server: OTServerModel,
   delay: { maxDelay: number, minDelay: number }
 ): Propogator {
 
@@ -61,7 +61,7 @@ function generatePropogator (
     }
   }
 
-  function clientThink(client: OTClientHelper<*>) {
+  function clientThink(client: OTClientModel<*>) {
     let serverMessage
     if (clientBacklogs[client.uid].length > 0) {
       serverMessage = clientBacklogs[client.uid].shift()
@@ -102,7 +102,7 @@ function generatePropogator (
   })()
 
   // run the client
-  function runClient (client: OTClientHelper<*>) {
+  function runClient (client: OTClientModel<*>) {
     ;(async () => {
       while (true) {
         if (!U.contains(clients, client)) {
@@ -119,7 +119,7 @@ function generatePropogator (
     send: (data) => {
       serverBacklog.push(data)
     },
-    connect: (client: OTClientHelper<*>) => {
+    connect: (client: OTClientModel<*>) => {
       if (U.contains(clients, client)) {
         return
       }
@@ -134,7 +134,7 @@ function generatePropogator (
         serverBacklog.push(clientMessage)
       }
     },
-    disconnect: (client: OTClientHelper<*>) => {
+    disconnect: (client: OTClientModel<*>) => {
       clientBacklogs[client.uid] = []
       let poppedClient = U.pop(clients, c => c === client)
       if (poppedClient == null) {
@@ -165,7 +165,7 @@ function updateDOMTextbox($text, state: DocumentState): void {
 }
 
 function setupClient(
-  client: OTClientHelper<*>,
+  client: OTClientModel<*>,
   $text: any,
   emit: (message: ClientEditMessage | ClientRequestHistory) => void
 ) {
@@ -327,8 +327,8 @@ function generateLogger($log) {
 $(document).ready(() => {
   let DOC_ID = 'asdf1234'
 
-  let clients: OTClientHelper<*>[] = []
-  let server = new OTServerHelper()
+  let clients: OTClientModel<*>[] = []
+  let server = new OTServerModel()
 
   let $serverContainer = $('#server')
   let $clientContainer = $('#clients')
@@ -360,7 +360,7 @@ $(document).ready(() => {
     $client.insertBefore($clientPlaceholder)
     clientId ++
 
-    let client = new OTClientHelper(DocumentApplier)
+    let client = new OTClientModel(DocumentApplier)
     propogator.connect(client)
 
     $online.change(() => {

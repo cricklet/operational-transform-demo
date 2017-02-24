@@ -115,18 +115,18 @@ export class InMemoryDocument {
   }
 }
 
-export class OTServerHelper {
+export class OTServerModel {
   // This class maintains the state of the server, computes what updates
   // should be sent to the client (i.e. ServerEditMessage), and applies
   // remote updates (i.e. ClientEditMessage) to the server state.
 
-  // class OTServerHelper {
+  // class OTServerModel {
   //   handle(clientMessage): ServerEditMessage[]
   // }
 
   // USAGE: (w/ an imaginary 'connection' object)
 
-  // let server = new OTServerHelper(...)
+  // let server = new OTServerModel(...)
   // let serverDocs = {...}
   //
   // connection.on('update', (clientMessage) => { // LISTEN for remote changes

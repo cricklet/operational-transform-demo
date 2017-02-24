@@ -3,13 +3,13 @@
 
 import SocketServer from 'socket.io'
 
-import { OTServerHelper } from '../controllers/ot_server_helper.js'
-import { castClientEditMessage, castClientRequestHistory } from '../controllers/message_types.js'
-import type { ClientEditMessage, ClientRequestHistory, ServerEditMessage } from '../controllers/message_types.js'
+import { OTServerModel } from '../models/ot_server_model.js'
+import { castClientEditMessage, castClientRequestHistory } from '../models/message_types.js'
+import type { ClientEditMessage, ClientRequestHistory, ServerEditMessage } from '../models/message_types.js'
 
-export function setupServerConnection(
+export function setupServerController(
   port: number,
-  server: OTServerHelper,
+  server: OTServerModel,
   logger: (s: string) => void
 ): void {
   let socketServer = new SocketServer()

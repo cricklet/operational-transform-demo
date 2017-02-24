@@ -40,10 +40,10 @@ export function castAppliedEdit(op: Edit, opts?: Object): AppliedEdit {
   return op
 }
 
-// This class helps the controllers with the nitty-gritty of
+// This class helps the models with the nitty-gritty of
 // transforming operations.
 
-// It's tightly coupled to the logic and expectations of the controllers!
+// It's tightly coupled to the logic and expectations of the models!
 // For example, it knows about how the client manages & stores outstandings
 // and buffers.
 

@@ -6,12 +6,12 @@ import { DocumentApplier } from '../ot/applier.js'
 import * as Inferrer from '../ot/inferrer.js'
 import * as Transformer from '../ot/transformer.js'
 
-import { OTClientHelper } from '../controllers/ot_client_helper.js'
+import { OTClientModel } from '../models/ot_client_model.js'
 
 import { observeObject } from '../helpers/observe'
 
-import type { ClientConnection } from '../network/websockets_client_connection.js'
-import { setupClientConnection } from '../network/websockets_client_connection.js'
+import type { ClientController } from '../controllers/websockets_client_controller.js'
+import { setupClientController } from '../controllers/websockets_client_controller.js'
 
 function updateUI ($text, state) {
   $text.val(state.text)
@@ -32,8 +32,8 @@ $(document).ready(() => {
 
   let docId = location.hash || 'default'
 
-  let client = new OTClientHelper(DocumentApplier)
-  let clientConnection: ClientConnection = setupClientConnection(
+  let client = new OTClientModel(DocumentApplier)
+  let clientConnection: ClientController = setupClientController(
     'http://localhost:8123',
     client,
     console.log)

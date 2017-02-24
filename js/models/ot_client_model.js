@@ -24,19 +24,19 @@ import type { Operation } from '../ot/types.js'
 
 export class OutOfOrderError {}
 
-export class OTClientHelper<S> {
+export class OTClientModel<S> {
   // This class maintains the state of the client, computes what updates
   // should be sent to the server (i.e. ClientEditMessage), and applies
   // remote updates (i.e. ServerEditMessage) to the local state.
 
-  // OTClientHelper {
+  // OTClientModel {
   //   performEdit(edit: Operation): ?ClientEditMessage
   //   handleClientEdit(serverMessage: ServerEditMessage): ?ServerEditMessage
   // }
 
   // USAGE:
 
-  // let client = new OTClientHelper(...)
+  // let client = new OTClientModel(...)
   //
   // connection.on('update', (serverMessage) => { // LISTEN for remote changes
   //   let clientUpdate = client.handleClientEdit(serverMessage)
