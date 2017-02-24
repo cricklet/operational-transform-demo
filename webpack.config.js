@@ -21,13 +21,6 @@ const multiDemo = {
   }
 };
 
-const codemirrorDemo = {
-  entry: './js/demo/demo-codemirror.js',
-  output: {
-    filename: 'build/demo-codemirror.js'
-  }
-};
-
 const clientDemo = {
   entry: './js/demo/demo-client.js',
   output: {
@@ -37,6 +30,5 @@ const clientDemo = {
 
 module.exports = [
   Object.assign({} , common, multiDemo),
-  Object.assign({} , common, codemirrorDemo),
   Object.assign({} , common, clientDemo),
 ];
