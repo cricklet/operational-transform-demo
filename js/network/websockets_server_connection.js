@@ -16,24 +16,6 @@ export function setupServerConnection(
 
   socketServer.on('connection', (socket) => {
 
-    // send server messages to the clients
-    function send (serverMessages: ServerEditMessage[]) {
-      for (let serverMessage of serverMessages) {
-        let serverMessageJSON = JSON.stringify(serverMessage)
-
-        if (server.isLatestMessage(serverMessage)) { // this is not necessary -- it's an optimization
-          // broadcast to all clients
-          logger(`replying with edit: ${serverMessageJSON}`)
-          socketServer.sockets.emit('server-edit-message', serverMessageJSON)
-
-        } else {
-          // just reply
-          logger(`replying with edit: ${serverMessageJSON}`)
-          socket.emit('server-edit-message', serverMessageJSON)
-        }
-      }
-    }
-
     // on a client edit
     socket.on('client-edit-message', (json) => {
       // parse the client edit
@@ -45,20 +27,28 @@ export function setupServerConnection(
       }
 
       // Handle the new edit
-      send(server.handle(editMessage))
+      let serverResponses = server.handle(editMessage)
+      for (let serverResponse of serverResponses) {
+        socketServer.sockets.emit(
+          'server-edit-message', JSON.stringify(serverResponse))
+      }
     })
 
     // when a client connects
     socket.on('client-request-history', (json) => {
       logger(`client history request: ${json}`)
-      let connectionRequest: ?ClientRequestHistory = castClientRequestHistory(JSON.parse(json))
+      let historyRequest: ?ClientRequestHistory = castClientRequestHistory(JSON.parse(json))
 
-      if (connectionRequest == null) {
+      if (historyRequest == null) {
         throw new Error('un-parseable client connection request: ' + json)
       }
 
-      // Handle connection request
-      send(server.handle(connectionRequest))
+      // Handle the new edit
+      let serverResponses = server.handle(historyRequest)
+      for (let serverResponse of serverResponses) {
+        socket.emit(
+          'server-edit-message', JSON.stringify(serverResponse))
+      }
     })
 
   })

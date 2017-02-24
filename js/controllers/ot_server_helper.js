@@ -221,37 +221,34 @@ export class OTServerHelper {
     }
   }
 
-  _handleClientConnection(clientResetRequest: ClientRequestHistory)
+  _handleClientHistoryRequest(clientHistoryRequest: ClientRequestHistory)
   : ServerEditMessage[] {
-    const updateEdit: ?UpdateEdit = clientResetRequest.edit
-    let sourceUid: string = clientResetRequest.sourceUid
+    const sourceUid: string = clientHistoryRequest.sourceUid
+    const dontComposeEditId: ?string = clientHistoryRequest.dontComposeEditId
 
-    // the first unknown index on the client
-    let startIndex: number = clientResetRequest.nextIndex
+    // get the history starting at this index
+    let startIndex: number = clientHistoryRequest.nextIndex
 
-    // the client has no outstanding update
-    if (updateEdit == null) {
-      return [ // just return the missing history
+    if (dontComposeEditId == null || !this.doc.hasEdit(dontComposeEditId)) {
+      // we can just compose the history & return it!
+      return [
         {
           kind: 'ServerEditMessage',
           edit: this.doc.getEditRange(startIndex)
         }
       ]
-    }
+    } else {
+      // we can't just compose the history & return it.
 
-    // the client's outstanding update has already been applied
-    if (this.doc.hasEdit(updateEdit.id)) {
-
-      // when was the client's update already applied?
-      const updateIndex = this.doc.indexOfEdit(updateEdit.id)
-      if (updateIndex == null) {
+      const dontComposeIndex = this.doc.indexOfEdit(dontComposeEditId)
+      if (dontComposeIndex == null) {
         throw new Error('wat, we just checked that the edit is in the history')
       }
 
-      // get the edits before & after the client's update
-      let beforeEdit = this.doc.getEditRange(startIndex, updateIndex)
-      let ackEdit = this.doc.getEditAt(updateIndex)
-      let afterEdit = this.doc.getEditRange(updateIndex + 1)
+      // get the edits before & after the client's outstanding edit
+      let beforeEdit = this.doc.getEditRange(startIndex, dontComposeIndex)
+      let ackEdit = this.doc.getEditAt(dontComposeIndex)
+      let afterEdit = this.doc.getEditRange(dontComposeIndex + 1)
 
       let responses = []
 
@@ -260,10 +257,6 @@ export class OTServerHelper {
           kind: 'ServerEditMessage',
           edit: beforeEdit
         })
-      }
-
-      if (OTHelper.isEmpty(ackEdit)) {
-        throw new Error('wat, how is the ack edit empty?')
       }
 
       responses.push({
@@ -280,33 +273,6 @@ export class OTServerHelper {
 
       return responses
     }
-
-    // we need to apply the client's update
-    else {
-      let responses = []
-
-      // emit the historical edits before applying the client's update
-      let beforeEdit = this.doc.getEditRange(startIndex)
-      if (!OTHelper.isEmpty(beforeEdit)) {
-        responses.push({
-          kind: 'ServerEditMessage',
-          edit: beforeEdit
-        })
-      }
-
-      // apply the client's update!
-      let updateResponse = this._handleClientEdit({
-        kind: 'ClientEditMessage',
-        sourceUid: sourceUid,
-        edit: updateEdit
-      })
-
-      if (updateResponse != null) {
-        responses.push(updateResponse)
-      }
-
-      return responses
-    }
   }
 
   handle (clientMessage: ClientEditMessage | ClientRequestHistory)
@@ -316,7 +282,7 @@ export class OTServerHelper {
     }
 
     if (clientMessage.kind === 'ClientRequestHistory') {
-      return this._handleClientConnection(clientMessage)
+      return this._handleClientHistoryRequest(clientMessage)
     }
 
     throw new Error('wat')

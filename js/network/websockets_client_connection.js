@@ -24,7 +24,7 @@ export function setupClientConnection(
     // If one of our edits gets dropped on the way to the server, we want
     // to try and resend it.
 
-    let clientMessage = client.getOutstandingMessage()
+    let clientMessage = client.getOutstandingRequest()
     if (clientMessage == null) { return }
 
     if (clientMessage.edit.id !== id) {
@@ -33,7 +33,7 @@ export function setupClientConnection(
       return
     }
 
-    emit(clientMessage) // Resend our edit...
+    sendToServer(clientMessage) // Resend our edit...
     resendIfNoAck(id) // and wait for another ack.
   }, 4000)
 
@@ -42,16 +42,12 @@ export function setupClientConnection(
     // out of order. In these cases, the client asks the server for the latest,
     // definitive edit history.
 
-    let historyRequest = client.generateHistoryRequest()
-    if (historyRequest.nextIndex > nextIndex) {
-      // Apparently we already succesfully applied the update @ nextIndex.
-      // We're no longer out of sync with the server!
-      return
+    for (let clientMessage of client.generateSetupRequests()) {
+      sendToServer(clientMessage)
     }
-    emit(historyRequest)
   }, 1000)
 
-  function emit(data: ?(ClientEditMessage | ClientRequestHistory)) {
+  function sendToServer(data: ?(ClientEditMessage | ClientRequestHistory)) {
     if (data == null) {
       return
     }
@@ -65,7 +61,9 @@ export function setupClientConnection(
   }
 
   // Join the document
-  emit(client.generateHistoryRequest())
+  for (let clientMessage of client.generateSetupRequests()) {
+    sendToServer(clientMessage)
+  }
 
   // Receive an edit from the server
   socket.on('server-edit-message', (json) => {
@@ -80,7 +78,7 @@ export function setupClientConnection(
       // Apply the server edit & compute response
       let clientEdit: ?ClientEditMessage = client.handle(serverEdit)
       if (clientEdit != null) {
-        emit(clientEdit)
+        sendToServer(clientEdit)
         resendIfNoAck(clientEdit.edit.id)
       }
 
@@ -94,6 +92,6 @@ export function setupClientConnection(
   })
 
   return {
-    send: (clientMessage) => { emit(clientMessage); resendIfNoAck(clientMessage.edit.id) }
+    send: (clientMessage) => { sendToServer(clientMessage); resendIfNoAck(clientMessage.edit.id) }
   }
 }

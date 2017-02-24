@@ -84,7 +84,9 @@ function generatePropogator (
       // Our fake network doesn't completely guarantee in-order edits...
       // If we run into out-of-order requests, reset the history.
       if (e instanceof OutOfOrderError) {
-        serverBacklog.push(client.generateHistoryRequest())
+        let [historyRequest, editMessage] = client.generateSetupRequests()
+        serverBacklog.push(historyRequest)
+        serverBacklog.push(editMessage)
       } else {
         throw e
       }
@@ -128,7 +130,9 @@ function generatePropogator (
       // start listening to the network
       runClient(client)
 
-      serverBacklog.push(client.generateHistoryRequest())
+      for (let clientMessage of client.generateSetupRequests()) {
+        serverBacklog.push(clientMessage)
+      }
     },
     disconnect: (client: OTClientHelper<*>) => {
       clientBacklogs[client.uid] = []
@@ -277,7 +281,7 @@ function randomlyAdjustText(
   shouldRandomize: {enabled: boolean},
   randomizeDelay: number
 ) {
-  (async () => {
+  ;(async () => {
     while (true) {
       if (shouldRandomize.enabled) {
         if (Math.random() > 0.4) {
@@ -298,7 +302,7 @@ function randomlyAdjustText(
 function animateEllipses($el) {
   let $ellipses = $el.find('.ellipses');
 
-  (async () => {
+  ;(async () => {
     while (true) {
       await asyncWait(400)
       $ellipses.text('.')
@@ -352,7 +356,7 @@ $(document).ready(() => {
 
   let clientId = 1
   function addClient() {
-    let [$client, $text, $online, $randomize] = createClientDOM(`Client ${clientId}`, clientId === 1, false)
+    let [$client, $text, $online, $randomize] = createClientDOM(`Client ${clientId}`, false, false)
     $client.insertBefore($clientPlaceholder)
     clientId ++
 
@@ -375,7 +379,7 @@ $(document).ready(() => {
 
     clients.push(client);
 
-    (async () => {
+    ;(async () => {
       while (true) {
         await asyncWait(500)
         if (client.state.text === server.state(DOC_ID)) {
@@ -389,6 +393,29 @@ $(document).ready(() => {
 
   addClient()
   addClient()
+
+  let $randomizeEverything = $('.randomize-everything')
+  ;(async () => {
+    while (true) {
+      await asyncWait(1000)
+      if ($randomizeEverything[0].checked === false) {
+        continue
+      }
+
+      let $checkboxes = $('input[type=checkbox]').not('.randomize-everything')
+      console.log($checkboxes)
+      let i = Math.floor(Math.random() * $checkboxes.length) + 1
+      $checkboxes.eq(i).click()
+    }
+  }) ();
+
+  $('.all-online').click(() => {
+    $('input[type=checkbox].online').prop('checked', true)
+  })
+
+  $('.all-offline').click(() => {
+    $('input[type=checkbox].online').prop('checked', false)
+  })
 
   let $clientButton = $('#add-client')
   $clientButton.click(() => addClient())

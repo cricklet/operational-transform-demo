@@ -122,7 +122,7 @@ export class OTClientHelper<S> {
     return this.outstandingEdit.startIndex
   }
 
-  _sendOutstandingEdits(): ?ClientEditMessage {
+  _generateMessageForOutstandingEdit(): ?ClientEditMessage {
     const updateEdit = castUpdateEdit(this.outstandingEdit)
     if (updateEdit == null) {
       return undefined
@@ -163,12 +163,12 @@ export class OTClientHelper<S> {
     this._checkInvariants()
 
     // send the newly outstanding buffer!
-    let update = this._sendOutstandingEdits()
-    if (update == null) {
-      throw new Error(`wat, there should be outstanding edits: ${JSON.stringify(this)}, ${JSON.stringify(update)}`)
+    let outstandingUpdate = this._generateMessageForOutstandingEdit()
+    if (outstandingUpdate == null) {
+      throw new Error(`wat, there should be outstanding edits: ${JSON.stringify(this)}, ${JSON.stringify(outstandingUpdate)}`)
     }
 
-    return update
+    return outstandingUpdate
   }
 
   addChangeListener(listener: () => void) {
@@ -183,21 +183,26 @@ export class OTClientHelper<S> {
     }, 0)
   }
 
-  generateHistoryRequest(): ClientRequestHistory {
-    let updateEdit: ?UpdateEdit = castUpdateEdit(this.outstandingEdit)
-
-    let request: ClientRequestHistory = {
-      kind: 'ClientRequestHistory',
-      nextIndex: this.getNextIndex(),
-      sourceUid: this.uid,
-      edit: updateEdit
-    }
-
-    return request
+  getOutstandingRequest(): ?ClientEditMessage {
+    return this._generateMessageForOutstandingEdit()
   }
 
-  getOutstandingMessage(): ?ClientEditMessage {
-    return this._sendOutstandingEdits()
+  generateSetupRequests(): [ClientRequestHistory, ?ClientEditMessage] {
+    // we need to send our outstanding update
+    let editMessage = this._generateMessageForOutstandingEdit()
+
+    // first request history so we're up to date with the server
+    let requestHistory: ClientRequestHistory = {
+      kind: 'ClientRequestHistory',
+      nextIndex: this.getNextIndex(),
+      sourceUid: this.uid
+    }
+
+    if (editMessage != null) {
+      requestHistory.dontComposeEditId = editMessage.edit.id
+    }
+
+    return [requestHistory, editMessage]
   }
 
   handle(serverMessage: ServerEditMessage)

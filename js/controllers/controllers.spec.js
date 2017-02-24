@@ -23,7 +23,7 @@ import type { ClientEditMessage, ServerEditMessage, ClientRequestHistory } from 
 import * as OTHelper from './ot_helper.js'
 
 type Propogator = {
-  send: (packet: ?(ClientEditMessage | ClientRequestHistory)) => void,
+  send: (edit: ?ClientEditMessage) => void,
   connect: (client: OTClientHelper<*>) => void,
   disconnect: (client: OTClientHelper<*>) => void,
 }
@@ -34,42 +34,51 @@ function generatePropogator (
   clients: Array<OTClientHelper<*>>
 ): Propogator {
 
-  function sendToServer(clientMessage: ?(ClientEditMessage | ClientRequestHistory)) {
-    if (clientMessage == null) {
+  function sendEdit(clientEdit: ?ClientEditMessage) {
+    if (clientEdit == null) {
       return
     }
 
-    let sourceUid = clientMessage.sourceUid
-
     // handle the message @ the server
-    let serverResponses = server.handle(clientMessage)
+    let serverResponses = server.handle(clientEdit)
 
     // handle the server's response @ each client
     // compile all the client responses
-    let clientResponses = []
-
-    for (let serverResponse of serverResponses) {
-      for (let client of clients) {
-        let clientResponse = client.handle(serverResponse)
-        if (clientResponse != null) {
-          clientResponses.push(clientResponse)
-        }
-      }
-    }
+    let clientResponses = U.flatten(serverResponses.map(r => clients.map(c => c.handle(r))))
 
     // propogate the client responses back to the server
-    for (let clientResponse of clientResponses) {
-      sendToServer(clientResponse)
+    for (let clientResponse of U.skipNulls(clientResponses)) {
+      sendEdit(clientResponse)
+    }
+  }
+
+  function sendHistoryRequest(client: OTClientHelper<*>, clientRequest: ?ClientRequestHistory) {
+    if (clientRequest == null) {
+      return
+    }
+
+    // handle the message @ the server
+    let serverResponses = server.handle(clientRequest)
+
+    // handle the responses @ the client
+    let clientResponses = serverResponses.map(r => client.handle(r))
+
+    // propogate the client responses back to the server
+    for (let clientResponse of U.skipNulls(clientResponses)) {
+      sendEdit(clientResponse)
     }
   }
 
   return {
-    send: (data) => {
-      sendToServer(data)
+    send: (edit: ?ClientEditMessage) => {
+      sendEdit(edit)
     },
     connect: (client: OTClientHelper<*>) => {
       clients.push(client)
-      sendToServer(client.generateHistoryRequest())
+      let [historyRequest, editMessage] = client.generateSetupRequests()
+      sendHistoryRequest(client, historyRequest)
+      sendEdit(editMessage)
+
     },
     disconnect: (client: OTClientHelper<*>) => {
       let poppedClient = U.pop(clients, c => c === client)
@@ -355,9 +364,9 @@ describe('resend', () => {
 
     // Re-send the dropped edits... This would happen on some timeout in an actual client
 
-    propogator.send(client0.getOutstandingMessage())
-    propogator.send(client1.getOutstandingMessage())
-    propogator.send(client2.getOutstandingMessage())
+    propogator.send(client0.getOutstandingRequest())
+    propogator.send(client1.getOutstandingRequest())
+    propogator.send(client2.getOutstandingRequest())
 
     assert.equal('hi world cranberryapple ', client0.state)
     assert.equal('hi world cranberryapple ', client1.state)
@@ -386,14 +395,14 @@ describe('resend', () => {
     assert.equal('hello world george ', client0.state)
     assert.equal('hello george washington ', client1.state)
 
-    /* DROP THIS */ client0.getOutstandingMessage()
-    /* DROP THIS */ client1.getOutstandingMessage()
+    /* DROP THIS */ client0.getOutstandingRequest()
+    /* DROP THIS */ client1.getOutstandingRequest()
 
-    /* DROP THIS */ client0.getOutstandingMessage()
-    /* DROP THIS */ client1.getOutstandingMessage()
+    /* DROP THIS */ client0.getOutstandingRequest()
+    /* DROP THIS */ client1.getOutstandingRequest()
 
-    propogator.send(client0.getOutstandingMessage())
-    propogator.send(client1.getOutstandingMessage())
+    propogator.send(client0.getOutstandingRequest())
+    propogator.send(client1.getOutstandingRequest())
 
     assert.equal('hello world george washington ', client0.state)
     assert.equal('hello world george washington ', client1.state)
