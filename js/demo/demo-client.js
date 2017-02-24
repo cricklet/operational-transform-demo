@@ -35,7 +35,6 @@ $(document).ready(() => {
   let client = new OTClientHelper(DocumentApplier)
   let clientConnection: ClientConnection = setupClientConnection(
     'http://localhost:8123',
-    docId,
     client,
     console.log)
 
@@ -53,13 +52,10 @@ $(document).ready(() => {
     }
   })
 
-  observeObject(client,
-    (_, key) => {}, // added
-    (_, key) => {}, // deleted
-    (_, key) => {// changed
-      updateUI($text, client.state)
-    }
-  )
+  client.addChangeListener(() => {
+    updateUI($text, client.state)
+  })
+
   $text.on('keyup mousedown mouseup', () => {
     let [newText, newCursorStart, newCursorEnd] = getUIState($text)
 
@@ -69,6 +65,7 @@ $(document).ready(() => {
 
     updateUI($text, client.state)
   })
+
   $text.on('input propertychange change onpaste', () => {
     let [newText, newCursorStart, newCursorEnd] = getUIState($text)
 

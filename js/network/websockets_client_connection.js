@@ -14,7 +14,7 @@ export type ClientConnection = {
 }
 
 export function setupClientConnection(
-  url: string, docId: string,
+  url: string,
   client: OTClientHelper<*>,
   logger: (s: string) => void
 ): ClientConnection {

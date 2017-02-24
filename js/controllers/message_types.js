@@ -48,7 +48,6 @@ export function castClientRequestHistory(obj: Object): ?ClientRequestHistory {
 
 export function castServerEditMessage(obj: Object): ?ServerEditMessage {
   if (obj.kind !== 'ServerEditMessage') { return undefined }
-  if (obj.ack == null || obj.mode == null) { throw new Error('bad edit message') }
   castServerEdit(obj.edit)
   /* @flow-ignore */
   return obj
