@@ -5,7 +5,9 @@ import SocketClient from 'socket.io-client'
 import * as U from '../helpers/utils.js'
 import { OTClientHelper, OutOfOrderError } from '../controllers/ot_client_helper.js'
 import { castServerEditMessage } from '../controllers/message_types.js'
-import type { ServerEditMessage, ClientEditMessage, ClientConnectionRequest } from '../controllers/message_types.js'
+import type { ServerEditMessage, ClientEditMessage, ClientRequestHistory } from '../controllers/message_types.js'
+
+import { debounce } from 'lodash'
 
 export type ClientConnection = {
   send: (clientMessage: ClientEditMessage) => void
@@ -18,25 +20,20 @@ export function setupClientConnection(
 ): ClientConnection {
   let socket = new SocketClient(url)
 
-  let retryTimeout = undefined
-  function retry() {
-    clearTimeout(retryTimeout)
+  let resendIfNoAck = debounce((id: string) => {
+    let clientMessage = client.getOutstandingEditMessage()
+    if (clientMessage == null) { return }
+    if (clientMessage.edit.id !== id) { return }
 
-    retryTimeout = setTimeout(() => {
-      send(client.retry())
-    }, 2000)
-  }
+    send(clientMessage)
+    resendIfNoAck(id)
+  }, 4000)
 
-  let reconnectTimeout = undefined
-  function reconnect() {
-    clearTimeout(reconnectTimeout)
+  let forceResync = debounce(() => {
+    send(client.requestHistory())
+  })
 
-    reconnectTimeout = setTimeout(() => {
-      send(client.resetConnection())
-    }, 2000)
-  }
-
-  function send(data: ?(ClientEditMessage | ClientConnectionRequest)) {
+  function send(data: ?(ClientEditMessage | ClientRequestHistory)) {
     if (data == null) {
       return
     }
@@ -44,13 +41,13 @@ export function setupClientConnection(
     if (data.kind === 'ClientEditMessage') {
       socket.emit('client-message', JSON.stringify(data))
 
-    } else if (data.kind === 'ClientConnectionRequest') {
+    } else if (data.kind === 'ClientRequestHistory') {
       socket.emit('client-connect', JSON.stringify(data))
     }
   }
 
   // Join the document
-  send(client.startConnecting())
+  send(client.requestHistory())
 
   // Receive an edit from the server
   socket.on('server-message', (json) => {
@@ -63,15 +60,15 @@ export function setupClientConnection(
 
     try {
       // Apply server message & compute response
-      let clientResponse = client.handle(serverMessage)
-      if (clientResponse != null) {
-        send(clientResponse)
-        retry()
+      let clientEdit: ?ClientEditMessage = client.handle(serverMessage)
+      if (clientEdit != null) {
+        send(clientEdit)
+        resendIfNoAck(clientEdit.edit.id)
       }
 
     } catch (e) {
       if (e instanceof OutOfOrderError) {
-        reconnect()
+        forceResync()
       } else {
         throw e
       }

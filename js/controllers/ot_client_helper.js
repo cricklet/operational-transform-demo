@@ -13,7 +13,7 @@ import type {
 
 import type {
   ClientEditMessage,
-  ClientConnectionRequest,
+  ClientRequestHistory,
   ServerEditMessage
 } from './message_types.js'
 
@@ -183,11 +183,11 @@ export class OTClientHelper<S> {
     }, 0)
   }
 
-  startConnecting(): ClientConnectionRequest {
+  requestHistory(): ClientRequestHistory {
     let updateEdit: ?UpdateEdit = castUpdateEdit(this.outstandingEdit)
 
-    let request: ClientConnectionRequest = {
-      kind: 'ClientConnectionRequest',
+    let request: ClientRequestHistory = {
+      kind: 'ClientRequestHistory',
       nextIndex: this._nextIndex(),
       sourceUid: this.uid,
       edit: updateEdit
@@ -196,11 +196,7 @@ export class OTClientHelper<S> {
     return request
   }
 
-  resetConnection(): ClientConnectionRequest {
-    return this.startConnecting()
-  }
-
-  retry(): ?ClientEditMessage {
+  getOutstandingEditMessage(): ?ClientEditMessage {
     return this._sendOutstandingEdits()
   }
 

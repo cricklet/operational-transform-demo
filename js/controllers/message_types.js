@@ -21,8 +21,8 @@ export type ClientEditMessage = {|
   edit: UpdateEdit
 |}
 
-export type ClientConnectionRequest = {|
-  kind: 'ClientConnectionRequest',
+export type ClientRequestHistory = {|
+  kind: 'ClientRequestHistory',
   sourceUid: string,
   nextIndex: number,
   edit: ?UpdateEdit,
@@ -36,8 +36,8 @@ export function castClientEditMessage(obj: Object): ?ClientEditMessage {
   return obj
 }
 
-export function castClientConnectionRequest(obj: Object): ?ClientConnectionRequest {
-  if (obj.kind !== 'ClientConnectionRequest') { return undefined }
+export function castClientRequestHistory(obj: Object): ?ClientRequestHistory {
+  if (obj.kind !== 'ClientRequestHistory') { return undefined }
   if (obj.sourceUid == null || obj.nextIndex == null) { throw new Error('bad connection request') }
   if ('edit' in obj) {
     castUpdateEdit(obj.edit)

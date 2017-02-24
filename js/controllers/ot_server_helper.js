@@ -11,7 +11,7 @@ import type {
 
 import type {
   ClientEditMessage,
-  ClientConnectionRequest,
+  ClientRequestHistory,
   ServerEditMessage
 } from './message_types.js'
 
@@ -225,7 +225,7 @@ export class OTServerHelper {
     }
   }
 
-  _handleClientConnection(clientResetRequest: ClientConnectionRequest)
+  _handleClientConnection(clientResetRequest: ClientRequestHistory)
   : ServerEditMessage[] {
     const updateEdit: ?UpdateEdit = clientResetRequest.edit
     let sourceUid: string = clientResetRequest.sourceUid
@@ -312,13 +312,13 @@ export class OTServerHelper {
       return responses
     }
   }
-  handle (clientMessage: ClientEditMessage | ClientConnectionRequest)
+  handle (clientMessage: ClientEditMessage | ClientRequestHistory)
   : ServerEditMessage[] {
     if (clientMessage.kind === 'ClientEditMessage') {
       return [ this._handleClientEdit(clientMessage) ]
     }
 
-    if (clientMessage.kind === 'ClientConnectionRequest') {
+    if (clientMessage.kind === 'ClientRequestHistory') {
       return this._handleClientConnection(clientMessage)
     }
 

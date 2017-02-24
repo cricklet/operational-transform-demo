@@ -33,6 +33,7 @@
     "immutable": "^3.8.1",
     "immutable-js": "^0.3.1-6",
     "imports-loader": "^0.6.5",
+    "lodash": "^4.17.4",
     "mocha": "^3.2.0",
     "object.observe": "^0.2.6",
     "observe-js": "^0.5.7",

@@ -19,11 +19,11 @@ import { generateInsertion, generateDeletion } from '../ot/components.js'
 import { OTClientHelper, OutOfOrderError } from './ot_client_helper.js'
 import { OTServerHelper } from './ot_server_helper.js'
 
-import type { ClientEditMessage, ServerEditMessage, ClientConnectionRequest } from './message_types.js'
+import type { ClientEditMessage, ServerEditMessage, ClientRequestHistory } from './message_types.js'
 import * as OTHelper from './ot_helper.js'
 
 type Propogator = {
-  send: (packet: ?(ClientEditMessage | ClientConnectionRequest)) => void,
+  send: (packet: ?(ClientEditMessage | ClientRequestHistory)) => void,
   connect: (client: OTClientHelper<*>) => void,
   disconnect: (client: OTClientHelper<*>) => void,
 }
@@ -33,7 +33,7 @@ function generatePropogator (
   server: OTServerHelper,
   clients: Array<OTClientHelper<*>>
 ): Propogator {
-  function propogate(clientMessage: ?(ClientEditMessage | ClientConnectionRequest)) {
+  function propogate(clientMessage: ?(ClientEditMessage | ClientRequestHistory)) {
     if (clientMessage == null) {
       return
     }
@@ -77,7 +77,7 @@ function generatePropogator (
     },
     connect: (client: OTClientHelper<*>) => {
       clients.push(client)
-      propogate(client.startConnecting())
+      propogate(client.requestHistory())
     },
     disconnect: (client: OTClientHelper<*>) => {
       let poppedClient = U.pop(clients, c => c === client)
@@ -363,9 +363,9 @@ describe('resend', () => {
 
     // Re-send the dropped edits... This would happen on some timeout in an actual client
 
-    propogator.send(client0.retry())
-    propogator.send(client1.retry())
-    propogator.send(client2.retry())
+    propogator.send(client0.getOutstandingEditMessage())
+    propogator.send(client1.getOutstandingEditMessage())
+    propogator.send(client2.getOutstandingEditMessage())
 
     assert.equal('hi world cranberryapple ', client0.state)
     assert.equal('hi world cranberryapple ', client1.state)
@@ -394,14 +394,14 @@ describe('resend', () => {
     assert.equal('hello world george ', client0.state)
     assert.equal('hello george washington ', client1.state)
 
-    /* DROP THIS */ client0.retry()
-    /* DROP THIS */ client1.retry()
+    /* DROP THIS */ client0.getOutstandingEditMessage()
+    /* DROP THIS */ client1.getOutstandingEditMessage()
 
-    /* DROP THIS */ client0.retry()
-    /* DROP THIS */ client1.retry()
+    /* DROP THIS */ client0.getOutstandingEditMessage()
+    /* DROP THIS */ client1.getOutstandingEditMessage()
 
-    propogator.send(client0.retry())
-    propogator.send(client1.retry())
+    propogator.send(client0.getOutstandingEditMessage())
+    propogator.send(client1.getOutstandingEditMessage())
 
     assert.equal('hello world george washington ', client0.state)
     assert.equal('hello world george washington ', client1.state)

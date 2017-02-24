@@ -4,8 +4,8 @@
 import SocketServer from 'socket.io'
 
 import { OTServerHelper } from '../controllers/ot_server_helper.js'
-import { castClientEditMessage, castClientConnectionRequest } from '../controllers/message_types.js'
-import type { ClientEditMessage, ClientConnectionRequest, ServerEditMessage } from '../controllers/message_types.js'
+import { castClientEditMessage, castClientRequestHistory } from '../controllers/message_types.js'
+import type { ClientEditMessage, ClientRequestHistory, ServerEditMessage } from '../controllers/message_types.js'
 
 let DOC_ID = 'asdf'
 
@@ -43,7 +43,7 @@ export function setupServerConnection(
     // Client connected!
     socket.on('client-connect', (json) => {
       logger(`client connected: ${json}`)
-      let connectionRequest: ?ClientConnectionRequest = castClientConnectionRequest(JSON.parse(json))
+      let connectionRequest: ?ClientRequestHistory = castClientRequestHistory(JSON.parse(json))
 
       if (connectionRequest == null) {
         throw new Error('un-parseable client connection request: ' + json)

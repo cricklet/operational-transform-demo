@@ -13,12 +13,12 @@ import * as U from '../helpers/utils.js'
 import { OTClientHelper, OutOfOrderError } from '../controllers/ot_client_helper.js'
 import { OTServerHelper } from '../controllers/ot_server_helper.js'
 
-import type { ClientEditMessage, ServerEditMessage, ClientConnectionRequest } from '../controllers/message_types.js'
+import type { ClientEditMessage, ServerEditMessage, ClientRequestHistory } from '../controllers/message_types.js'
 
 type Lock = { ignoreEvents: boolean }
 
 type Propogator = {
-  send: (packet: ?(ClientEditMessage | ClientConnectionRequest)) => void,
+  send: (packet: ?(ClientEditMessage | ClientRequestHistory)) => void,
   connect: (client: OTClientHelper<*>) => void,
   disconnect: (client: OTClientHelper<*>) => void,
 }
@@ -117,7 +117,7 @@ function generatePropogator (
       // start listening to the network
       runClient(client)
 
-      serverBacklog.push(client.startConnecting())
+      serverBacklog.push(client.requestHistory())
     },
     disconnect: (client: OTClientHelper<*>) => {
       clientBacklogs[client.uid] = []
@@ -152,7 +152,7 @@ function updateDOMTextbox($text, state: DocumentState): void {
 function setupClient(
   client: OTClientHelper<*>,
   $text: any,
-  emit: (message: ClientEditMessage | ClientConnectionRequest) => void
+  emit: (message: ClientEditMessage | ClientRequestHistory) => void
 ) {
   let lock = generateLock()
 
