@@ -33,32 +33,23 @@ function generatePropogator (
   server: OTServerHelper,
   clients: Array<OTClientHelper<*>>
 ): Propogator {
-  function propogate(clientMessage: ?(ClientEditMessage | ClientRequestHistory)) {
+
+  function sendToServer(clientMessage: ?(ClientEditMessage | ClientRequestHistory)) {
     if (clientMessage == null) {
       return
     }
 
     let sourceUid = clientMessage.sourceUid
 
-    // server responds to this message
+    // handle the message @ the server
     let serverResponses = server.handle(clientMessage)
 
-    // clients then respond to that server response!
+    // handle the server's response @ each client
+    // compile all the client responses
     let clientResponses = []
 
     for (let serverResponse of serverResponses) {
-      let relevantClients = []
-
-      if (server.isLatestMessage(serverResponse)) {
-        // broadcast to all clients
-        relevantClients = clients
-      } else {
-        // just reply
-        relevantClients = U.filter(clients, c => c.uid === sourceUid)
-      }
-
-      for (let client of relevantClients) {
-        // each client should handle the new server response
+      for (let client of clients) {
         let clientResponse = client.handle(serverResponse)
         if (clientResponse != null) {
           clientResponses.push(clientResponse)
@@ -66,18 +57,19 @@ function generatePropogator (
       }
     }
 
+    // propogate the client responses back to the server
     for (let clientResponse of clientResponses) {
-      propogate(clientResponse)
+      sendToServer(clientResponse)
     }
   }
 
   return {
     send: (data) => {
-      propogate(data)
+      sendToServer(data)
     },
     connect: (client: OTClientHelper<*>) => {
       clients.push(client)
-      propogate(client.generateHistoryRequest())
+      sendToServer(client.generateHistoryRequest())
     },
     disconnect: (client: OTClientHelper<*>) => {
       let poppedClient = U.pop(clients, c => c === client)

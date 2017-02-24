@@ -15,27 +15,29 @@ export function setupServerConnection(
   let socketServer = new SocketServer()
 
   socketServer.on('connection', (socket) => {
+
+    // send server messages to the clients
     function send (serverMessages: ServerEditMessage[]) {
       for (let serverMessage of serverMessages) {
         let serverMessageJSON = JSON.stringify(serverMessage)
 
-        if (server.isLatestMessage(serverMessage)) {
+        if (server.isLatestMessage(serverMessage)) { // this is not necessary -- it's an optimization
           // broadcast to all clients
-          logger(`replying with update: ${serverMessageJSON}`)
-          socketServer.sockets.emit('server-message', serverMessageJSON)
+          logger(`replying with edit: ${serverMessageJSON}`)
+          socketServer.sockets.emit('server-edit-message', serverMessageJSON)
 
         } else {
           // just reply
-          logger(`replying with update: ${serverMessageJSON}`)
-          socket.emit('server-message', serverMessageJSON)
+          logger(`replying with edit: ${serverMessageJSON}`)
+          socket.emit('server-edit-message', serverMessageJSON)
         }
       }
     }
 
-    // Client sent an edit
-    socket.on('client-message', (json) => {
+    // on a client edit
+    socket.on('client-edit-message', (json) => {
       // parse the client edit
-      logger(`client sent update: ${json}`)
+      logger(`client edit: ${json}`)
       let editMessage: ?ClientEditMessage = castClientEditMessage(JSON.parse(json))
 
       if (editMessage == null) {
@@ -46,9 +48,9 @@ export function setupServerConnection(
       send(server.handle(editMessage))
     })
 
-    // Client connected!
-    socket.on('client-connect', (json) => {
-      logger(`client connected: ${json}`)
+    // when a client connects
+    socket.on('client-request-history', (json) => {
+      logger(`client history request: ${json}`)
       let connectionRequest: ?ClientRequestHistory = castClientRequestHistory(JSON.parse(json))
 
       if (connectionRequest == null) {

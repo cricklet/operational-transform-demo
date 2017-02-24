@@ -113,7 +113,7 @@ export class OTClientHelper<S> {
     }
   }
 
-  _nextIndex(): number {
+  getNextIndex(): number {
     // because neither the outstanding nor buffer exist on the
     // server yet, they don't increment the index at all!
 
@@ -188,7 +188,7 @@ export class OTClientHelper<S> {
 
     let request: ClientRequestHistory = {
       kind: 'ClientRequestHistory',
-      nextIndex: this._nextIndex(),
+      nextIndex: this.getNextIndex(),
       sourceUid: this.uid,
       edit: updateEdit
     }
@@ -204,11 +204,11 @@ export class OTClientHelper<S> {
   : ?ClientEditMessage {
     let serverEdit: ServerEdit = serverMessage.edit
 
-    if (serverEdit.startIndex < this._nextIndex()) { // ignore old updates
+    if (serverEdit.startIndex < this.getNextIndex()) { // ignore old updates
       return undefined
     }
 
-    if (serverEdit.startIndex > this._nextIndex()) { // raise on future updates
+    if (serverEdit.startIndex > this.getNextIndex()) { // raise on future updates
       throw new OutOfOrderError()
     }
 

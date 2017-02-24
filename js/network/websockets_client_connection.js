@@ -21,54 +21,72 @@ export function setupClientConnection(
   let socket = new SocketClient(url)
 
   let resendIfNoAck = debounce((id: string) => {
+    // If one of our edits gets dropped on the way to the server, we want
+    // to try and resend it.
+
     let clientMessage = client.getOutstandingMessage()
     if (clientMessage == null) { return }
-    if (clientMessage.edit.id !== id) { return }
 
-    send(clientMessage)
-    resendIfNoAck(id)
+    if (clientMessage.edit.id !== id) {
+      // Our edit got acknowledged successfully!
+      // We're now waiting for an ack on a different edit.
+      return
+    }
+
+    emit(clientMessage) // Resend our edit...
+    resendIfNoAck(id) // and wait for another ack.
   }, 4000)
 
-  let forceResync = debounce(() => {
-    send(client.generateHistoryRequest())
-  })
+  let forceResync = debounce((nextIndex: number) => {
+    // There could be edge cases where the client gets edits from the server
+    // out of order. In these cases, the client asks the server for the latest,
+    // definitive edit history.
 
-  function send(data: ?(ClientEditMessage | ClientRequestHistory)) {
+    let historyRequest = client.generateHistoryRequest()
+    if (historyRequest.nextIndex > nextIndex) {
+      // Apparently we already succesfully applied the update @ nextIndex.
+      // We're no longer out of sync with the server!
+      return
+    }
+    emit(historyRequest)
+  }, 1000)
+
+  function emit(data: ?(ClientEditMessage | ClientRequestHistory)) {
     if (data == null) {
       return
     }
 
     if (data.kind === 'ClientEditMessage') {
-      socket.emit('client-message', JSON.stringify(data))
+      socket.emit('client-edit-message', JSON.stringify(data))
 
     } else if (data.kind === 'ClientRequestHistory') {
-      socket.emit('client-connect', JSON.stringify(data))
+      socket.emit('client-request-history', JSON.stringify(data))
     }
   }
 
   // Join the document
-  send(client.generateHistoryRequest())
+  emit(client.generateHistoryRequest())
 
   // Receive an edit from the server
-  socket.on('server-message', (json) => {
+  socket.on('server-edit-message', (json) => {
     logger(`server sent message: ${json}`)
 
-    let serverMessage: ?ServerEditMessage = castServerEditMessage(JSON.parse(json))
-    if (serverMessage == null) {
+    let serverEdit: ?ServerEditMessage = castServerEditMessage(JSON.parse(json))
+    if (serverEdit == null) {
       throw new Error('un-parseable server message: ' + json)
     }
 
     try {
-      // Apply server message & compute response
-      let clientEdit: ?ClientEditMessage = client.handle(serverMessage)
+      // Apply the server edit & compute response
+      let clientEdit: ?ClientEditMessage = client.handle(serverEdit)
       if (clientEdit != null) {
-        send(clientEdit)
+        emit(clientEdit)
         resendIfNoAck(clientEdit.edit.id)
       }
 
     } catch (e) {
       if (e instanceof OutOfOrderError) {
-        forceResync()
+        forceResync(client.getNextIndex())
       } else {
         throw e
       }
@@ -76,6 +94,6 @@ export function setupClientConnection(
   })
 
   return {
-    send: send
+    send: (clientMessage) => { emit(clientMessage); resendIfNoAck(clientMessage.edit.id) }
   }
 }
