@@ -73,10 +73,21 @@ function generatePropogator (
 
     console.log('client', client.uid, 'handling: ', serverMessage)
 
-    // handle server message & send response back
-    let clientResponse = client.handle(serverMessage)
-    if (clientResponse != null) {
-      serverBacklog.push(clientResponse)
+    try {
+      // Apply the server edit & compute response
+      let clientMessage: ?ClientEditMessage = client.handle(serverMessage)
+      if (clientMessage != null) {
+        serverBacklog.push(clientMessage)
+      }
+
+    } catch (e) {
+      // Our fake network doesn't completely guarantee in-order edits...
+      // If we run into out-of-order requests, reset the history.
+      if (e instanceof OutOfOrderError) {
+        serverBacklog.push(client.generateHistoryRequest())
+      } else {
+        throw e
+      }
     }
   }
 
