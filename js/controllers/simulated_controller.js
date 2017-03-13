@@ -1,134 +1,137 @@
+/* @flow */
+
+import * as U from '../helpers/utils.js'
 
 import type { ClientEditMessage, ServerEditMessage, ClientRequestHistory } from '../models/message_types.js'
+import { OTClientModel, OutOfOrderError } from '../models/ot_client_model.js'
+import { OTServerModel } from '../models/ot_server_model.js'
 
-export type SimulatedController = {
-  send: (packet: ClientEditMessage) => void,
-  connect: (client: OTClientModel<*>) => void,
-  disconnect: (client: OTClientModel<*>) => void,
-}
+export class SimulatedController {
+  // queues for the server
+  serverQueue: (ClientEditMessage | ClientRequestHistory)[]
 
-class SimulatedClientController {
-  backlog: ServerEdit[]
-}
+  // messages being sent to the clients
+  clientQueues: { [clientUid: string]: (ServerEditMessage)[] }
 
-function setupSimulatedController (
-  server: OTServerModel,
+  // whether this client needs to reconnect
+  clientNeedsHistory: { [clientUid: string]: boolean }
+
+  server: ?OTServerModel
+  clients: { [clientUid: string]: OTClientModel<*> }
+
   delay: { maxDelay: number, minDelay: number }
-): Propogator {
 
-  let clients = []
+  constructor (delay: { maxDelay: number, minDelay: number }) {
+    this.server = undefined
+    this.clients = {}
 
-  let clientBacklogs = {}
-  let serverBacklog = []
+    this.serverQueue = []
+    this.clientQueues = {}
 
-  function delayMS() {
-    return Math.random() * (delay.maxDelay - delay.minDelay) + delay.minDelay
+    this.clientNeedsHistory = {}
+
+    this.delay = delay
   }
 
-  function serverThink() {
-    let clientMessage
-    if (serverBacklog.length > 0) {
-      clientMessage = serverBacklog.shift()
-    }
+  _serverThink() {
+    let clientMessage = this.serverQueue.shift()
+    if (this.server == null || clientMessage == null) { return }
 
-    if (clientMessage == null) {
-      return
-    }
+    let responses = this.server.handle(clientMessage)
 
-    console.log('handling: ', clientMessage)
-
-    let clientUid = clientMessage.sourceUid
-
-    // handle client message
-    let serverMessages = server.handle(clientMessage)
-    for (let serverMessage of serverMessages) {
-      // send responses to the clients
-      for (let client of clients) {
-        clientBacklogs[client.uid].push(serverMessage)
+    if (clientMessage.kind === 'ClientRequestHistory') {
+      for (let response of responses) {
+        let queue = this.clientQueues[clientMessage.sourceUid]
+        if (queue != null) {
+          queue.push(response)
+        }
       }
+    } else if (clientMessage.kind === 'ClientEditMessage') {
+      for (let clientUid in this.clientQueues) {
+        for (let response of responses) {
+          this.clientQueues[clientUid].push(response)
+        }
+      }
+    } else {
+      throw new Error('wat')
     }
   }
 
-  function clientThink(client: OTClientModel<*>) {
-    if (clientBacklogs[client.uid].length === 0) {
+  _clientThink(clientUid: string) {
+    let client = this.clients[clientUid]
+
+    // reconnect if necessary
+    if (this.clientNeedsHistory[clientUid] == true) {
+      this.clientNeedsHistory[clientUid] = false
+
+      let [request, message] = client.generateHistoryRequest()
+      this.send(client, request)
+      if (message != null) {
+        this.send(client, message)
+      }
       return
     }
 
-    let serverMessage = clientBacklogs[client.uid].shift()
-
-    if (serverMessage == null) {
-      return
-    }
-
-    console.log('client', client.uid, 'handling: ', serverMessage)
+    let serverMessage = this.clientQueues[clientUid].shift()
+    if (client == null || serverMessage == null) { return }
 
     try {
-      // Apply the server edit & compute response
-      let clientMessage: ?ClientEditMessage = client.handle(serverMessage)
-      if (clientMessage != null) {
-        serverBacklog.push(clientMessage)
+      // apply the edit
+      let response = client.handle(serverMessage)
+      if (response != null) {
+        this.serverQueue.push(response)
       }
 
+      // successful edit applied! we're synced :)
+      this.clientNeedsHistory[clientUid] = false
+
     } catch (e) {
-      // Our fake network doesn't completely guarantee in-order edits...
-      // If we run into out-of-order requests, reset the history.
-      if (e instanceof OutOfOrderError) {
-        let [historyRequest, editMessage] = client.generateSetupRequests()
-        serverBacklog.push(historyRequest)
-        serverBacklog.push(editMessage)
-      } else {
+      if (!(e instanceof OutOfOrderError)) {
         throw e
       }
+
+      // failed to apply edit! we're out of sync
+      this.clientNeedsHistory[clientUid] = true
     }
   }
 
-  // run the server
-  ;(async () => {
-    while (true) {
-      serverThink()
-      await U.asyncSleep(delayMS())
-    }
-  })()
-
-  // run the client
-  function runClient (client: OTClientModel<*>) {
+  loop() {
     ;(async () => {
       while (true) {
-        if (!U.contains(clients, client)) {
-          break
+        await U.asyncSleep(Math.random() * (this.delay.maxDelay - this.delay.minDelay) + this.delay.minDelay)
+        for (let clientUid in this.clientQueues) {
+          this._clientThink(clientUid)
         }
 
-        clientThink(client)
-        await U.asyncSleep(delayMS())
+        await U.asyncSleep(Math.random() * (this.delay.maxDelay - this.delay.minDelay) + this.delay.minDelay)
+        this._serverThink()
       }
     })()
   }
 
-  return {
-    send: (data) => {
-      serverBacklog.push(data)
-    },
-    connect: (client: OTClientModel<*>) => {
-      if (U.contains(clients, client)) {
-        return
-      }
+  connectClient(client: OTClientModel<*>) {
+    this.clients[client.uid] = client
+    this.clientNeedsHistory[client.uid] = true
+    this.clientQueues[client.uid] = []
+  }
 
-      clientBacklogs[client.uid] = []
-      clients.push(client)
+  disconnectClient(client: OTClientModel<*>) {
+    delete this.clients[client.uid]
+    delete this.clientQueues[client.uid]
+    delete this.clientNeedsHistory[client.uid]
+  }
 
-      // start listening to the network
-      runClient(client)
+  connectServer(server: OTServerModel) {
+    this.server = server
+    this.serverQueue = []
+  }
 
-      for (let clientMessage of client.generateSetupRequests()) {
-        serverBacklog.push(clientMessage)
-      }
-    },
-    disconnect: (client: OTClientModel<*>) => {
-      clientBacklogs[client.uid] = []
-      let poppedClient = U.pop(clients, c => c === client)
-      if (poppedClient == null) {
-        throw new Error('wat')
-      }
-    }
+  disconnectServer(server: OTServerModel) {
+    this.server = undefined
+    this.serverQueue = []
+  }
+
+  send(client: OTClientModel<*>, message: (ClientEditMessage | ClientRequestHistory)) {
+    this.serverQueue.push(message)
   }
 }

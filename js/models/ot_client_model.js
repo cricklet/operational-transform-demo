@@ -187,7 +187,7 @@ export class OTClientModel<S> {
     return this._generateMessageForOutstandingEdit()
   }
 
-  generateSetupRequests(): [ClientRequestHistory, ?ClientEditMessage] {
+  generateHistoryRequest(): [ClientRequestHistory, ?ClientEditMessage] {
     // we need to send our outstanding update
     let editMessage = this._generateMessageForOutstandingEdit()
 
@@ -196,10 +196,6 @@ export class OTClientModel<S> {
       kind: 'ClientRequestHistory',
       nextIndex: this.getNextIndex(),
       sourceUid: this.uid
-    }
-
-    if (editMessage != null) {
-      requestHistory.dontComposeEditId = editMessage.edit.id
     }
 
     return [requestHistory, editMessage]

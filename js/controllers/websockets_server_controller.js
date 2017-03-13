@@ -29,7 +29,7 @@ export function setupServerController(
       // Handle the new edit
       let serverResponses = server.handle(editMessage)
       for (let serverResponse of serverResponses) {
-        socketServer.sockets.emit(
+        socketServer.sockets.emit( // broadcast to all clients
           'server-edit-message', JSON.stringify(serverResponse))
       }
     })
@@ -46,7 +46,7 @@ export function setupServerController(
       // Handle the new edit
       let serverResponses = server.handle(historyRequest)
       for (let serverResponse of serverResponses) {
-        socket.emit(
+        socket.emit( // respond only to client
           'server-edit-message', JSON.stringify(serverResponse))
       }
     })

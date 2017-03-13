@@ -38,7 +38,7 @@ export function setupClientController(
   }, 4000)
 
   let forceResync = debounce((nextIndex: number) => {
-    for (let clientRequest of client.generateSetupRequests()) {
+    for (let clientRequest of client.generateHistoryRequest()) {
       sendToServer(clientRequest)
     }
   }, 1000)
@@ -57,7 +57,7 @@ export function setupClientController(
   }
 
   // Join the document
-  for (let clientMessage of client.generateSetupRequests()) {
+  for (let clientMessage of client.generateHistoryRequest()) {
     sendToServer(clientMessage)
   }
 

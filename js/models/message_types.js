@@ -24,8 +24,7 @@ export type ClientEditMessage = {|
 export type ClientRequestHistory = {|
   kind: 'ClientRequestHistory',
   sourceUid: string,
-  nextIndex: number,
-  dontComposeEditId?: string,
+  nextIndex: number
 |}
 
 export function castClientEditMessage(obj: Object): ?ClientEditMessage {

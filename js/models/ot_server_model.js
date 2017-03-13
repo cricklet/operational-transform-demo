@@ -31,6 +31,7 @@ export interface IDocument {
   getEdit(editId: string): ServerEdit,
   getEditAt(index: number): ServerEdit,
   getLastIndex(): number,
+  getNumEdits(): number,
   getNextIndex(): number,
   indexOfEdit(editId: string): ?number,
   hasEdit(editId: string): boolean,
@@ -65,6 +66,10 @@ export class InMemoryDocument {
       throw new Error(`can't find edit at ${index} in log w/ ${this.editLog.length} edits`)
     }
     return this.editLog[index]
+  }
+
+  getNumEdits(): number{
+    return this.editLog.length
   }
 
   getNextIndex(): number{
@@ -220,55 +225,19 @@ export class OTServerModel {
   _handleClientHistoryRequest(clientHistoryRequest: ClientRequestHistory)
   : ServerEditMessage[] {
     const sourceUid: string = clientHistoryRequest.sourceUid
-    const dontComposeEditId: ?string = clientHistoryRequest.dontComposeEditId
 
     // get the history starting at this index
     let startIndex: number = clientHistoryRequest.nextIndex
+    let responses = []
 
-    if (dontComposeEditId == null || !this.doc.hasEdit(dontComposeEditId)) {
-      // we can just compose the history & return it!
-      return [
-        {
-          kind: 'ServerEditMessage',
-          edit: this.doc.getEditRange(startIndex)
-        }
-      ]
-    } else {
-      // we can't just compose the history & return it.
-
-      const dontComposeIndex = this.doc.indexOfEdit(dontComposeEditId)
-      if (dontComposeIndex == null) {
-        throw new Error('wat, we just checked that the edit is in the history')
-      }
-
-      // get the edits before & after the client's outstanding edit
-      let beforeEdit = this.doc.getEditRange(startIndex, dontComposeIndex)
-      let ackEdit = this.doc.getEditAt(dontComposeIndex)
-      let afterEdit = this.doc.getEditRange(dontComposeIndex + 1)
-
-      let responses = []
-
-      if (!OTHelper.isEmpty(beforeEdit)) {
-        responses.push({
-          kind: 'ServerEditMessage',
-          edit: beforeEdit
-        })
-      }
-
+    for (let i = startIndex; i < this.doc.getNumEdits(); i ++) {
       responses.push({
         kind: 'ServerEditMessage',
-        edit: ackEdit
+        edit: this.doc.getEditAt(i)
       })
-
-      if (!OTHelper.isEmpty(afterEdit)) {
-        responses.push({
-          kind: 'ServerEditMessage',
-          edit: afterEdit
-        })
-      }
-
-      return responses
     }
+
+    return responses
   }
 
   handle (clientMessage: ClientEditMessage | ClientRequestHistory)

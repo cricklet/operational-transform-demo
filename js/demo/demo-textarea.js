@@ -13,141 +13,9 @@ import * as U from '../helpers/utils.js'
 import { OTClientModel, OutOfOrderError } from '../models/ot_client_model.js'
 import { OTServerModel } from '../models/ot_server_model.js'
 
+import { SimulatedController } from '../controllers/simulated_controller.js'
+
 import type { ClientEditMessage, ServerEditMessage, ClientRequestHistory } from '../models/message_types.js'
-
-type Lock = { ignoreEvents: boolean }
-
-type Propogator = {
-  send: (packet: ?(ClientEditMessage | ClientRequestHistory)) => void,
-  connect: (client: OTClientModel<*>) => void,
-  disconnect: (client: OTClientModel<*>) => void,
-}
-
-function generatePropogator (
-  server: OTServerModel,
-  delay: { maxDelay: number, minDelay: number }
-): Propogator {
-
-  let clients = []
-
-  let clientBacklogs = {}
-  let serverBacklog = []
-
-  function delayMS() {
-    return Math.random() * (delay.maxDelay - delay.minDelay) + delay.minDelay
-  }
-
-  function serverThink() {
-    let clientMessage
-    if (serverBacklog.length > 0) {
-      clientMessage = serverBacklog.shift()
-    }
-
-    if (clientMessage == null) {
-      return
-    }
-
-    console.log('handling: ', clientMessage)
-
-    let clientUid = clientMessage.sourceUid
-
-    // handle client message
-    let serverMessages = server.handle(clientMessage)
-    for (let serverMessage of serverMessages) {
-      // send responses to the clients
-      for (let client of clients) {
-        clientBacklogs[client.uid].push(serverMessage)
-      }
-    }
-  }
-
-  function clientThink(client: OTClientModel<*>) {
-    let serverMessage
-    if (clientBacklogs[client.uid].length > 0) {
-      serverMessage = clientBacklogs[client.uid].shift()
-    }
-
-    if (serverMessage == null) {
-      return
-    }
-
-    console.log('client', client.uid, 'handling: ', serverMessage)
-
-    try {
-      // Apply the server edit & compute response
-      let clientMessage: ?ClientEditMessage = client.handle(serverMessage)
-      if (clientMessage != null) {
-        serverBacklog.push(clientMessage)
-      }
-
-    } catch (e) {
-      // Our fake network doesn't completely guarantee in-order edits...
-      // If we run into out-of-order requests, reset the history.
-      if (e instanceof OutOfOrderError) {
-        let [historyRequest, editMessage] = client.generateSetupRequests()
-        serverBacklog.push(historyRequest)
-        serverBacklog.push(editMessage)
-      } else {
-        throw e
-      }
-    }
-  }
-
-  // run the server
-  ;(async () => {
-    while (true) {
-      serverThink()
-      await U.asyncSleep(delayMS())
-    }
-  })()
-
-  // run the client
-  function runClient (client: OTClientModel<*>) {
-    ;(async () => {
-      while (true) {
-        if (!U.contains(clients, client)) {
-          break
-        }
-
-        clientThink(client)
-        await U.asyncSleep(delayMS())
-      }
-    })()
-  }
-
-  return {
-    send: (data) => {
-      serverBacklog.push(data)
-    },
-    connect: (client: OTClientModel<*>) => {
-      if (U.contains(clients, client)) {
-        return
-      }
-
-      clientBacklogs[client.uid] = []
-      clients.push(client)
-
-      // start listening to the network
-      runClient(client)
-
-      for (let clientMessage of client.generateSetupRequests()) {
-        serverBacklog.push(clientMessage)
-      }
-    },
-    disconnect: (client: OTClientModel<*>) => {
-      clientBacklogs[client.uid] = []
-      let poppedClient = U.pop(clients, c => c === client)
-      if (poppedClient == null) {
-        throw new Error('wat')
-      }
-    }
-  }
-}
-
-
-function generateLock(): Lock {
-  return { ignoreEvents: false }
-}
 
 function getValuesFromDOMTextbox($text): [string, number, number] {
   return [
@@ -169,7 +37,7 @@ function setupClient(
   $text: any,
   emit: (message: ClientEditMessage | ClientRequestHistory) => void
 ) {
-  let lock = generateLock()
+  let lock = { ignoreEvents: false }
 
   let update = () => {
     // update the dom
@@ -339,7 +207,6 @@ $(document).ready(() => {
 
   // update the dom w/ server state
   server.addChangeListener(() => $serverText.val(server.state()))
-  server.addChangeListener(() => console.log("NEW CHANGE", server.state()))
 
   // the network
   let networkDelay = {
@@ -350,7 +217,10 @@ $(document).ready(() => {
     networkDelay.minDelay = Math.max(0, parseInt($delay.val()) - 500)
     networkDelay.maxDelay = parseInt($delay.val())
   })
-  let propogator = generatePropogator(server, networkDelay)
+
+  let controller = new SimulatedController(networkDelay)
+  controller.connectServer(server)
+  controller.loop()
 
   let $clientPlaceholder = $('#client-placeholder')
 
@@ -361,20 +231,22 @@ $(document).ready(() => {
     clientId ++
 
     let client = new OTClientModel(DocumentApplier)
-    propogator.connect(client)
+    controller.connectClient(client)
 
     $online.change(() => {
       if ($online[0].checked) {
-        propogator.connect(client)
+        controller.connectClient(client)
       } else {
-        propogator.disconnect(client)
+        controller.disconnectClient(client)
       }
     })
 
     let shouldRandomize = { enabled: $randomize[0].checked }
-    $randomize.change(() => { shouldRandomize.enabled = $randomize[0].checked })
+    $randomize.change(() => {
+      shouldRandomize.enabled = $randomize[0].checked
+    })
 
-    setupClient(client, $text, (update) => propogator.send(update))
+    setupClient(client, $text, (update) => controller.send(client, update))
     randomlyAdjustText($text, shouldRandomize, 500)
 
     clients.push(client);
@@ -403,18 +275,22 @@ $(document).ready(() => {
       }
 
       let $checkboxes = $('input[type=checkbox]').not('.randomize-everything')
-      console.log($checkboxes)
       let i = Math.floor(Math.random() * $checkboxes.length) + 1
       $checkboxes.eq(i).click()
     }
   }) ();
 
   $('.all-online').click(() => {
-    $('input[type=checkbox].online').prop('checked', true)
+    $('input[type=checkbox].online').prop('checked', true).change()
   })
 
   $('.all-offline').click(() => {
-    $('input[type=checkbox].online').prop('checked', false)
+    $('input[type=checkbox].online').prop('checked', false).change()
+  })
+
+  $('.no-random').click(() => {
+    $('input[type=checkbox].randomize-everything').prop('checked', false).change()
+    $('input[type=checkbox].randomize').prop('checked', false).change()
   })
 
   let $clientButton = $('#add-client')

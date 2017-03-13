@@ -75,7 +75,7 @@ function generatePropogator (
     },
     connect: (client: OTClientModel<*>) => {
       clients.push(client)
-      let [historyRequest, editMessage] = client.generateSetupRequests()
+      let [historyRequest, editMessage] = client.generateHistoryRequest()
       sendHistoryRequest(client, historyRequest)
       sendEdit(editMessage)
 
